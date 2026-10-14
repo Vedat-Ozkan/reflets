@@ -1,0 +1,340 @@
+{
+ "question": "Research brief (today is 2026-10-14) for \"Reflets\": a free, open-source, locally-run AI composing companion for MuseScore Studio 4. Architecture: the user has two separate apps open, (1) MuseScore Studio 4 and (2) an AI harness (Claude Code CLI primarily; also Claude Desktop, Codex CLI, and if possible the ChatGPT desktop app). A local MCP server (language not yet fixed: Python to import our existing analysis engine directly, or TypeScript with the Python engine as a subprocess) sits between them and talks to a QML plugin inside MuseScore over a local socket. We will write our own plugin and wire protocol from scratch; the existing servers tskovlund/mcp-score and ghchen99/mcp-musescore are to be studied only for the MuseScore plugin-API pitfalls they hit, NOT as best practice. v1 scope: read the open score reliably (with enharmonic note spelling, ties, tuplets, voices, grace notes, dynamics/articulations if available), run rule-based harmony and voice-leading checks locally, and write a proposed musical idea back into MuseScore for the user to audition and approve or discard. The core must be bulletproof in reliability and scale as features are added. Hard constraints: no hosting cost; the AI reasoning comes from the user's own Claude subscription through MCP; so EVERY link must be as efficient as possible: (a) the chat-AI-facing MCP link measured in tokens the model sees (tool descriptions, score reads returned to the model, write commands it must emit), and (b) the server-to-plugin link measured in latency and reliability (batched commands, change notifications or diffs instead of full re-reads).\n\nAnswer these questions with cited, dated, falsifiable claims:\n\n1. MuseScore Studio 4 plugin API (versions 4.4 through the current 4.7.x): exactly what can a QML plugin do? Specifically: api.websocketserver / websocket client availability and version; reading notes with spelled pitch (tpc) and accidentals, ties, tuplets, voices/layers, grace notes, dynamics, articulations, chord symbols, lyrics, staff/part/instrument metadata, transposition; writing notes, rests, tuplets, ties, chord symbols, dynamics, text; startCmd/endCmd undo grouping; adding/removing staves/instruments and parts; mute/solo; opening a file (MusicXML/MSCZ) as a new score from a plugin (readScore / writeScore / newScore); exporting the open unsaved score to MusicXML/MEI from the plugin; detecting score changes (onScoreStateChanged, selection change signals, polling); starting playback or setting playback position; the renamed undo command in 4.7; whether plugin windows must stay open; plugin lifecycle and the \"dockable plugins\" status in MuseScore 4; the command-line interface (mscore -o export, -j batch jobs, --score-meta, --dump-midi, headless/xvfb/offscreen platform plugin) and whether plugins can run from the CLI; known crashes/limitations reported by mcp-score, ghchen99 and the MuseScore forums; roadmap items in MuseScore 4.6/4.7/4.8 that affect plugins (new plugin API, extension system, \"Muse Hub\", any API deprecations).\n\n2. Existing music-notation MCP servers and bridges (tskovlund/mcp-score, ghchen99/mcp-musescore, JordanSucher/musescore-mcp, Dorico Maestro, Ableton MCP, MIDI/DAW MCPs): their wire protocols, message formats, how they handle undo, batching, errors, reconnection, score reading granularity, and what pitfalls and bugs they document. Also whether any uses a compact textual score format rather than JSON-per-note.\n\n3. Token-efficient MCP server design: documented guidance and measurements on MCP tool-description token overhead; compact text encodings for musical scores (e.g. ABC, Humdrum **kern, MEI, MusicXML, custom N1-style note lists, MIDI-like token streams, LilyPond) and their token density for LLM tokenizers; MCP features that reduce round-trips and context (resources, resource templates, structured content/outputSchema, tool annotations, pagination, server-side batching of write commands as a single tool call with a mini-DSL, progress notifications, sampling, elicitation, \"tool search\"/deferred tool loading in Claude Code, MCP Apps / UI); evidence on how Claude Code counts MCP tool tokens and any limits (e.g. tool output truncation, max tool description size, the number of tools before performance degrades). Also whether JSON vs TOON/YAML/CSV saves tokens for structured tool results.\n\n4. Host support for LOCAL stdio MCP servers as of October 2026: Claude Code, Claude Desktop (claude_desktop_config.json), Codex CLI (config.toml mcp_servers), and the ChatGPT desktop app (does it support local/stdio MCP or only remote connectors via developer mode?). Also the Python MCP SDK (mcp / FastMCP) vs TypeScript MCP SDK maturity, and tradeoffs of a Python server importing a Python engine vs a TypeScript server spawning Python.\n\n5. End-to-end testing strategy: how to run MuseScore Studio 4 for automated tests on Linux under WSL2 (AppImage, WSLg, xvfb-run, QT_QPA_PLATFORM=offscreen, whether a QML plugin with a WebSocket server can run headless or in CI; what mcp-score's CI does against MuseScore 4.4/4.6/4.7); how to reach a MuseScore instance running on the Windows host from WSL2 over localhost (mirrored networking mode, localhost forwarding, firewall); how to drive Claude Code non-interactively for e2e tests (claude -p, --mcp-config, --allowedTools, JSON output, cost reporting) and how to test an MCP server end-to-end without a model (MCP Inspector CLI, mcp client scripts, pytest with the mcp client session, recorded/replayed transcripts); ways to verify written music independently (export MusicXML via CLI and diff; render PNG via mscore -o and compare; MIDI export).\n\n6. Feasibility risks: anything that would block the design (e.g. a plugin cannot open a file as a new score, cannot export unsaved edits, cannot detect changes, WebSocket server API removed or changed in 4.7/4.8, AppImage does not run under WSLg), and any licensing issues (MuseScore GPL for plugins? plugin licensing norms, MIT compatibility).\n\nOutput: a cited report that separates confirmed facts from unverified claims, lists MuseScore plugin API capabilities as a capability matrix by version, recommends a wire protocol approach for both links with the evidence, recommends server language with evidence, and gives a concrete e2e test rig recommendation for this WSL2 + Windows setup.",
+ "summary": "The surviving evidence confirms that the Reflets architecture is feasible on the MuseScore side but only in the GUI context: MuseScore Studio 4.4.2 through 4.7.5 (and muse_framework master as of May 2026) ships a stable, deliberately minimal QML WebSocket server API (api.websocketserver with listen/onMessage/send, text frames only, no close, no disconnect callback) that is compiled into official binaries but is absent in the console/--extension CLI context on 4.7 and may be absent from distro builds that leave MUSE_MODULE_NETWORK_WEBSOCKET off. The plugin API exposes readScore/writeScore/newScore in its header, but the implementation and the MuseScore handbook say they are largely non-functional in MuseScore 4, ties cannot be created natively (newElement(TIE)+cursor.add crashes; cmd('tie') toggles), the undo action code changed in 4.7, and cursor input-state mode can cause writes to land on the wrong staff; these must be designed around and tested, not assumed. Token-cost evidence supports the user's instinct: MCP tool definitions can cost tens of thousands of tokens (Anthropic's 58-tool example is ~55K), Claude Code now defers MCP tool schemas behind tool search by default (so a small Reflets server must opt core tools into alwaysLoad), and ABC-style compact notation is roughly 38% of the sequence length of MIDI-event tokenizations, which argues for a compact textual score format and batched write DSL over JSON-per-note. mcp-score demonstrates a working headless e2e rig (AppImage + Xvfb + xdotool + WebSocket ping, matrix 4.4.4/4.6.2/4.7.5) that Reflets can adapt. Several parts of the brief (change detection, WSL2/WSLg specifics, ChatGPT desktop stdio support, Python vs TypeScript SDK tradeoffs, licensing) produced no claims that survived verification and remain open.",
+ "findings": [
+  {
+   "claim": "The plugin-facing WebSocket server API (api.websocketserver) exposes exactly three QML-callable methods, listen(port, onNewConnected), onMessage(clientId, callback) and send(clientId, string), with no close/stop method, no Q_PROPERTY, no signals, and no way for the plugin to observe client disconnection; messages are text-only QString frames (sendTextMessage/textMessageReceived), so any compact binary protocol must be encoded as text. Clients are tracked by integer ids starting at 2001, listen() binds QHostAddress::Any (all interfaces, not loopback) and defaults to port 8084 only when port<0, and calling onMessage twice for the same id double-delivers messages. The companion client API api.websocket has open(conf, onConnected), close(id), onMessage(id, cb), send(id, string), where conf may be a bare port number, a URL string, or an object with url/port/host (default localhost:8084).",
+   "confidence": "high",
+   "sources": [
+    "https://github.com/musescore/muse_framework/blob/master/framework/network/api/websocketserverapi.h",
+    "https://github.com/musescore/MuseScore/commit/272077bebaf5859219d65aa5ab07e5ebd47c1ebd",
+    "https://raw.githubusercontent.com/musescore/MuseScore/v4.7.0/src/framework/network/api/websocketserverapi.h"
+   ],
+   "evidence": "Verifiers read websocketserverapi.h/.cpp and websocketapi.h/.cpp at muse_framework master, the original commit 272077b, and tags v4.4.2, v4.4.4, v4.5.2, v4.6.0, v4.6.5, v4.7.0 and v4.7.5; the API surface is identical at every tag. The disconnected signal is wired only to deleteLater()+map erase and never calls back into JS. Design consequences for Reflets: the MuseScore plugin must be the listener and the MCP server the reconnecting client; liveness must be detected with application-level pings; the protocol must be line/text based (base64 or a textual DSL); the plugin should guard against registering onMessage more than once per client; and the bound-to-all-interfaces default is a local security consideration worth documenting.",
+   "vote": "3-0 (claims 0, 1, 11, 12, 13 merged)"
+  },
+  {
+   "claim": "The WebSocket API landed in MuseScore commit 272077b / muse_framework e6d5de8 ('added websocket api', authored 2024-09-05 by Igor Korsukov, committed 2024-09-10, tagged '[4.4.2]'); the header 404s at v4.4.0/v4.4.1 and exists from v4.4.2 onward through v4.7.5 (released 2026-09-08) and muse_framework master (last touched by rename-only commits in Sep 2025 and May 2026). It is a compile-time option (MUSE_MODULE_NETWORK_WEBSOCKET / MUSESCORE_BUILD_WEBSOCKET) that defaults OFF in the generic build script and CMake options but is switched ON in official Linux, macOS and Windows CI builds; some distro builds (e.g. Arch PKGBUILD 4.7.5) do not set it, while Flathub and Fedora do.",
+   "confidence": "high",
+   "sources": [
+    "https://github.com/musescore/muse_framework/blob/master/framework/network/api/websocketserverapi.h",
+    "https://github.com/musescore/MuseScore/commit/272077bebaf5859219d65aa5ab07e5ebd47c1ebd",
+    "https://github.com/musescore/MuseScore (buildscripts/ci/linux/build.sh, src/framework/cmake/MuseDeclareOptions.cmake, ninja_build.sh at v4.7.5 and main)"
+   ],
+   "evidence": "Raw fetches of the header at each release tag; full git history of the file is three commits (add, copyright rename, move to submodule). CI scripts at v4.4.4, v4.7.5 and main set MUSESCORE_BUILD_WEBSOCKET=ON and install the qtwebsockets aqt module; networkmodule.cpp registers MuseApi.Websocket/WebsocketServer only under #ifdef MUSE_MODULE_NETWORK_WEBSOCKET. The internal registered name changed from 'api.websocketserver' (4.4.4) to 'MuseApi.WebsocketServer' (4.7.5) but the QML-facing property api.websocketserver is unchanged. Consequence: Reflets should require official MuseScore builds >= 4.4.2 and detect a missing api.websocketserver at plugin start with a clear user message. Since 2026-05-07 the framework lives in the musescore/muse_framework submodule, so future API changes must be watched there.",
+   "vote": "3-0 (claims 2, 11, 14 merged)"
+  },
+  {
+   "claim": "In MuseScore Studio 4.7.x, api.websocketserver is exposed only in the GUI plugin context; in the console/--extension (headless CLI, -o/-j conversion) context it is undefined, so an unguarded listen() throws 'TypeError: Cannot call method 'listen' of undefined'. This is a 4.7-era change: appfactory.cpp at v4.4.0 and v4.6.0 added NetworkModule in newConsoleApp, but at v4.7.0 and v4.7.5 addConsoleModules omits it while still adding ExtensionsModule. MuseScore also discards plugin console.log output (no plugin console in MuseScore 4).",
+   "confidence": "high",
+   "sources": [
+    "https://github.com/ghchen99/mcp-musescore/pull/10",
+    "https://github.com/musescore/MuseScore (src/app/appfactory.cpp, src/app/internal/commandlineparser.cpp, src/framework/extensions/api/extapi.cpp at v4.7.5)"
+   ],
+   "evidence": "The originating PR #10 (ivanlyf0712, opened and withdrawn 2026-10-07, unmerged, maintainer ghchen99 commented 'looks good') is a single-author self-report tested on 4.7.5, but both verifiers independently confirmed the mechanism in source: extapi.cpp returns an empty QJSValue (undefined) and logs 'Not allowed api' when the creator is unregistered, and the console module list contains no NetworkModule. Consequence for Reflets: the WebSocket bridge cannot be exercised via `mscore --extension`/-j headless jobs on 4.7; e2e tests must drive the real GUI (under Xvfb or a display) and plugin diagnostics must be sent over the socket or to a file, not console.log. Note: the earlier task-brief claim that the plugin API has a scoreStateChanged change-notification signal was REFUTED 0-3, so change detection remains unverified.",
+   "vote": "3-0 (claims 7, 10 merged)"
+  },
+  {
+   "claim": "The PluginAPI header on the default branch (src/engraving/api/v1/qmlpluginapi.h, 609 lines) declares Q_INVOKABLE readScore(name, noninteractive=false), writeScore(score, name, ext), newScore(name, part, measures), closeScore, cmd(QString), newElement(int), removeElement, fraction/fractionFromTicks, logging methods and newQProcess with no \\since or deprecation tags, but the implementation (qmlpluginapi.cpp) heavily restricts them: readScore's noninteractive=true logs 'not yet implemented' and returns nullptr; writeScore and closeScore return false unless the score is the current score; newScore contains two NOT_IMPLEMENTED markers (path/filename, opening the new score) and a Q_ASSERT(currentScore()==score); newQProcess is NOT_IMPLEMENTED and returns nullptr; openLog/closeLog are just a DEPRECATED macro. The MuseScore handbook (updated 31 Aug 2024) states 'The APIs readScore() and writeScore() are not functional in Mu4 (yet)'.",
+   "confidence": "medium",
+   "sources": [
+    "https://github.com/musescore/MuseScore/blob/master/src/engraving/api/v1/qmlpluginapi.h",
+    "https://github.com/musescore/MuseScore/blob/master/src/engraving/api/v1/qmlpluginapi.cpp",
+    "https://musescore.org/en/node/337468"
+   ],
+   "evidence": "Vote was 2-1 (header existence verified line-by-line; dissent concerned reading header presence as functionality). The verifier confirmed the header and read the companion .cpp and handbook, which together indicate that 'open a MusicXML/MSCZ as a new score from the plugin' and 'export the open unsaved score from the plugin' are NOT safely available via readScore/writeScore in MuseScore 4 and must be prototyped on 4.7.x before the design depends on them. Fallback paths worth testing: cmd()-dispatched UI actions (file-open/export actions), or having the MCP server call the mscore CLI (-o export) on a saved copy, which requires the user to save.",
+   "vote": "2-1"
+  },
+  {
+   "claim": "MuseScore Studio 4.4 (released 2024-08-27) migrated to Qt 6; plugins not updated for Qt 6 (e.g. using QtQuick.Controls 1 or Component.onCompleted title setting) are not listed at all in the Home screen or Plugins menu rather than failing with a user-facing error. GitHub issue #21659 (regression from 4.3, closed 'not planned' 2024-07-01) records that the core developer proposal to display such plugins as 'invalid' was rejected in favour of a documentation-only fix.",
+   "confidence": "medium",
+   "sources": [
+    "https://musescore.org/en/4.4",
+    "https://github.com/musescore/MuseScore/issues/21659",
+    "https://musescore.org/en/node/361412"
+   ],
+   "evidence": "Vote 2-1; the 'silently' qualifier is not in the release-note quote but is supported by the issue thread. The separate 'Run plugin ()' symptom in 4.4 forum threads is a title-syntax issue, not Qt 6 incompatibility. Consequence: the Reflets QML plugin must target Qt 6 / QtQuick.Controls 2 idioms from the start and the e2e rig should assert the plugin actually appears/loads (e.g. the mcp-score approach of waiting for a WebSocket ping) because a malformed plugin produces no error. Errors may still appear in the MuseScore log file (%LOCALAPPDATA%\\MuseScore\\MuseScore4\\logs on Windows).",
+   "vote": "2-1"
+  },
+  {
+   "claim": "In MuseScore Studio 4.7 the undo action code was renamed from 'undo' to 'action://notation/undo'; PluginAPI::cmd() dispatches unmapped strings straight to actionsDispatcher, whose unregistered-code path logs 'not a registered action' and returns, so cmd('undo') is a silent no-op on 4.7. mcp-score's plugin selects the code by mscoreMajorVersion/mscoreMinorVersion (plain 'undo' on 4.4-4.6, 'action://notation/undo' on >=4.7).",
+   "confidence": "high",
+   "sources": [
+    "https://github.com/tskovlund/mcp-score/pull/98",
+    "https://github.com/musescore/MuseScore (src/notation/internal/notationactioncontroller.cpp at v4.4.4/v4.6.2; src/notationscene/internal/notationactioncontroller.cpp and notationuiactions.cpp at v4.7.0/v4.7.5; src/engraving/api/v1/qmlpluginapi.cpp; src/framework/actions/internal/actionsdispatcher.cpp)"
+   ],
+   "evidence": "PR #98 merged 2026-09-25 and tested on 4.4.4/4.6.2/4.7.5; verifier confirmed the constant in source at each tag and that COMPAT_CMD_MAP in PluginAPI::cmd lacks 'undo'. 4.7 also registers a global 'action://undo' that forwards to notation undo when a project is focused. Consequence: Reflets' plugin must branch action codes by version and should treat any cmd() string as a potential silent no-op (verify by read-back), since the dispatcher does not surface errors to QML. This also signals that other action codes may have been namespaced in 4.7 and must be checked per version.",
+   "vote": "3-0"
+  },
+  {
+   "claim": "The MuseScore 4 plugin API has no native way to create ties: Cursor::add's switch (verified at v4.6.5, v4.7.0, v4.7.5) has no TIE case and falls through to undoAddElement, Note.tieBack/tieForward are READ-only Q_PROPERTYs, and newElement(Element.TIE)+cursor.add() crashed MuseScore 4.6.5 silently (null dereference in layout, no crash report) in the author's reproduction and in an independent musescore.org forum report. The only path is cmd('tie')/cmd('chord-tie') over a selection, which TOGGLES (EditTie::cmdToggleTie removes an existing tie) and ties every selected note that has a same-pitch successor.",
+   "confidence": "high",
+   "sources": [
+    "https://github.com/ghchen99/mcp-musescore/pull/9",
+    "https://github.com/musescore/MuseScore (src/engraving/api/v1/cursor.cpp, elements.h, src/engraving/editing/edittie.cpp at v4.6.5/v4.7.0/v4.7.5)",
+    "https://musescore.org/en/node/345877"
+   ],
+   "evidence": "The task brief cited PR #8 but the quoted text is verbatim from PR #9 (ivanlyf0712, opened 2026-10-06, withdrawn 2026-10-07, unmerged); the PR's own addTie command was never run, but the cmd('tie') toggle behaviour was exercised by the author on 4.6.5 and the API facts were verified in source by the reviewer. Consequence for v1 'write a musical idea with ties': the writer must (a) write untied notes, (b) select the exact note pair, (c) read back tie state before issuing the toggle, and (d) read back afterwards; never add a Tie element directly. A separate, weaker version of this claim from PR #10 was refuted 0-3 only because of sourcing, not substance.",
+   "vote": "3-0"
+  },
+  {
+   "claim": "In MuseScore 4.6.5 a plugin Cursor set to INPUT_STATE_SYNC_WITH_SCORE and then assigned staffIdx intermittently writes to the wrong staff (staff-2 target landing on staff 0, chords split across instruments, drift mid-sequence) because that mode makes setStaffIdx/setTrack write into the score's shared live InputState that the GUI can change; INPUT_STATE_INDEPENDENT with an explicit track reportedly fixed it across ~10 runs in a private fork. Additionally, MuseScore caches plugin QML at startup: changed plugin code requires a full MuseScore restart, and a stale instance holding port 8765 keeps serving.",
+   "confidence": "medium",
+   "sources": [
+    "https://github.com/ghchen99/mcp-musescore/pull/7",
+    "https://github.com/ghchen99/mcp-musescore/blob/main/musescore-mcp-websocket.qml",
+    "https://github.com/musescore/MuseScore (src/engraving/api/v1/cursor.h/.cpp at 4.6.5)",
+    "https://musescore.org/en/node/321609"
+   ],
+   "evidence": "Vote 3-0 but verifier confidence medium: the source is a withdrawn, unmerged, single-author PR (task brief cited #8; text is from #7) whose testing happened in a private fork with no reproduction script; the mechanism is consistent with cursor.cpp (SYNC mode returns m_score->inputState()). The restart requirement is independently corroborated by the MuseScore 3 developer handbook and two forum threads. Consequence: Reflets should use INPUT_STATE_INDEPENDENT, set track explicitly, and verify every write by reading back all staves (a target-staff-only read-back can confirm a wrong write); the e2e rig must restart MuseScore after any plugin change and detect stale port holders.",
+   "vote": "3-0"
+  },
+  {
+   "claim": "tskovlund/mcp-score runs real end-to-end integration tests against a live MuseScore 4 QML WebSocket plugin in GitHub Actions: scripts/musescore_harness.py downloads MuseScore from the GitHub releases API (AppImage extracted with --appimage-extract on Linux, MSI via msiexec on Windows, DMG via hdiutil on macOS), seeds config (installs the plugin, writes prefs and a shortcuts.xml binding Ctrl+Shift+F12), launches the GUI with a fixture MusicXML score as a CLI argument under Xvfb on display :87 (1600x1000x24), triggers the plugin via xdotool (PowerShell/osascript elsewhere), and polls ws://localhost:8765 with {command:'ping'} every 2 s for up to 60 s. The matrix is 4.4.4, 4.6.2, 4.7.5 on Linux and 4.7.5 on Windows/macOS, gated by MCP_SCORE_INTEGRATION=1; render tests use xvfb-run with mscore -o.",
+   "confidence": "high",
+   "sources": [
+    "https://github.com/tskovlund/mcp-score/pull/98",
+    "https://github.com/tskovlund/mcp-score/blob/main/scripts/musescore_harness.py",
+    "https://github.com/tskovlund/mcp-score/blob/main/.github/workflows/integration.yml",
+    "https://github.com/tskovlund/mcp-score/issues/108"
+   ],
+   "evidence": "PR merged 2026-09-25 with 10 passing checks; verifier confirmed harness functions, version JSON, and workflow on main. Qualifications: Xvfb is Linux-only (Windows/macOS use the runner desktop); macOS 4.7.5 is flaky (issue #108, open since 2026-09-26: intermittent abort after PDF export and ~1 in 8 GUI launches, mitigated by relaunch-once). This is the strongest available template for Reflets' e2e rig: GUI MuseScore under Xvfb (or WSLg), plugin auto-triggered by a seeded shortcut, readiness detected by a WebSocket ping, independent verification via mscore -o MusicXML/PNG/MIDI export of saved fixtures. The WSL2-specific questions (WSLg vs xvfb-run for the AppImage, reaching a Windows-host MuseScore over localhost with mirrored networking, firewall) produced no surviving claims.",
+   "vote": "3-0"
+  },
+  {
+   "claim": "MCP tool definitions can consume tens of thousands of context tokens before a conversation starts: Anthropic's own example of five MCP servers is 58 tools at ~55K tokens (GitHub 35 tools ~26K, Slack 11 ~21K, Sentry 5 ~3K, Grafana 5 ~3K, Splunk 2 ~2K; Jira alone ~17K), and Anthropic saw 134K tokens of tool definitions internally before optimization. Tool Search with defer_loading cut the 50+-tool example from ~77K to ~8.7K tokens (85%) without breaking prompt caching because deferred tools are excluded from the prompt prefix; Anthropic's guidance is to use it when definitions exceed ~10K tokens or there are 10+ tools, keep the 3-5 most-used tools always loaded, and that it is less useful with fewer than 10 compact tools used every session.",
+   "confidence": "high",
+   "sources": [
+    "https://www.anthropic.com/engineering/advanced-tool-use",
+    "https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool",
+    "https://code.claude.com/docs/en/mcp"
+   ],
+   "evidence": "All three claims verified verbatim against the Nov 24 2025 engineering post and current platform docs (which now list Fable 5.1/Opus 5.5 as supported, so not stale). Qualifications: per-tool cost is tokenizer- and version-dependent (a third-party tiktoken measurement of the current GitHub server is ~168 tokens/tool vs Anthropic's ~740), the 134K figure is an unsourced internal anecdote in a feature-launch post, and the 85% is a vendor single-scenario benchmark. Critically for Reflets' primary host: Claude Code now defers ALL MCP tool schemas behind ToolSearch by default (ENABLE_TOOL_SEARCH; 'auto' uses a 10%-of-context threshold that scales to ~100K on 1M-context models); per-tool `_meta[anthropic/alwaysLoad]: true` (v2.1.285+) or per-server `alwaysLoad: true` in .mcp.json keeps tools resident; upfront tool descriptions are cut at 4,096 chars and deferred ones at 16,384 (v2.1.296+). A deferred tool cannot also carry cache_control. Design implication: Reflets should ship few (<10), compact tools with short descriptions, mark the 3-5 core read/write tools alwaysLoad, and put verbosity into a compact score encoding and a batched write mini-DSL rather than into many tools.",
+   "vote": "3-0 (claims 15, 16, 17 merged)"
+  },
+  {
+   "claim": "Under the LLaMA tokenizer, ABC notation averages 288.21 tokens per song and 5.16 tokens per second of music on a 1,000-song sample, versus 753.41 tokens/song (12.84 tok/s) for REMI MIDI event tokens and 728.60 (12.42 tok/s) for MIDI-like tokens, i.e. ABC is roughly 38% of MIDI-based sequence length (ChatMusician, Yuan et al., arXiv 2402.16153, Findings of ACL 2024).",
+   "confidence": "high",
+   "sources": [
+    "https://arxiv.org/pdf/2402.16153"
+   ],
+   "evidence": "Table 4 and text match the claim exactly; 288.21/753.41 = 38.3%. Qualifications limiting generalization to Reflets: only the ABC row is BPE-tokenized (REMI/MIDI-like counts are event tokens in their own vocabularies), the sample is dominated by short monophonic Irish folk tunes (Irishman dataset), the authors built their model around ABC, and header counting is unspecified. No surviving claim measured token density of Humdrum **kern, MEI, MusicXML, LilyPond or a custom note-list format for Claude's tokenizer, and the two ghchen99 PR #10 measurements claiming ~14x read savings and ~6x write savings for a compact per-bar format were refuted 0-3 (unverifiable, single-author, unmerged). The directional conclusion stands: a compact ABC/kern-like text encoding will be several times denser than JSON-per-note or XML for the chat-AI link, but Reflets should measure its own candidate encoding with Claude's token counter on real polyphonic multi-staff scores.",
+   "vote": "3-0"
+  },
+  {
+   "claim": "Capability matrix by MuseScore Studio version, limited to what survived verification: api.websocketserver / api.websocket: absent 4.4.0-4.4.1; present 4.4.2 through 4.7.5 in official builds (GUI context only on 4.7; console/--extension context had NetworkModule on 4.4/4.6 but not 4.7). cmd('undo'): works 4.4-4.6; must be 'action://notation/undo' on 4.7+. readScore/writeScore/newScore: declared on all versions, documented as not functional in MuseScore 4 (handbook Aug 2024) and partially NOT_IMPLEMENTED in source on master. Tie creation: no API on 4.6.5/4.7.0/4.7.5; cmd('tie') toggle only. Cursor INPUT_STATE_SYNC_WITH_SCORE: unsafe for staff targeting (4.6.5 report). Qt 6 required for plugins from 4.4. Plugin code: cached at startup, restart to reload.",
+   "confidence": "medium",
+   "sources": [
+    "https://github.com/musescore/muse_framework/blob/master/framework/network/api/websocketserverapi.h",
+    "https://github.com/tskovlund/mcp-score/pull/98",
+    "https://github.com/ghchen99/mcp-musescore/pull/7",
+    "https://github.com/ghchen99/mcp-musescore/pull/9",
+    "https://github.com/ghchen99/mcp-musescore/pull/10",
+    "https://github.com/musescore/MuseScore/blob/master/src/engraving/api/v1/qmlpluginapi.h",
+    "https://musescore.org/en/4.4"
+   ],
+   "evidence": "Synthesized from the findings above. Rows the brief asked for but that have NO surviving evidence: reading tpc/accidentals, tuplets, grace notes, dynamics, articulations, chord symbols, lyrics, part/instrument metadata, transposition; writing rests/tuplets/chord symbols/dynamics/text; startCmd/endCmd grouping semantics (the claim that Selection::selectRange is refused inside startCmd/endCmd was refuted 0-3 on sourcing); adding/removing staves/parts; mute/solo; export of unsaved edits; change notification (scoreStateChanged claim refuted 0-3); playback control; dockable plugin status; 4.8 roadmap/extension system/Muse Hub. These must be verified by direct experiments against 4.7.5 (and 4.4.4/4.6.x if supported) rather than assumed.",
+   "vote": "mixed (derived)"
+  }
+ ],
+ "caveats": "Coverage is uneven: the surviving claims answer question 1 (WebSocket API surface, availability, console-context gap, undo rename, ties, cursor staff drift, Qt 6 cutoff), part of question 3 (tool-definition overhead, Claude Code tool search, ABC density) and part of question 5 (mcp-score's Xvfb/xdotool harness). Nothing survived on question 2 beyond pitfalls (no verified description of mcp-score/ghchen99/JordanSucher/Dorico/Ableton wire protocols, undo, batching or reconnection handling, or whether any uses a compact score format), on question 4 (host support for local stdio servers in Claude Desktop, Codex CLI, ChatGPT desktop; Python vs TypeScript MCP SDK maturity), on WSL2/WSLg/mirrored-networking specifics, on Claude Code non-interactive driving (claude -p, --mcp-config, cost reporting), or on question 6 licensing (GPL vs MIT for plugins). Six claims were refuted 0-3, notably the scoreStateChanged change-notification signal and the compact-format token measurements, so change detection and the exact token savings of a compact encoding are currently UNVERIFIED. Several high-vote claims rest on withdrawn, unmerged single-author PRs in ghchen99/mcp-musescore (PRs #7, #9, #10, all 2026-10-06/07) whose source URLs in the brief were mislabelled as #8; verifiers independently confirmed their mechanisms in MuseScore source, but the runtime reproductions (4.6.5 crash, staff drift over ~10 runs) are not independently reproduced. Time sensitivity: all MuseScore facts are current as of 4.7.5 (2026-09-08) and muse_framework master (May 2026); the framework moved to a submodule on 2026-05-07 and MuseScore 4.8 was not examined. Token-overhead figures are Anthropic vendor measurements from Nov 2025 and Claude Code behaviour (default tool-search deferral, alwaysLoad, description truncation) is version-dependent (v2.1.285+/v2.1.296+). The server-language and wire-protocol recommendations the brief asked for can only be partially evidenced here: the text-only, no-close, no-disconnect-signal WebSocket API strongly favours a newline-delimited textual DSL with application-level ping/ack and client-side reconnection; the token evidence favours few compact tools plus alwaysLoad and a compact score encoding; nothing in the surviving evidence decides Python vs TypeScript.",
+ "openQuestions": [
+  "How can a MuseScore 4.7 QML plugin detect score changes without a verified scoreStateChanged signal: does the signal exist at runtime on 4.7.5, or must the plugin poll (and at what cost), given that the only built-in hook claim was refuted?",
+  "Can a plugin on 4.7.5 actually open a MusicXML/MSCZ file as a new tab (readScore) or export the current unsaved score (writeScore), given the header declares them but the .cpp and handbook say they are not functional; and if not, do cmd()-dispatched file-open/export actions work from QML?",
+  "Does the MuseScore AppImage run under WSLg or xvfb-run on this WSL2 host, and can an MCP server in WSL2 reach a plugin's WebSocket listener in MuseScore on the Windows host over localhost (mirrored networking, Windows firewall), given the API binds QHostAddress::Any?",
+  "What are the measured Claude-tokenizer densities of candidate compact encodings (ABC, **kern, custom note list) on real polyphonic multi-staff scores versus JSON-per-note, and does Claude Code's 4,096-char upfront description cut constrain a write-DSL tool description?",
+  "Which hosts support local stdio MCP as of Oct 2026 (ChatGPT desktop in particular), and what are the maturity tradeoffs of the Python MCP SDK/FastMCP importing the analysis engine versus a TypeScript server spawning Python?"
+ ],
+ "refuted": [
+  {
+   "claim": "The MuseScore 4 QML PluginAPI (src/engraving/api/v1/qmlpluginapi.h on the default 'main' branch, 609 lines, last touched by commit 4fa4e618 on 2026-05-04) declares a scoreStateChanged signal fired after each user or plugin action, carrying the fields selectionChanged, excerptsChanged, instrumentsChanged, startLayoutTick, endLayoutTick and undoRedo; it is still marked experimental and dates from MuseScore 3.3. This is the only built-in change-notification hook in the class, so a plugin can detect score changes without polling, but the API may change.",
+   "vote": "0-3",
+   "source": "https://github.com/musescore/MuseScore/blob/master/src/engraving/api/v1/qmlpluginapi.h"
+  },
+  {
+   "claim": "The required plugin changes for the Qt 6 migration are documented in MuseScore GitHub issue #21659, which is the authoritative reference for what a 4.4+ compatible QML plugin must look like.",
+   "vote": "0-3",
+   "source": "https://musescore.org/en/4.4"
+  },
+  {
+   "claim": "A full element-dump read of a 117-measure, 3-staff score via ghchen99/mcp-musescore's getScore returns ~134 KB (~33,000 tokens), whereas a compact one-line-per-bar-per-staff passage format (e.g. 'Db5+F5+Ab5/q') reads the same bars in ~9.4 KB (~2,300 tokens), roughly a 14x token reduction.",
+   "vote": "0-3",
+   "source": "https://github.com/ghchen99/mcp-musescore/pull/10"
+  },
+  {
+   "claim": "Batching a phrase write into a single tool call with bars separated by '|' costs 529 characters versus 3,078 characters when issued as 50 separate write_passage calls for the same music.",
+   "vote": "0-3",
+   "source": "https://github.com/ghchen99/mcp-musescore/pull/10"
+  },
+  {
+   "claim": "The MuseScore 4 QML plugin API cannot construct a Tie element; a free-standing newElement(Element.TIE) reportedly crashes MuseScore, so the PR refuses tie writes.",
+   "vote": "0-3",
+   "source": "https://github.com/ghchen99/mcp-musescore/pull/10"
+  },
+  {
+   "claim": "In MuseScore 4.6.5, calling the plugin API's selection functions (Selection::selectRange) inside a startCmd()/endCmd() undo block is silently refused: selectRange returns false, nothing is selected, no error is raised, and the plugin's wrapper still reported success; the fix is to apply the selection before opening the undo command (PR #8, Oct 6-7 2026, closed unmerged, author states this exact branch was not run but the change was verified in a fork against 4.6.5).",
+   "vote": "0-3",
+   "source": "https://github.com/ghchen99/mcp-musescore/pull/8"
+  }
+ ],
+ "unverified": [],
+ "sources": [
+  {
+   "url": "https://github.com/musescore/muse_framework/blob/master/framework/network/api/websocketserverapi.h",
+   "quality": "primary",
+   "angle": "MuseScore 4 plugin API capabilities and version changes",
+   "claimCount": 5
+  },
+  {
+   "url": "https://github.com/musescore/MuseScore/blob/master/src/engraving/api/v1/qmlpluginapi.h",
+   "quality": "primary",
+   "angle": "MuseScore 4 plugin API capabilities and version changes",
+   "claimCount": 5
+  },
+  {
+   "url": "https://musescore.org/en/4.4",
+   "quality": "primary",
+   "angle": "MuseScore 4 plugin API capabilities and version changes",
+   "claimCount": 5
+  },
+  {
+   "url": "https://github.com/tskovlund/mcp-score/pull/98",
+   "quality": "primary",
+   "angle": "Existing MuseScore/notation MCP bridges and their pitfalls",
+   "claimCount": 5
+  },
+  {
+   "url": "https://github.com/ghchen99/mcp-musescore/pull/10",
+   "quality": "primary",
+   "angle": "Existing MuseScore/notation MCP bridges and their pitfalls",
+   "claimCount": 5
+  },
+  {
+   "url": "https://github.com/ghchen99/mcp-musescore/pull/8",
+   "quality": "primary",
+   "angle": "Existing MuseScore/notation MCP bridges and their pitfalls",
+   "claimCount": 5
+  },
+  {
+   "url": "https://github.com/musescore/MuseScore/commit/272077bebaf5859219d65aa5ab07e5ebd47c1ebd",
+   "quality": "primary",
+   "angle": "Existing MuseScore/notation MCP bridges and their pitfalls",
+   "claimCount": 5
+  },
+  {
+   "url": "https://www.anthropic.com/engineering/advanced-tool-use",
+   "quality": "primary",
+   "angle": "Token-efficient MCP design and compact score encodings",
+   "claimCount": 5
+  },
+  {
+   "url": "https://arxiv.org/pdf/2402.16153",
+   "quality": "primary",
+   "angle": "Token-efficient MCP design and compact score encodings",
+   "claimCount": 5
+  },
+  {
+   "url": "https://toonformat.dev/guide/benchmarks",
+   "quality": "primary",
+   "angle": "Token-efficient MCP design and compact score encodings",
+   "claimCount": 5
+  },
+  {
+   "url": "https://proceedings.iclr.cc/paper_files/paper/2025/file/73f6f8897896f7bda86ea7d1ebc1dc4f-Paper-Conference.pdf",
+   "quality": "primary",
+   "angle": "Token-efficient MCP design and compact score encodings",
+   "claimCount": 5
+  },
+  {
+   "url": "https://policylayer.com/token-cost",
+   "quality": "secondary",
+   "angle": "Token-efficient MCP design and compact score encodings",
+   "claimCount": 5
+  },
+  {
+   "url": "https://developers.figma.com/docs/figma-mcp-server/mcp-clients-issues",
+   "quality": "secondary",
+   "angle": "Token-efficient MCP design and compact score encodings",
+   "claimCount": 4
+  },
+  {
+   "url": "https://learn.chatgpt.com/docs/extend/mcp?surface=cli",
+   "quality": "primary",
+   "angle": "Local stdio MCP host support and SDK maturity (Oct 2026)",
+   "claimCount": 5
+  },
+  {
+   "url": "https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt",
+   "quality": "primary",
+   "angle": "Local stdio MCP host support and SDK maturity (Oct 2026)",
+   "claimCount": 5
+  },
+  {
+   "url": "https://modelcontextprotocol.io/docs/2026-07-28/develop/connect-local-servers",
+   "quality": "primary",
+   "angle": "Local stdio MCP host support and SDK maturity (Oct 2026)",
+   "claimCount": 5
+  },
+  {
+   "url": "https://code.claude.com/docs/en/mcp",
+   "quality": "primary",
+   "angle": "Local stdio MCP host support and SDK maturity (Oct 2026)",
+   "claimCount": 5
+  },
+  {
+   "url": "https://github.com/modelcontextprotocol/python-sdk/releases",
+   "quality": "primary",
+   "angle": "Local stdio MCP host support and SDK maturity (Oct 2026)",
+   "claimCount": 5
+  },
+  {
+   "url": "https://blog.modelcontextprotocol.io/posts/sdk-betas-2026-07-28/",
+   "quality": "primary",
+   "angle": "Local stdio MCP host support and SDK maturity (Oct 2026)",
+   "claimCount": 5
+  },
+  {
+   "url": "https://github.com/tskovlund/mcp-score/blob/main/scripts/musescore_harness.py",
+   "quality": "primary",
+   "angle": "Headless MuseScore testing under WSL2 and non-interactive Claude Code e2e",
+   "claimCount": 5
+  },
+  {
+   "url": "https://github.com/tskovlund/mcp-score/blob/main/.github/workflows/integration.yml",
+   "quality": "primary",
+   "angle": "Headless MuseScore testing under WSL2 and non-interactive Claude Code e2e",
+   "claimCount": 5
+  },
+  {
+   "url": "https://github.com/tskovlund/mcp-score/blob/main/docs/musescore-plugin.md",
+   "quality": "primary",
+   "angle": "Headless MuseScore testing under WSL2 and non-interactive Claude Code e2e",
+   "claimCount": 5
+  },
+  {
+   "url": "https://code.claude.com/docs/en/cli-reference",
+   "quality": "primary",
+   "angle": "Headless MuseScore testing under WSL2 and non-interactive Claude Code e2e",
+   "claimCount": 5
+  },
+  {
+   "url": "https://learn.microsoft.com/en-us/windows/wsl/networking",
+   "quality": "primary",
+   "angle": "Headless MuseScore testing under WSL2 and non-interactive Claude Code e2e",
+   "claimCount": 5
+  }
+ ],
+ "stats": {
+  "angles": 5,
+  "sourcesFetched": 24,
+  "claimsExtracted": 119,
+  "claimsVerified": 25,
+  "confirmed": 19,
+  "killed": 6,
+  "unverified": 0,
+  "afterSynthesis": 12,
+  "urlDupes": 2,
+  "budgetDropped": 4,
+  "agentCalls": 106
+ }
+}
