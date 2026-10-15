@@ -14,6 +14,7 @@ Every design choice cites a line in `research/`. Owner decisions cite `docs/plan
 | `engine:N` | `research/sheet-music-engine-surface.md`, line N (the existing analysis engine in `sheet-music-plugin`) |
 | `deep:N` | `research/deep-research-2026-10-14.json`, line N (deep-research workflow, 3-vote verified claims) |
 | `plan:N` | `docs/plan-2026-10-14.md`, line N |
+| `src:N` | `research/musescore-source-reads-2026-10-15.md`, line N (direct reads of MuseScore source at tags 4.4.4, 4.6.2 and 4.7.5, and of the engine at commit 02c13ec, done 2026-10-15) |
 | `notes:N` | `notes.md`, line N |
 
 Marks: **[verified]** read in MuseScore 4.7.5 source or a primary document. **[reported]** a third-party reproduction that was not independently re-run (`deep:89`, `deep:77`). **[spike]** must be tried on a real MuseScore before code depends on it.
@@ -155,7 +156,7 @@ The plugin emits one line per API object it visits. Field order is fixed; unknow
 T <title>                                      metaTag("workTitle")           api:36
 P <partIdx> <startTrack> <endTrack> <instrumentId> <longName>                 api:70
 S <staffIdx> <partIdx> <clefType@0> <lines>                                   api:69
-M <no> <noOffset> <tick> <ticks> <actN>/<actD> <nomN>/<nomD>                  api:66
+M <no> <irregular> <tick> <ticks> <actN>/<actD> <nomN>/<nomD>                api:66, src:85
 K <tick> <staffIdx> <key>                      Staff.key(frac) at bar start   api:69
 C <tick> <track> <z>/<n> [T<a>:<b>] [G<noteType>] [!<artic>,..] <note>[,<note>..]
 R <tick> <track> <z>/<n> [T<a>:<b>]
@@ -167,7 +168,7 @@ H <no> <hash>
 - `<z>/<n>` is `DurationElement.duration` as numerator and denominator (`api:61`); `T<a>:<b>` is `Tuplet.actualNotes:normalNotes` (`api:64`, there is no ratio property). `G<noteType>` marks a grace note by `Note.noteType` (`api:60`); grace chords come from `Chord.graceNotes` (`api:63`) and are emitted before their parent chord with the parent's tick.
 - `!<artic>` lists `Chord.articulations` by name (`api:63`). Carried in the raw format for later use; not in N1x v1 (4.2).
 - `A` kinds: `dyn` (`dynamicType`), `harm` (`harmonyType` plus `text`), `text` (staff text), `tempo` (`tempo`, `text`), all from `Segment.annotations` as generic items with those properties (`api:59`, `api:65`), typed by `ScoreElement.name` (`api:58`). Lyrics (`ChordRest.lyrics`, `api:62`) are not emitted in v1.
-- `M` carries both `no` and `noOffset` (`api:66`) because the number the user sees on screen is derived from them. **[spike]** confirm the display formula on 4.7.5 and 4.4.3 so the server's bar numbers match what the user reads (section 4.5).
+- `M` carries `no` and `irregular` (`api:66`). The on-screen number is `no + 1`, `noOffset` is already folded into `no`, and an irregular bar does not advance the count, so a pickup shares its `no` with the bar after it and the server labels it bar 0 (`src:85-86`, `src:90`). Confirmed against the screen in spike 5.
 - Ticks are integers (`Segment.tick`, `api:65`); the server converts to quarter-note offsets with the `division` constant (`api:21`), which is sent once in `info`.
 - Transposing instruments: the server derives spelled sounding pitch from `pitch` and `tpc1` (concert), matching the engine, which analyses at sounding pitch (`engine:11`); `tpc2` is kept so a write-back can set both.
 
@@ -175,15 +176,19 @@ H <no> <hash>
 
 ### 3.8 Write body: ops
 
+Writes are sequential per voice and bar, in note-entry order, because the cursor only lands reliably where its track already has content and advances by itself after each entry (`src:35`, `src:43-44`, `src:56`).
+
 ```
-n <track> <tick> <z>/<n> <pitch> <tpc1> <tpc2> [+]     note; "+" adds to the chord at that cell
-r <track> <tick> <z>/<n>                               rest
-t <track> <tick> <a>:<b> <z>/<n>                       tuplet of a:b over total duration z/n
-a <track> <tick> <kind> <text>                         dyn | harm | text
-~ <track> <tick> <pitch>                               tie the note at (track, tick, pitch) forward
+v <track> <barTick>            start a voice pass: land at the bar in voice 1 of the staff, then switch to <track>
+d <z>/<n>                      duration for the entries that follow
+n <note>[,<note>..]            chord at the cursor, <note> = <pitch>:<tpc1>:<tpc2>; advances the cursor
+r                              rest at the cursor; advances
+t <a>:<b> <z>/<n>              tuplet of a:b over total duration z/n, followed by its n and r entries
+a <track> <tick> <kind> <text> dyn | harm | text, after all voice passes
+~ <track> <tick> <pitch>       tie the note at (track, tick, pitch) forward, last
 ```
 
-Execution order inside one `write`: `t`, `n`, `r` in tick order per track; then `a`; then `~` last, because a tie needs both notes to exist (6.5). The server compiles N1x into this list; the plugin never parses music, only ops.
+Execution order inside one `write`: the `v` passes in track order, each a run of `d`, `t`, `n`, `r` lines that must fill the bar exactly (`src:58`); then a spelling pass that revisits each written chord by tick to set `tpc1` and `tpc2` (`src:59`); then `a`; then `~` last, because a tie needs both notes to exist (6.5). The server compiles N1x into this list; the plugin never parses music, only ops.
 
 ### 3.9 Error codes
 
@@ -205,7 +210,7 @@ N1 drops rests, part identity, clefs, key changes, slurs, dynamics, articulation
 
 | Extension | Why | Source in Protocol A |
 |---|---|---|
-| **Rests** as explicit duration tokens, decoded to rest events | N1's `r` gap drops the rest on decode and trailing rests vanish (`engine:68`); the write path must place rests (`api:49` `addRest`) and the critic must see silence | `R` lines |
+| **Rests** decoded to rest events | N1 already writes `r` tokens, but its decoder drops them and trailing silence is never written (`src:95-97`, `engine:68`). The N1x decoder creates rest events (`Event.pitch` is `None` for a rest, `src:98`) and treats silence between the last token and `len` as rest, so the write path can place them (`api:49` `addRest`) | `R` lines |
 | **Part identity**: header lines `P<n> <name> staves=<a>-<b>` | N1 numbers staves across the whole score (`engine:69`); the model must say "the cello", and the server maps staff to `Part.startTrack..endTrack` (`api:70`) | `P`, `S` lines |
 | **Dynamics**: `!<mark>` token at an onset in a staff line | `dynamicType` is readable and writable (`api:59`); the assistant and critic modes need them (`notes:86`) | `A dyn` lines |
 | **Chord symbols**: `"<text>"` token at an onset | `harmonyType` and `text` are readable (`api:59`); harmonisation ideas are expressed as chord symbols first (`notes:107`, `notes:109-113`) | `A harm` lines |
@@ -216,16 +221,15 @@ Rules for N1x:
 
 - It lives next to `notes.py` in the engine, stdlib-only (`engine:17`), with a round-trip test in the style of `tests/test_notes.py` (`engine:75`).
 - `decode` returns a `ScoreIndex` via `from_measures` (`engine:8`, `engine:48`) with rest events added, so `part_writing.check`, `draft.build`, `harmony` and `reduce.as_text` run on it unchanged (`engine:50-55`).
-- Illustrative fragment. The surrounding layout is N1's; only the marked tokens are new, and the final spellings are fixed against `notes.py` during implementation:
+- Illustrative fragment. The header tag is `N1x` because the N1 decoder requires `N1 ` (`src:97`) and plain N1 must stay valid for its existing callers (`src:100`). The `P` lines, `!mf` and `"G7"` are the new tokens; everything else is N1's grammar (`src:94-95`):
 
 ```
-P1 "Violin I" staves=1          NEW
-P2 "Violoncello" staves=2       NEW
-...N1 bar header: bar number, len=, meter, ks=...
-...N1 staff.voice line with pitches, + chords, ~ ties, g grace...
-r4                              NEW  a rest of 4 div units
-!mf                             NEW  dynamic at the next onset
-"G7"                            NEW  chord symbol at the next onset
+N1x div=48 ts=4/4 ks=1s
+P1 "Violin I" staves=1
+P2 "Violoncello" staves=2
+m1 len=192
+1.1: !mf "G7" 48 G4 B4 24 D5 F5 48 G5~
+2.1: !p 96 G2 48 r D3
 ```
 
 ### 4.3 One grammar for reading and writing
@@ -323,6 +327,7 @@ Against 55,000 tokens for a 58-tool setup (`deep:105`). Measured during implemen
 - The target bar range exists. Bars beyond the end can only be appended, never inserted (`api:33`, `api:132`); `propose` appends when the idea runs past the last bar and says so in its result.
 - The target tracks exist in `info` (`api:70`).
 - The idea's durations fill each bar exactly under the bar's actual meter (`api:66`), with tuplets that do not cross a bar line (`api:49` rejects cross-measure tuplets).
+- Every tick the plugin will rewind to lies inside the score: `rewindToTick` has no null check on the segment it finds (`src:34`, `src:61`).
 
 ### 6.2 Snapshot
 
@@ -340,19 +345,20 @@ score.endCmd(true)    on any failure     api:31  (rollback)
 
 `startCmd` locks the undo stack so every change, including those made through `cmd()`, commits as a single command, and `endCmd(true)` rolls back (`api:31`). This is what makes "discard = one Ctrl+Z" true for layout B (`notes:146`).
 
+Commands dispatched inside the lock that open their own `startCmd`/`endCmd`, such as the tie toggle, add nothing at that level because both calls return at once while the stack is locked (`src:65`), so the whole write stays one macro. `endCmd` also forces a rollback when an engraving error is set (`src:67`).
+
 ### 6.4 Placing notes and rests
 
-Per `n` op:
+Per `v` pass (one voice, one bar):
 
-1. `cursor = score.newCursor()` (`api:39`). Leave `inputStateMode` at `INPUT_STATE_INDEPENDENT`, the default (`api:46`). `INPUT_STATE_SYNC_WITH_SCORE` plus `staffIdx` was reported to write to the wrong staff because it shares the GUI's live input state (`deep:81`, **[reported]**); the research's recommendation is independent mode with an explicit track (`deep:89`).
-2. `cursor.track = <track>` (`api:47`), then `cursor.rewindToTick(<tick>)` (`api:45`). Every op rewinds explicitly, so the design does not depend on how far `addNote` advances the cursor.
-3. `cursor.setDuration(z, n)` (`api:49`; an invalid duration silently becomes a quarter, so the server validates first).
-4. `cursor.addNote(pitch, addToChord)` (`api:49`).
-5. Spelling: take `cursor.element` (`api:47`), its `notes` (`api:63`), find the note with this pitch, set `tpc1` and `tpc2` (`api:60`, writable). **[spike]** confirm `cursor.element` is the chord just written on 4.4.3 and 4.7.5; the fallback is `segment.elementAt(track)` (`api:65`).
+1. `cursor = score.newCursor()` (`api:39`). Leave `inputStateMode` at `INPUT_STATE_INDEPENDENT`, the default (`api:46`); in that mode the cursor has its own input state (`src:37`). `INPUT_STATE_SYNC_WITH_SCORE` plus `staffIdx` was reported to write to the wrong staff because it shares the GUI's live input state (`deep:81`, **[reported]**); the research's recommendation is independent mode with an explicit track (`deep:89`).
+2. Land: `cursor.track = <staff> * 4` (voice 1 of the target staff), then `cursor.rewindToTick(<barTick>)` (`api:45`). `rewindToTick` moves on to the first segment that has an element in the cursor's track (`src:34-35`), and voice 1 always has a chord or rest at the bar's first segment, so the cursor is now on the bar start. Then `cursor.track = <track>`, which changes the track without moving the segment (`src:36`); if that voice is empty, note entry fills it with rests (`src:51`, `src:57`).
+3. For each entry: `cursor.setDuration(z, n)` on a `d` line (`api:49`; an invalid duration silently becomes a quarter, `src:33`, so the server validates first); `cursor.addNote(pitch)` for the first note of an `n` line and `cursor.addNote(pitch, true)` for each further chord member, which joins the chord just written (`src:42`, `src:60`); `cursor.addRest()` for `r` (`api:49`). After each `addNote` or `addRest` the cursor's own input state advances to the next input position (`src:43-44`), so the next entry lands after it.
+4. `t`: `cursor.addTuplet(ratio, duration)` (`api:49`) at the current position, then its `n` and `r` entries; cross-measure tuplets are rejected (`api:49`).
 
-Per `r` op: steps 1 to 3, then `cursor.addRest()` (`api:49`). Per `t` op: steps 1 to 2, then `cursor.addTuplet(ratio, duration)` (`api:49`), then the `n`/`r` ops inside it.
+Spelling pass, after all voice passes: for each chord written, find its segment by tick (`findSegmentAtTick`, `api:33`), take `elementAt(track)` (`api:65`), its `notes` (`api:63`), and set `tpc1` and `tpc2` (`api:60`, writable). `cursor.element` cannot be used for this: after `addNote` the cursor already sits on the next position (`src:43`, `src:59`).
 
-Existing content: whether `addNote` overwrites the chord or rest already in that voice at that tick is not in the research. **[spike]**. Until known, `propose` requires `replace=True` when the pre-snapshot shows anything but rests in the target cells, and the read-back (6.6) catches whichever behaviour occurs.
+Existing content: `addNote` overwrites. Note entry carves a gap of the requested duration out of whatever the voice holds and never inserts time (`src:48`). A duration longer than the remaining bar spills into the next bar with an automatic tie (`src:50`), which is why 6.1 requires exact bar fills. Policy: `propose` requires `replace=True` when the pre-snapshot shows anything but rests in the target cells; the read-back (6.6) checks the result either way.
 
 Grace notes are not written in v1: there is no cursor entry for them in the API matrix (`api:49`), and `cursor.add` of a NOTE only attaches to an existing chord (`api:50`).
 
@@ -360,10 +366,11 @@ Grace notes are not written in v1: there is no cursor entry for them in the API 
 
 There is no API to create a tie: `Cursor::add` has no TIE case, `tieBack`/`tieForward` are read-only, and `newElement(TIE)` plus `cursor.add` crashed MuseScore 4.6.5 (`deep:70`). The only path is `cmd("tie")` over a selection, which toggles (`deep:70`). Procedure per `~` op, after all notes exist:
 
-1. Find the note at (track, tick, pitch) from a fresh read; `selection.select(note)` (`api:80`; the call is refused if the selection is locked or the element type cannot be recorded, both reported as `write-failed`).
-2. Read `note.tieForward` (`api:60`). If already set, skip the command (toggle would remove it, `deep:70`).
-3. `cmd(TIE)` with the version's action code (6.8) (`api:17`).
-4. Re-read `tieForward`. If still null, `verify-failed` → rollback. Direct Tie creation is never attempted (`deep:77`).
+1. The server emits `~` only when it has written both the note and a same-pitch successor in the same part and staff, since that is what `searchTieNote` looks for (`src:76`), and because 4.7.5 falls back to adding a brand-new tied note when a lone selected note has no successor (`src:74`).
+2. Find the note at (track, tick, pitch) from a fresh read; `selection.select(note)` (`api:80`; the call is refused if the selection is locked or the element type cannot be recorded, both reported as `write-failed`). A single selected note gives the tie command exactly that note (`src:72`).
+3. Read `note.tieForward` (`api:60`). If already set, skip the command: the toggle would remove it (`deep:70`, `src:73`).
+4. `cmd("tie")` (`api:17`); the code is `tie` on 4.4.4, 4.6.2 and 4.7.5 (`src:15`). The command's own `startCmd`/`endCmd` are no-ops under the plugin's lock (`src:65`), so the tie stays inside the one undo step; the same core logic exists on 4.4.4 (`src:75`).
+5. Re-read `tieForward`. If still null, `verify-failed` → rollback. Direct Tie creation is never attempted (`deep:77`).
 
 Selection inside an active command: `select(e)` has no undo-stack guard, only the lock and type checks (`api:80`, `api:84`); the claim that `selectRange` is refused inside `startCmd` was refuted 0-3 (`deep:175`). `selectRange` inside a command is applied deferred by tick (`api:81`), which is why ties use `select(note)`, not `selectRange`.
 
@@ -383,10 +390,14 @@ The table lives in the plugin, selected by `mscoreVersion` (`api:21`) at hello, 
 
 | Action | 40402 to 40699 | 40700 and up | Source |
 |---|---|---|---|
-| undo | `undo` | `action://notation/undo` | renamed in 4.7; plain `undo` is a silent no-op there (`deep:60`); mcp-score branches by version (`deep:60`) |
-| tie | `tie` | `tie` **[spike]** | other codes may have been namespaced in 4.7 (`deep:66`); verify by read-back |
+| undo | `undo` | `action://notation/undo` | renamed in 4.7; plain `undo` is a silent no-op there (`deep:60`, `src:13`); mcp-score branches by version (`deep:60`) |
+| redo | `redo` | `action://notation/redo` | same rename (`src:14`) |
+| tie | `tie` | `tie` | unchanged at all three tags (`src:15`, `src:23`) |
+| append-measures | `append-measures` | same | unchanged (`src:18`); used by 6.11 if `appendMeasures` ever needs the action path |
+| file-export | `file-export` | same | unchanged (`src:20`); fallback route if `writeScore` fails (7.3) |
+| play, stop | `play`, `stop` | same | unchanged (`src:19`); not used by the core, reserved for the playback-check idea |
 
-Every `cmd()` is followed by a read-back (6.6), so a wrong code fails loudly instead of silently.
+Only undo and redo need the branch; everything else the core dispatches is stable from 4.4.4 to 4.7.5 (`src:25`). Every `cmd()` is still followed by a read-back (6.6), so a wrong code fails loudly instead of silently.
 
 ### 6.9 Discard
 
@@ -455,10 +466,10 @@ The full strategy is pending in the plan (`plan:121`). The design already assume
 These are the **[spike]** marks above. Each is a short experiment on the owner's Windows 4.4.3 and on 4.7.5 in the rig. They replace the first-spike list in the notes (`notes:179-185`, `notes:187`).
 
 1. `writeScore(curScore, tmp, "musicxml")` with unsaved edits, and `readScore(tmp)` opening a new tab, on 4.4.3 and 4.7.5 (`api:13-14` versus `deep:38`). Decides section 7.2 and `render`. Also whether any dialog appears (`api:14`).
-2. `cursor.addNote` on a cell that already holds a note: overwrite or insert; and whether `cursor.element` is the new chord so `tpc1`/`tpc2` can be set (`api:47`, `api:60`). Decides 6.4.
-3. `cmd("tie")` after `selection.select(note)` inside `startCmd`, on both versions, and whether 4.7 needs a namespaced code (`deep:66`, `deep:70`).
+2. The write procedure of 6.4 on a real score: landing through voice 1 then `track`, an empty voice 2, an occupied bar, chord members through `addNote(p, true)`, and the spelling pass by tick. The source says it works (`src:56-60`); confirm on 4.4.3 and 4.7.5.
+3. `cmd("tie")` after `selection.select(note)` inside `startCmd`, on both versions. The code is `tie` on all three tags and the toggle logic is read (`src:15`, `src:72-76`); confirm the tie shows in the read-back.
 4. `fp` walk time on a 300-bar orchestral score (`api:126`). Decides whether on-demand fingerprinting is enough or needs a bar-range argument by default.
-5. Bar numbering from `no`, `noOffset`, `irregular` against the screen, with a pickup (`api:66`).
+5. Bar numbers: the plugin's `no` and `irregular` against the screen, with a pickup (`src:85-90`).
 6. The AppImage GUI under WSLg (`rig:5-9`) and the WSL to Windows socket with `nc -vz 127.0.0.1 8731` (`rig:30`).
 7. Annotation `text` set after `cursor.add`, and visibility in `Segment.annotations` before `endCmd` (`notes:169`, `api:65`).
 8. `api.websocketserver` present in the owner's 4.4.3 Windows build (`deep:17`).
