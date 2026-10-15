@@ -1,0 +1,176 @@
+score	bars	notes	ks	chars	claude N1	claude -flat	claude key-rel	gpt N1	gpt -flat	gpt key-rel
+cadential_64.musicxml	4	19	0	169	159	159	159	n/a	n/a	n/a
+export_placement.musicxml	1	5	1s	68	64	64	64	n/a	n/a	n/a
+part_writing_motion.musicxml	24	60	0	851	786	786	786	n/a	n/a	n/a
+part_writing_tendency.musicxml	6	16	0	234	220	220	220	n/a	n/a	n/a
+triplet_brahms_fruhlingstrost.musicxml	40	1350	3s	7105	6650	6644	6454	n/a	n/a	n/a
+[Warning] MusicXML import: There are 1 hairpins left open
+[Warning] MusicXML import: slur 1 from measure 37 could not be ended
+[Warning] MusicXML import: slur 1 from measure 26 could not be ended
+[Warning] MusicXML import: slur 2 from measure 26 could not be ended
+[Warning] MusicXML import: slur 3 from measure 27 could not be ended
+[Warning] MusicXML import: slur 4 from measure 28 could not be ended
+[Warning] MusicXML import: slur 5 from measure 30 could not be ended
+[Warning] MusicXML import: slur 6 from measure 30 could not be ended
+triplet_hensel.musicxml	39	719	1f	4138	3941	3844	3809	n/a	n/a	n/a
+[Warning] MusicXML import: There are 3 hairpins left open
+[Warning] MusicXML import: There are 2 hairpins left open
+[Warning] MusicXML import: slur ending for element 'u1sufhab' could not be matched to a start element
+[Warning] MusicXML import: slur ending for element 'hxkmwbr' could not be matched to a start element
+triplet_mayer.musicxml	28	493	3f	3556	3426	3195	3024	n/a	n/a	n/a
+chopin_nocturne_op9_no2.mxl	38	1253	3f	5796	6030	5439	4998	n/a	n/a	n/a
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] Adding 'beam' to a 'chord'
+[Error] MusicXML import: Chord starting point has not been found
+[Warning] MusicXML import: slur 1 from measure 6 could not be ended
+[Warning] MusicXML import: slur 2 from measure 7 could not be ended
+[Warning] MusicXML import: slur 2 from measure 18 could not be ended
+[Warning] Time spanning element 'slur' with @xml:id 'ktf33om', @startid '#jjt4n3e', and @endid '#ygwaa1j' could not be matched.
+[Warning] Time spanning element 'slur' with @xml:id 'se4w4vz', @startid '#r15klb2p', and @endid '#ux47ovv' could not be matched.
+[Warning] 1 time pointing element(s) could not be matched in measure yhh9xn3
+[Warning] 1 time pointing element(s) could not be matched in measure a5prrfd
+[Warning] 1 time pointing element(s) could not be matched in measure w1dhcc7p
+chopin_prelude_op28_no4_audiveris.mxl	26	121	1s	1132	1020	1018	1009	n/a	n/a	n/a

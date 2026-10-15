@@ -2,7 +2,7 @@
 
 Measured on 2026-10-14/15 against `sheet-music-analysis` at commit `02c13ec`, file `tests/data/chopin_nocturne_op9_no2.mxl` (Chopin, Op. 9 No. 2: 38 bars including the pickup, 1,253 notes, 2 staves, one part). Token counts come from the Anthropic `count_tokens` API for `claude-fable-5-1`. Scripts, the encodings and the raw counts are in `research/encoding-tokens/`; the plugin repo is expected next to this one (or at `$SHEET_MUSIC_REPO`).
 
-**Headline.** N1 is 6,030 tokens for the whole nocturne, about one token per character, not the 1.7k the plan estimated from characters ÷ 3.5. The ratios still hold in N1's favour but are smaller in tokens than in characters: minified JSON per note is 7.4x N1 (9.8x by characters), uncompressed MusicXML 33x (88x). The cost sits in pitch spelling: a natural such as `G5` is 2 tokens, a flat such as `Bb4` is 4, so respelling flats (`B-4`) saves 10% and key-relative spelling 17%; MIDI numbers would save 40% but drop the spelling the harmony model needs. The extension with rests, part names, dynamics and chord symbols adds 4–26% depending on what is on the page.
+**Headline.** N1 is 6,030 Claude tokens for the whole nocturne, about one token per character, not the 1.7k the plan estimated from characters ÷ 3.5; the same text is 3,889 GPT tokens. The ratios still hold in N1's favour but are smaller in tokens than in characters: minified JSON per note is 7.4x N1 (9.8x by characters), uncompressed MusicXML 33x (88x). The cost sits in pitch spelling: a natural such as `G5` is 2 Claude tokens, a sharp 3, a flat such as `Bb4` is 4, so respelling flats (`B-4`) saves 10% on Claude but costs 13% on GPT; key-relative spelling saves 17% on Claude and is neutral on GPT; MIDI numbers would save 40% but drop the spelling the harmony model needs. The model read the score correctly under all three spellings (six of six questions each). The extension with rests, part names, dynamics and chord symbols adds 4–26% depending on what is on the page, the same share under both tokenizers.
 
 ## 1. The three base encodings
 
@@ -42,7 +42,7 @@ Per-item costs, each measured as a line repeated 40 times (the line break is exc
 | left-hand line of bar 1, N1 spelling | 108 | 94 characters |
 | same line in MIDI numbers | 54 | 79 characters |
 
-Separators do not matter; the accidentals do. In Eb major most bass notes carry a flat, so the nocturne is an expensive case for N1 and a C-major piece would be noticeably cheaper per note.
+Separators do not matter; the accidentals do. Per pitch token, line break excluded: `D5` 2, `C#5` 3, `C##5` 3, `E-5` 3, `Cb4` 4, `Cn4` 4, `Bbb3` 5. Only the letter `b` is expensive; `#`, `-` and `n`-free spellings cost one token for the accidental. In Eb major most bass notes carry a flat, so the nocturne is an expensive case for N1 and a sharp-key or C-major piece is cheaper per note.
 
 Whole-piece respellings of the same N1 text (`respell.tsv`):
 
@@ -53,7 +53,36 @@ Whole-piece respellings of the same N1 text (`respell.tsv`):
 | Key-relative: a letter in the key signature carries its flat, `n` marks a natural | 4,998 | 17% | `… 48 E5 24 B4` |
 | MIDI numbers, spelling dropped | 3,586 | 41% | `… 48 75 24 70` |
 
-Key-relative spelling is how a player reads the page and keeps every spelling recoverable from `ks=`, but it moves the burden of applying the key signature to the model and to every decoder, and key changes mid-piece (which N1 does not carry yet) would have to be written. The `-` spelling is a free 10% with no semantic change and is already what music21 prints; `normalise_pitch` in `engine/score.py` accepts it on the way in. MIDI numbers are the floor and not an option for a harmony reader that needs Cb against B.
+Key-relative spelling is how a player reads the page and keeps every spelling recoverable from `ks=`, but it moves the burden of applying the key signature to the model and to every decoder, and key changes mid-piece (which N1 does not carry yet) would have to be written. The `-` spelling has no semantic change and is already what music21 prints; `normalise_pitch` in `engine/score.py` accepts it on the way in. But it is a Claude-only saving: see the GPT column below. MIDI numbers are the floor and not an option for a harmony reader that needs Cb against B.
+
+### Every test score, and the GPT tokenizer
+
+The companion also runs through ChatGPT and Codex, so the same texts were counted with OpenAI's `o200k_base` (GPT-4o and GPT-5 family; `count_gpt.cjs`, through the npm build of tiktoken because the tokenizer's own download host is blocked here). Tokens for N1 as is, flats as `-`, and key-relative spelling (`other_scores.tsv`, `gpt_counts.tsv`):
+
+| Score | Bars | Notes | Key sig. | Chars | Claude N1 | Claude `-` | Claude key-rel | GPT N1 | GPT `-` | GPT key-rel |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Chopin nocturne Op. 9/2 | 38 | 1,253 | 3 flats | 5,796 | 6,030 | 5,439 | 4,998 | 3,889 | 4,384 | 3,857 |
+| Mayer (triplets) | 28 | 493 | 3 flats | 3,556 | 3,426 | 3,195 | 3,024 | 2,386 | 2,634 | 2,391 |
+| Hensel (triplets) | 39 | 719 | 1 flat | 4,138 | 3,941 | 3,844 | 3,809 | 3,104 | 3,177 | 3,082 |
+| Brahms, Frühlingstrost | 40 | 1,350 | 3 sharps | 7,105 | 6,650 | 6,644 | 6,454 | 5,361 | 5,366 | 5,030 |
+| Chopin prelude Op. 28/4 (Audiveris) | 26 | 121 | 1 sharp | 1,132 | 1,020 | 1,018 | 1,009 | 869 | 870 | 853 |
+| part_writing_motion | 24 | 60 | none | 851 | 786 | 786 | 786 | 698 | 697 | 697 |
+| part_writing_tendency | 6 | 16 | none | 234 | 220 | 220 | 220 | 194 | 193 | 193 |
+| cadential_64 | 4 | 19 | none | 169 | 159 | 159 | 159 | 136 | 135 | 135 |
+
+Three things follow. One Claude token per character holds for every score (0.93–1.07 chars per token), so the Chopin number is N1's general rate, not a Chopin quirk; GPT's tokenizer is 25–35% cheaper on the same text (1.3–1.5 chars per token). The `-` spelling saves 2–10% on Claude in flat keys and nothing in sharp keys, and costs 2–13% on GPT, so it is not a free win for a product that serves both. Key-relative spelling saves 3–17% on Claude and 1–6% on GPT and never hurts, and is the only respelling worth the semantic change; whether it is worth it at all is section 2b.
+
+### 2b. Does the model still read the score correctly?
+
+Six questions about the nocturne with the answers computed from the index (`reading_test.py`, `reading_test.json`): the left-hand notes attacked at bar 7 beat 1, the bars where the right hand has a tie, the lowest left-hand note in bar 12, the number of grace notes in bar 7, the right-hand notes on the last eighth of bar 4, and the left-hand notes sounding at bar 16 beat 2. The model was `claude-fable-5-1` at medium effort, one call per spelling with the whole score and a one-paragraph legend.
+
+| Spelling | Correct | Input tokens | Output tokens |
+|---|---|---|---|
+| N1 as is | 6 / 6 | 6,611 | 496 |
+| Flats as `-` | 6 / 6 | 6,019 | 487 |
+| Key-relative | 6 / 6 | 5,651 | 517 |
+
+No reading errors under any spelling, including resolving `B4` to Bb4 against `ks=3f` in the key-relative text. Six questions on one piece is a small sample: it rules out gross misreading, not a few percent of slips, and the three calls cost about $0.25. A larger check belongs with the comparison against plain ChatGPT and Claude that the plan already approved.
 
 ## 3. Counting tokens
 
@@ -122,11 +151,13 @@ One line per bar for the part, not the staff: `h: 0 Eb 144 Bb7 216 Fm/Ab`. Root,
 | + chord symbols only (synthetic) | (`--chords --no-dynamics --no-parts`) | 7,280 | +1,250 | 7,155 | 176 symbols | 7.1 per symbol |
 | everything, line form (synthetic chords) | `chopin.n2-chords.txt` | 7,607 | +1,577 | 7,544 | | 1.26x N1 |
 
+GPT tokens for the same files: 3,897 with rests, 4,144 line-form dynamics, 4,067 inline, 4,286 with words, 4,654 chords only, 4,901 everything, which is the same 1.26x over GPT's N1 count of 3,889.
+
 So the full extension costs 26% over N1 on a piece with dense marks and an unrealistically dense chord track; with one chord symbol per bar it would be about 10%, and the inline dynamics form takes a third off the dynamics share. The extension stays 5.8x smaller than the minified JSON that carries no marks at all.
 
 ## 5. What to carry into `engine/notes.py`
 
-1. Spelling: write flats as `-` (`B-4`), which saves 10% for free; `decode` and `normalise_pitch` already accept it. Decide separately on key-relative spelling (17%), which changes what a pitch token means and needs key changes in the text.
+1. Spelling: keep N1's `Bb4` unless the product is Claude-only. Flats as `-` save 10% on Claude but cost 13% on GPT. Key-relative spelling is the one respelling that helps both (17% and 1% on the nocturne, 3% and 6% on the Brahms) and the model read it correctly, but it changes what a pitch token means and needs key changes written into the text; decide it with the owner before touching `encode`.
 2. Rests: write every rest `Event` as `r` with its duration, keep gap `r`s, and create rest events on decode. Bump the version tag or document that both readings decode the same way (they do, except that trailing rests now survive).
 3. `parts:` header. Verovio's MEI carries the part name as `label` on the `staffGrp`, so `ScoreIndex` can read it where it reads `staffDef`, without opening the MusicXML.
 4. Dynamics: the MEI has `dynam` elements with `staff` and `tstamp` and `hairpin` elements with `tstamp` and `tstamp2` (both ends in one element), so `ScoreIndex` can collect them as it collects ties. Recommend the inline form with the `d` line fallback: cheapest, and the mark sits on the note it governs; the decoder strips `[…]` prefixes and reads `d` lines.
@@ -141,5 +172,7 @@ So the full extension costs 26% over N1 on a piece with dense marks and an unrea
 | `research/encoding-tokens/n2.py` | the extension encoder; `--inline`, `--words`, `--chords FILE`, `--no-dynamics`, `--no-parts` |
 | `research/encoding-tokens/synth_chords.py` | chord symbols from the AnalysisGNN draft, for the cost measurement only |
 | `research/encoding-tokens/count_tokens.py` | the token-count script |
-| `research/encoding-tokens/counts.tsv`, `respell.tsv` | raw API results behind sections 1, 2 and 4 |
+| `research/encoding-tokens/counts.tsv`, `respell.tsv`, `other_scores.tsv`, `gpt_counts.tsv` | raw counts behind sections 1, 2 and 4 |
+| `research/encoding-tokens/other_scores.py`, `count_gpt.cjs` | per-score Claude counts with respellings; GPT counts (`npm install tiktoken`, then `node count_gpt.cjs FILES`) |
+| `research/encoding-tokens/reading_test.py`, `reading_test.json` | the reading check of section 2b and its answers |
 | `research/encoding-tokens/chopin.n1.txt`, `chopin.n2*.txt`, `chopin.notes.min.json`, `chords.json` | the encodings measured above |
