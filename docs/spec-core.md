@@ -469,7 +469,7 @@ These are the **[spike]** marks above. Each is a short experiment on the owner's
 2. The write procedure of 6.4 on a real score: landing through voice 1 then `track`, an empty voice 2, an occupied bar, chord members through `addNote(p, true)`, and the spelling pass by tick. The source says it works (`src:56-60`); confirm on 4.4.3 and 4.7.5.
 3. `cmd("tie")` after `selection.select(note)` inside `startCmd`, on both versions. The code is `tie` on all three tags and the toggle logic is read (`src:15`, `src:72-76`); confirm the tie shows in the read-back.
 4. `fp` walk time on a 300-bar orchestral score (`api:126`). Decides whether on-demand fingerprinting is enough or needs a bar-range argument by default.
-5. Bar numbers: the plugin's `no` and `irregular` against the screen, with a pickup (`src:85-90`).
+5. Bar numbers: the plugin's `no` and `irregular` against the screen, with a pickup (`src:85-86`, `src:88`, `src:90`).
 6. The AppImage GUI under WSLg (`rig:5-9`) and the WSL to Windows socket with `nc -vz 127.0.0.1 8731` (`rig:30`).
 7. Annotation `text` set after `cursor.add`, and visibility in `Segment.annotations` before `endCmd` (`notes:169`, `api:65`).
 8. `api.websocketserver` present in the owner's 4.4.3 Windows build (`deep:17`).
