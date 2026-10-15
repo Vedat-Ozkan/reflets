@@ -1,0 +1,6 @@
+  6030 tokens   5797 chars  0.96 chars/token  N1 as is (Bb4)
+  5439 tokens   5796 chars  1.07 chars/token  flat as '-' (B-4), music21 style
+  4998 tokens   5362 chars  1.07 chars/token  key-relative spelling (ks=3f: B4 means Bb4, Bn4 a natural)
+  3586 tokens   5176 chars  1.44 chars/token  MIDI numbers, spelling dropped
+---sample key-relative: 1.1: 72 G5~ 24 G5 F5 G5 72 F5 48 E5 24 B4
+---sample midi: 1.1: 72 79~ 24 79 77 79 72 77 48 75 24 70

@@ -1,0 +1,13 @@
+model=claude-fable-5-1 baseline=9
+file	tokens	chars	chars/token
+chopin.musicxml	196221	509478	2.60
+chopin.mei	101503	263769	2.60
+chopin.notes.verbose.json	71140	130744	1.84
+chopin.notes.min.json	44339	56879	1.28
+chopin.n1.txt	6030	5797	0.96
+chopin.n2-restsonly.txt	6039	5807	0.96
+chopin.n2.txt	6366	6196	0.97
+chopin.n2-inline.txt	6257	6048	0.97
+chopin.n2-words.txt	6559	6493	0.99
+chopin.n2-chordsonly.txt	7280	7155	0.98
+chopin.n2-chords.txt	7607	7544	0.99
