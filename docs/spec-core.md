@@ -433,7 +433,7 @@ Three layouts were sketched: A extra staves, B in place, C separate tab (`notes:
 
 1. **Export the current score**: `export musicxml <tmp>/reflets-<uuid>.musicxml` → `writeScore(curScore, path, "musicxml")` (`api:14`; `musicxml` is a registered writer, `api:122`). The path is unique per call because the export goes through the export scenario, which may show overwrite dialogs (`api:14`). **[spike]** The 4.7.5 source implements it for the current score (`api:13-14`), but the handbook said readScore and writeScore were not functional in MuseScore 4 (`deep:38`), and the research asks for a prototype before depending on it (`deep:45`).
 2. **Splice in the server**: parse the MusicXML with the standard library, replace the target part's bars with the idea, keep the other parts for context, optionally trim to the idea's bars plus two on each side, and write `<tmp>/reflets-idea-<uuid>.musicxml`. The engine's `ScoreIndex` is not needed for the splice; it is used afterwards to validate the result (`engine:9`).
-3. **Open as a new tab**: `open <path>` → `readScore(path)` opens a real project in a new tab (`api:13`). Non-interactive open is not available (`api:13`, `api:129`).
+3. **Open as a new tab**: `open <path>` → `readScore(path)` opens a real project in a new tab (`api:13`). Non-interactive open is not available (`api:13`, `api:129`). **Refuted on 4.7.5** (spike round 4, `research/spike-bridge-hello-2026-10-18.md`): with a score already open, `readScore` starts a second MuseScore process with the file and returns the old score; the bridge cannot see the new window. It loads into the bridge's window only when no score is open. **Layout C as written does not work; needs a redesign before implementation.**
 4. **The idea tab is now the current score.** Every later `read`, `info` and `write` targets it, because the API only sees the current score (`api:11`, `api:127`). The server tracks this: `hello`/`info` return the title and fingerprint, and `score_info` says "current tab is the idea score" until the user switches back. `propose` refuses to write while the current score is an idea tab.
 5. **Approve**: the user switches back to their score and the model calls `propose(mode="in_place")` with the same idea. **Discard**: the user closes the idea tab; the plugin can only close the current score (`api:15`, `api:130`), so the server never closes tabs on the user's behalf.
 
@@ -464,6 +464,8 @@ The full strategy is pending in the plan (`plan:121`). The design already assume
 - Any plugin change means restarting MuseScore and checking for a stale port holder (`deep:89`).
 
 ## 10. Spikes before implementation, in order
+
+Status 2026-10-18 (owner's Windows 4.7.5, `research/spike-bridge-hello-2026-10-18.md`): 1 writeScore works (32 ms, no dialog); readScore opens a new process when a score is open, so 7.2 needs a redesign. 2, 3 (macro plugin only, 2.1), 7, 8 (on 4.7.5), 9 confirmed. 4: whole-score walk of 300 bars × 16 staves (38,400 notes) takes 214–238 ms on the UI thread and returns 971 KB; a 16- or 32-bar window takes 17 ms; the 38-bar nocturne takes 6–7 ms. 5: pickup and first full bar both have `no=0`, pickup `irregular=true`; not compared with the screen. 6: socket half confirmed; WSLg GUI not run. Annotation `text` comes back with MuseScore markup (`<sym>dynamicPiano</sym>`, `<font .../>`), which the server must strip.
 
 These are the **[spike]** marks above. Each is a short experiment on the owner's Windows 4.4.3 and on 4.7.5 in the rig. They replace the first-spike list in the notes (`notes:179-185`, `notes:187`).
 

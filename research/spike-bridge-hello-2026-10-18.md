@@ -100,3 +100,27 @@ Findings:
 - Owner report: quitting MuseScore was faster this time (one to two seconds) than with the dialog open in round 2. Not measured.
 
 Spec updated: 2.1 (no dialog, lifecycle, shared server), 2.2 (port constant, security decision), 6.5 step 4, 6.7, open question 4.
+
+## Round 4: plugin 0.0.5 (macro only), real and large scores, bar numbers, writeScore, readScore
+
+Scores in `C:\Users\Vedat\Documents\MuseScore4\Scores\reflets-spike\`: `chopin_nocturne_op9_no2.musicxml` (from `sheet-music-plugin/out/`, 38 bars, pickup, grace notes, tuplets, a 2/4 bar) and `big-300x16.musicxml` from `make_big_score.py` (300 bars, 16 single-staff parts, eighth notes everywhere = 38,400 notes, a chord symbol per bar and a dynamic every 8 bars in part 1). `readall <from> <to> [count]` walks every track of the range; `walk_ms` is measured in QML with `Date.now()`.
+
+| Check | Result |
+|---|---|
+| Nocturne `stats` | 38 bars, 2 staves, 8 tracks, part "Piano" |
+| Nocturne bar numbers (`bars 1 4`, `bars 36 38`) | index 1: `no=0 irregular=true ticks=1/8` (pickup); index 2: `no=0`; index 3: `no=1`; index 36: `no=34 ticks=2/4` (meter change). The pickup shares `no` with the first full bar, as the source read said. Not compared with the screen. |
+| Nocturne full read | 881 lines, 27,973 chars, walk 6–7 ms; 66 ms round trip including connect. 809 chord, 15 grace, 6 rest, 51 annotation lines, 29 events in tuplets; **1,253 notes, the same count the engine gave for this file** |
+| Annotation text | carries MuseScore markup: `<sym>dynamicPiano</sym>`, `<font size="12"/><b>Andante</b>`; types seen: StaffText, Expression, Dynamic (`dynamicType=6`, velocity 65), Tempo |
+| `writeScore(curScore, "C:/.../export-chopin.musicxml", "musicxml")` | `true` in 32 ms, no dialog; file has 38 bars and 15 grace notes |
+| `readScore(big)` with the nocturne open | returned the nocturne (`returned=chopin…`, `current=chopin…`); a **second MuseScore4 process** appeared with `big-300x16.musicxml` |
+| Big score (bridge started in the second process after the first was closed) `stats` | 300 bars, 16 staves, 64 tracks |
+| Big score full read | 38,738 lines, 971,088 chars, walk 214, 226, 238 ms; whole transfer to WSL 0.5 s including connect; 38,400 notes and 338 annotations, matching the file |
+| Big score windows | bars 1–16: 2,066 lines, 17 ms; bars 1–32: 4,132 lines, 17 ms |
+| `File > Close` with the bridge running, then `readScore(nocturne)` with no score open | the bridge survived the close; the nocturne loaded in the same window and was returned (`before=none returned=chopin… current=chopin…`) |
+
+Findings:
+- Read speed is not a constraint: a 16–32 bar window is ~17 ms, and even a whole orchestral-size score is about a quarter second of UI-thread time.
+- `writeScore` works on 4.7.5 for the current score.
+- **`readScore` does not open a tab** when a score is open: it starts a new process that the bridge cannot reach. Spec 7.2 (layout C) needs a redesign.
+- The macro bridge outlives closing the score.
+- A first attempt at `open` failed because the plugin refused every verb except `hello`/`ping` when no score was open; fixed in the same round (the verb is now handled before the score check).

@@ -2,7 +2,9 @@
 // Round 2 adds the write-path checks of spec 10: several ops in one undo step, a second voice,
 // respelling, ties, annotations, tuplets. Round 3 adds tie and dynamic variants; install.sh also
 // installs this file as a non-dialog (macro) plugin on port 8732, to test whether the open dialog
-// is what makes MuseScore refuse cmd("tie") ("no one can handle the action: tie" in its log). Written from scratch against the public plugin API. MIT.
+// is what makes MuseScore refuse cmd("tie") ("no one can handle the action: tie" in its log).
+// Round 4 adds whole-score read timing, bar numbers, writeScore and readScore. Since round 3 only the
+// macro install is used. Written from scratch against the public plugin API. MIT.
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import MuseScore 3.0
@@ -10,7 +12,7 @@ import MuseScore 3.0
 MuseScore {
     title: "Reflets Bridge Hello"
     description: "Spike: WebSocket server on port 8731 for bridge and write-path checks"
-    version: "0.0.4"
+    version: "0.0.5"
     pluginType: "dialog"
     requiresScore: false
     width: 420
@@ -42,37 +44,69 @@ MuseScore {
         return n.pitch + ":" + n.tpc1 + ":" + n.tpc2 + (n.tieBack ? ":b" : "") + (n.tieForward ? ":f" : "")
     }
 
-    // C/R lines for staff 0, all voices, plus A lines for annotations, by segment walk.
-    function readBar(bar) {
-        if (!curScore)
-            return ["noscore"]
-        var m = measureAt(bar)
-        if (!m)
-            return ["nobar " + bar]
+    function chordLine(kind, tick, track, el) {
+        var ns = []
+        for (var i = 0; i < el.notes.length; i++)
+            ns.push(noteText(el.notes[i]))
+        var tup = el.tuplet ? " t=" + el.tuplet.actualNotes + "/" + el.tuplet.normalNotes : ""
+        return kind + " " + tick + " " + track + " " + frac(el.duration) + " " + ns.join(",") + tup
+    }
+
+    // C/R lines for every track of bars [from, to], G lines for grace chords before their chord,
+    // A lines for annotations, by segment walk. Round 4 widened this from staff 0 of one bar.
+    function readRange(from, to) {
         var lines = []
-        for (var seg = m.firstSegment; seg; seg = seg.nextInMeasure) {
-            for (var track = 0; track < 4; track++) {
-                var el = seg.elementAt(track)
-                if (!el)
-                    continue
-                var tup = el.tuplet ? " t=" + el.tuplet.actualNotes + "/" + el.tuplet.normalNotes : ""
-                if (el.type === Element.CHORD) {
-                    var ns = []
-                    for (var i = 0; i < el.notes.length; i++)
-                        ns.push(noteText(el.notes[i]))
-                    lines.push("C " + seg.tick + " " + track + " " + frac(el.duration) + " " + ns.join(",") + tup)
-                } else if (el.type === Element.REST) {
-                    lines.push("R " + seg.tick + " " + track + " " + frac(el.duration) + tup)
+        var ntracks = curScore.ntracks
+        var m = measureAt(from)
+        for (var bar = from; m && bar <= to; bar++, m = m.nextMeasure) {
+            for (var seg = m.firstSegment; seg; seg = seg.nextInMeasure) {
+                for (var track = 0; track < ntracks; track++) {
+                    var el = seg.elementAt(track)
+                    if (!el)
+                        continue
+                    if (el.type === Element.CHORD) {
+                        var gs = el.graceNotes
+                        for (var g = 0; gs && g < gs.length; g++)
+                            lines.push(chordLine("G", seg.tick, track, gs[g]))
+                        lines.push(chordLine("C", seg.tick, track, el))
+                    } else if (el.type === Element.REST) {
+                        var tup = el.tuplet ? " t=" + el.tuplet.actualNotes + "/" + el.tuplet.normalNotes : ""
+                        lines.push("R " + seg.tick + " " + track + " " + frac(el.duration) + tup)
+                    }
                 }
-            }
-            var ann = seg.annotations
-            for (var j = 0; ann && j < ann.length; j++) {
-                var a = ann[j]
-                lines.push("A " + seg.tick + " " + a.track + " " + a.name + " harmonyType=" + a.harmonyType
-                    + " dynamicType=" + a.dynamicType + " velocity=" + a.velocity + " text=" + escapeText(a.text))
+                var ann = seg.annotations
+                for (var j = 0; ann && j < ann.length; j++) {
+                    var a = ann[j]
+                    lines.push("A " + seg.tick + " " + a.track + " " + a.name + " harmonyType=" + a.harmonyType
+                        + " dynamicType=" + a.dynamicType + " velocity=" + a.velocity + " text=" + escapeText(a.text))
+                }
             }
         }
         return lines
+    }
+
+    function readBar(bar) {
+        if (!measureAt(bar))
+            return ["nobar " + bar]
+        return readRange(bar, bar)
+    }
+
+    // Bar numbering facts for spec 10 item 5: index from 1, the plugin's no, irregular, tick, length.
+    function barInfo(from, to) {
+        var lines = []
+        var m = measureAt(from)
+        for (var i = from; m && i <= to; i++, m = m.nextMeasure)
+            lines.push("M " + i + " no=" + m.no + " irregular=" + m.irregular + " tick=" + m.firstSegment.tick
+                + " ticks=" + (m.ticks && m.ticks.numerator !== undefined ? frac(m.ticks) : m.ticks)
+                + " actual=" + frac(m.timesigActual) + " nominal=" + frac(m.timesigNominal))
+        return lines
+    }
+
+    function countBars() {
+        var n = 0
+        for (var m = curScore.firstMeasure; m; m = m.nextMeasure)
+            n++
+        return n
     }
 
     function chordAt(bar, tick, track) {
@@ -205,16 +239,47 @@ MuseScore {
         var verb = head[1]
         if (verb === "hello") {
             var title = curScore ? curScore.scoreName : ""
-            return id + " ok proto=0 plugin=reflets-bridge-hello/0.0.4 port=" + port + " mscore=" + mscoreVersion
+            return id + " ok proto=0 plugin=reflets-bridge-hello/0.0.5 port=" + port + " mscore=" + mscoreVersion
                 + " ws=" + (typeof api.websocketserver) + " score=" + (curScore ? 1 : 0)
                 + " title=" + escapeText(title)
         }
         if (verb === "ping")
             return id + " pong"
+        // Before the score check: opening a file with no score open is the case being tested.
+        if (verb === "open") {
+            var before = curScore ? curScore.scoreName : "none"
+            var sc = readScore(head[2])
+            return id + " ok before=" + escapeText(before) + " returned=" + (sc ? escapeText(sc.scoreName) : "null")
+                + " current=" + escapeText(curScore ? curScore.scoreName : "none")
+        }
         if (!curScore)
             return id + " err noscore"
         if (verb === "read")
             return [id + " ok"].concat(readBar(parseInt(head[2]))).join("\n")
+        if (verb === "stats") {
+            var parts = []
+            for (var p = 0; p < curScore.parts.length; p++)
+                parts.push(escapeText(curScore.parts[p].longName))
+            return id + " ok bars=" + countBars() + " nmeasures=" + curScore.nmeasures + " nstaves=" + curScore.nstaves
+                + " ntracks=" + curScore.ntracks + " parts=" + parts.join("|")
+        }
+        if (verb === "bars")
+            return [id + " ok"].concat(barInfo(parseInt(head[2]), parseInt(head[3]))).join("\n")
+        // readall <from> <to> [count]: whole-range walk; "count" returns only the totals, to separate
+        // walk time from transfer time.
+        if (verb === "readall") {
+            var t0 = Date.now()
+            var rl = readRange(parseInt(head[2]), parseInt(head[3]))
+            var ms = Date.now() - t0
+            var body = rl.join("\n")
+            var sum = id + " ok lines=" + rl.length + " chars=" + body.length + " walk_ms=" + ms
+            return head[4] === "count" ? sum : sum + "\n" + body
+        }
+        if (verb === "export") {
+            var t1 = Date.now()
+            var okw = writeScore(curScore, head[2], "musicxml")
+            return id + " ok written=" + okw + " ms=" + (Date.now() - t1)
+        }
         var ops = { multi: opMulti, tie: opTie, tieout: opTieOutside, annot: opAnnot, tuplet: opTuplet, dyn: opDyn }
         if (ops[verb])
             return id + " ok " + ops[verb]()
