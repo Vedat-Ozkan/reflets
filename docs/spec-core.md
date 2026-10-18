@@ -217,7 +217,7 @@ N1 drops rests, part identity, clefs, key changes, slurs, dynamics, articulation
 | **Dynamics**: `!<mark>` token at an onset in a staff line | `dynamicType` is readable and writable (`api:59`); the assistant and critic modes need them (`notes:86`) | `A dyn` lines |
 | **Chord symbols**: `"<text>"` token at an onset | `harmonyType` and `text` are readable (`api:59`); harmonisation ideas are expressed as chord symbols first (`notes:107`, `notes:109-113`) | `A harm` lines |
 
-Kept from N1 unchanged: spelled pitch, `staff.layer` voices, `~` ties, `+` chords, `g` grace, `len=` and meter changes, first `ks=` (`engine:61-65`). Still dropped in v1: articulations, lyrics, slurs, clefs, key changes after the first (the engine itself keeps only the first key signature, `engine:10`). Tuplets stay as durations in `div` units with no tuplet markup (`engine:65`); the server reconstructs tuplet ratios for the write path from the duration arithmetic and refuses an idea whose durations do not fit a measure.
+Kept from N1 unchanged: spelled pitch, `staff.layer` voices, `~` ties, `+` chords, `g` grace, `len=` and meter changes, first `ks=` (`engine:61-65`). Added: key changes as `ks=` on the bar header, like `ts=` (open question 12; needs the engine change there). Still dropped in v1: articulations, lyrics, slurs, clefs. Tuplets stay as durations in `div` units with no tuplet markup (`engine:65`); the server reconstructs tuplet ratios for the write path from the duration arithmetic and refuses an idea whose durations do not fit a measure.
 
 Rules for N1x:
 
@@ -483,17 +483,17 @@ These are the **[spike]** marks above. Each is a short experiment on the owner's
 
 ## 11. Open questions for the owner
 
-1. **Engine packaging.** Import the engine from the `sheet-music-plugin` package as a dependency, or copy `engine/` into this repository (`notes:13`, `plan:20`)? The spec assumes an importable package named `engine`.
+1. **Engine packaging.** Decided 2026-10-18: a dependency on the `sheet-music-plugin` package; engine changes Reflets needs are made there. Original question: import the engine from the `sheet-music-plugin` package as a dependency, or copy `engine/` into this repository (`notes:13`, `plan:20`)? The spec assumes an importable package named `engine`.
 2. **Layouts.** Decided 2026-10-18: B only, A later, C dropped (section 7). Original question: B and C in the first release, A later (`notes:140`, `notes:142-146`, `notes:148`)? A needs `appendPart`, `removeParts` and `Channel.mute` in the plugin (`api:34`, `api:71`).
 3. **Version floor.** Decided 2026-10-18: require 4.7 (2.5). Original question: support 4.4.2 and up, which keeps your 4.4.3 install in scope (`plan:35`) but means version-branched action codes (`deep:60`) and a three-version test matrix (`deep:93`), or require 4.7?
 4. **Local security.** Decided 2026-10-18: shared token (2.2). Original question: the plugin binds all interfaces (`deep:6`). Document the firewall prompt only, or add a shared token the plugin writes to Documents/MuseScore4 with `FileIO` (`api:20`) and the server reads before `hello`?
-5. **Port.** 8731 as the default, or another?
-6. **What `check` covers in v1.** The engine's voice-leading rules apply only to chorale-like textures (`engine:81`); melody-versus-accompaniment clash detection and voicing checks are new engine work (`notes:129`). Ship `check` with the current rules and say when they do not apply, or hold the tool until the new checks exist?
+5. **Port.** Decided 2026-10-18: 8731.
+6. **What `check` covers in v1.** Decided 2026-10-18: ship with the current rules and say when they do not apply. Original question: The engine's voice-leading rules apply only to chorale-like textures (`engine:81`); melody-versus-accompaniment clash detection and voicing checks are new engine work (`notes:129`). Ship `check` with the current rules and say when they do not apply, or hold the tool until the new checks exist?
 7. **music21.** `check` needs the 114 MB `[checks]` extra (`engine:148`, `engine:153`). Required install, or optional with a hint?
-8. **Codex.** Document the Codex surface (CLI and the ChatGPT desktop app's Codex side) as a supported host in v1 (`hosts:13-14`)?
-9. **Change detection.** On-demand fingerprinting only, or also a timer in the plugin that raises a "changed" flag, at a UI-thread cost (`api:126`, `notes:183`)?
-10. **Overwrite policy.** Should `propose` refuse to write over existing notes without `replace=True` (6.4), or always replace?
+8. **Codex.** Decided 2026-10-18: later, after Claude Code works. Original question: Document the Codex surface (CLI and the ChatGPT desktop app's Codex side) as a supported host in v1 (`hosts:13-14`)?
+9. **Change detection.** Decided 2026-10-18: on demand only; reads are cheap (17 ms per 16–32 bar window, spike round 4). Original question: On-demand fingerprinting only, or also a timer in the plugin that raises a "changed" flag, at a UI-thread cost (`api:126`, `notes:183`)?
+10. **Overwrite policy.** Decided 2026-10-18: refuse without `replace=True`. Original question: Should `propose` refuse to write over existing notes without `replace=True` (6.4), or always replace?
 11. **Pending research.** Answered 2026-10-18: the report landed (`research/bridges-wire-protocols-and-roadmap.md`, summarised in the plan) and confirmed the design. Original question: the study of existing bridges' wire protocols and the MuseScore 4.8 roadmap was still running when the handoff was made (`plan:111`). Wait for it, or proceed with this design?
-12. **Key changes.** The engine keeps only the first key signature (`engine:10`); N1x drops later ones too. Acceptable for v1?
-13. **Grace notes in ideas.** Not writable in v1 (6.4). Acceptable?
-14. **Licence.** MIT for both plugin and server (`hosts:63`). Confirm.
+12. **Key changes.** Decided 2026-10-18: support them when reading: the plugin's `K` lines (3.7), a `ks=` on the bar header in N1x the way `ts=` marks meter changes, and a per-bar key in the engine's `ScoreIndex` (a change in `sheet-music-plugin`). Writing key changes in ideas stays out of v1 (6.12). Original question: The engine keeps only the first key signature (`engine:10`); N1x drops later ones too. Acceptable for v1?
+13. **Grace notes in ideas.** Under research 2026-10-18: the `acciaccatura`/`appoggiatura`/`grace4`… actions add a grace note to the selected note (`Score::cmdAddGrace`, `src/engraving/editing/cmd.cpp:3784` at v4.7.5), and the macro plugin can dispatch them (2.1); not yet run. Original question: Not writable in v1 (6.4). Acceptable?
+14. **Licence.** Decided 2026-10-18: MIT for both plugin and server (`hosts:63`).
