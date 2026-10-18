@@ -423,13 +423,15 @@ Grace notes (6.4); slurs and hairpins, which fall through `cursor.add` with no s
 
 ## 7. Ideas into MuseScore
 
-Three layouts were sketched: A extra staves, B in place, C separate tab (`notes:140`, `notes:142-146`, `notes:148`). The core supports B and C from the start; A is reserved (`api:34`, `api:71`) for after the owner has seen screenshots (`notes:140`, `notes:187`).
+Three layouts were sketched: A extra staves, B in place, C separate tab (`notes:140`, `notes:142-146`, `notes:148`). Decided 2026-10-18 after the spikes: **B only in the first release**; A later, for comparing several ideas, once adding and removing staves in one undo step is tested (`api:34`, `api:71`); **C dropped**, because `readScore` cannot open a tab (7.2) and a separate-window preview would be slow, re-imported through MusicXML, and invisible to the bridge.
 
 ### 7.1 In place (layout B)
 
+UX additions decided with B: the idea's notes are coloured (writable `color`, in the same undo step) and set back to black on keep, in addition to the selection of 6.10; `discard` goes through Reflets, which refuses when the bars changed since the write (6.9), so a user edit made after the idea is never undone by mistake; "next idea" is a discard plus a new write.
+
 `propose(mode="in_place")` → section 6 → the user presses Play (there is no playback API, `api:109`; the notes already assume the user presses play, `notes:184`) → keep by doing nothing, or `discard` (6.9), which is the one Ctrl+Z (`notes:146`).
 
-### 7.2 New tab (layout C) with readScore and writeScore on a temporary file
+### 7.2 New tab (layout C) with readScore and writeScore on a temporary file (dropped, kept as a record)
 
 1. **Export the current score**: `export musicxml <tmp>/reflets-<uuid>.musicxml` → `writeScore(curScore, path, "musicxml")` (`api:14`; `musicxml` is a registered writer, `api:122`). The path is unique per call because the export goes through the export scenario, which may show overwrite dialogs (`api:14`). **[spike]** The 4.7.5 source implements it for the current score (`api:13-14`), but the handbook said readScore and writeScore were not functional in MuseScore 4 (`deep:38`), and the research asks for a prototype before depending on it (`deep:45`).
 2. **Splice in the server**: parse the MusicXML with the standard library, replace the target part's bars with the idea, keep the other parts for context, optionally trim to the idea's bars plus two on each side, and write `<tmp>/reflets-idea-<uuid>.musicxml`. The engine's `ScoreIndex` is not needed for the splice; it is used afterwards to validate the result (`engine:9`).
@@ -482,7 +484,7 @@ These are the **[spike]** marks above. Each is a short experiment on the owner's
 ## 11. Open questions for the owner
 
 1. **Engine packaging.** Import the engine from the `sheet-music-plugin` package as a dependency, or copy `engine/` into this repository (`notes:13`, `plan:20`)? The spec assumes an importable package named `engine`.
-2. **Layouts.** B and C in the first release, A later (`notes:140`, `notes:142-146`, `notes:148`)? A needs `appendPart`, `removeParts` and `Channel.mute` in the plugin (`api:34`, `api:71`).
+2. **Layouts.** Decided 2026-10-18: B only, A later, C dropped (section 7). Original question: B and C in the first release, A later (`notes:140`, `notes:142-146`, `notes:148`)? A needs `appendPart`, `removeParts` and `Channel.mute` in the plugin (`api:34`, `api:71`).
 3. **Version floor.** Decided 2026-10-18: require 4.7 (2.5). Original question: support 4.4.2 and up, which keeps your 4.4.3 install in scope (`plan:35`) but means version-branched action codes (`deep:60`) and a three-version test matrix (`deep:93`), or require 4.7?
 4. **Local security.** Decided 2026-10-18: shared token (2.2). Original question: the plugin binds all interfaces (`deep:6`). Document the firewall prompt only, or add a shared token the plugin writes to Documents/MuseScore4 with `FileIO` (`api:20`) and the server reads before `hello`?
 5. **Port.** 8731 as the default, or another?
