@@ -12,7 +12,7 @@ import MuseScore 3.0
 MuseScore {
     title: "Reflets Bridge Hello"
     description: "Spike: WebSocket server on port 8731 for bridge and write-path checks"
-    version: "0.0.5"
+    version: "0.0.6"
     pluginType: "dialog"
     requiresScore: false
     width: 420
@@ -67,7 +67,7 @@ MuseScore {
                     if (el.type === Element.CHORD) {
                         var gs = el.graceNotes
                         for (var g = 0; gs && g < gs.length; g++)
-                            lines.push(chordLine("G", seg.tick, track, gs[g]))
+                            lines.push(chordLine("G", seg.tick, track, gs[g]) + " type=" + gs[g].noteType)
                         lines.push(chordLine("C", seg.tick, track, el))
                     } else if (el.type === Element.REST) {
                         var tup = el.tuplet ? " t=" + el.tuplet.actualNotes + "/" + el.tuplet.normalNotes : ""
@@ -146,7 +146,8 @@ MuseScore {
         // Spelling pass by tick (spec 6.4): flip whatever MuseScore chose for pitch 63.
         var n = chordAt(1, t0 + 480, 0).notes[0]
         var before = n.tpc1
-        var target = before === 11 ? 21 : 11
+        // tpc: Eb is 11, D# is 23 (round 2 used 21, which is C#).
+        var target = before === 11 ? 23 : 11
         n.tpc1 = target
         n.tpc2 = target
         curScore.endCmd(false)
@@ -202,6 +203,46 @@ MuseScore {
         return "MF=" + DynamicType.MF
     }
 
+    // Select the main note at (bar, tick), dispatch a grace action, then respell the new grace note,
+    // which MuseScore creates at the main note's pitch. Earlier graces were already moved off that
+    // pitch, so the new one is the only grace still on it.
+    function addGrace(bar, tick, action, pitch, tpc) {
+        var chord = chordAt(bar, tick, 0)
+        var main = chord.notes[0]
+        curScore.selection.select(main)
+        cmd(action)
+        var gs = chord.graceNotes
+        for (var i = 0; i < gs.length; i++) {
+            var n = gs[i].notes[0]
+            if (n.pitch === main.pitch) {
+                n.pitch = pitch
+                n.tpc1 = tpc
+                n.tpc2 = tpc
+                return action + "@" + tick + ":" + i + "/" + gs.length
+            }
+        }
+        return action + "@" + tick + ":none/" + gs.length
+    }
+
+    // Bar 1: C5 D5 E5 F5 quarters; an acciaccatura C#5 before D5, two grace16 before E5 (G5 added
+    // first, then F5), a grace8after G5 after F5. All in one command.
+    function opGrace() {
+        var t0 = measureAt(1).firstSegment.tick
+        curScore.startCmd("Reflets: grace")
+        var c = land(1, 0)
+        c.setDuration(1, 4)
+        c.addNote(72, false)
+        c.addNote(74, false)
+        c.addNote(76, false)
+        c.addNote(77, false)
+        var r = [addGrace(1, t0 + 480, "acciaccatura", 73, 21),
+                 addGrace(1, t0 + 960, "grace16", 79, 15),
+                 addGrace(1, t0 + 960, "grace16", 77, 13),
+                 addGrace(1, t0 + 1440, "grace8after", 79, 15)]
+        curScore.endCmd(false)
+        return r.join(" ")
+    }
+
     // Bar 1 beat 1: chord symbol, dynamic, staff text; text set after cursor.add (spec 6.7).
     function opAnnot() {
         curScore.startCmd("Reflets: annot")
@@ -239,7 +280,7 @@ MuseScore {
         var verb = head[1]
         if (verb === "hello") {
             var title = curScore ? curScore.scoreName : ""
-            return id + " ok proto=0 plugin=reflets-bridge-hello/0.0.5 port=" + port + " mscore=" + mscoreVersion
+            return id + " ok proto=0 plugin=reflets-bridge-hello/0.0.6 port=" + port + " mscore=" + mscoreVersion
                 + " ws=" + (typeof api.websocketserver) + " score=" + (curScore ? 1 : 0)
                 + " title=" + escapeText(title)
         }
@@ -280,7 +321,7 @@ MuseScore {
             var okw = writeScore(curScore, head[2], "musicxml")
             return id + " ok written=" + okw + " ms=" + (Date.now() - t1)
         }
-        var ops = { multi: opMulti, tie: opTie, tieout: opTieOutside, annot: opAnnot, tuplet: opTuplet, dyn: opDyn }
+        var ops = { multi: opMulti, tie: opTie, tieout: opTieOutside, grace: opGrace, annot: opAnnot, tuplet: opTuplet, dyn: opDyn }
         if (ops[verb])
             return id + " ok " + ops[verb]()
         if (verb === "undo") {

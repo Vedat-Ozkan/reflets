@@ -55,7 +55,7 @@ Each verb is one `startCmd`/`endCmd`. Cursor landing as spec 6.4: `track=0`, `re
 
 | Verb | Ops | Read-back | Screen |
 |---|---|---|---|
-| `multi` (bar 1) | voice 1: `addNote(60)`, `addNote(64,true)`, `addNote(63)`, half `addNote(67)`; voice 2: whole `addNote(60)`; then respell the 63 found by tick | `C 0 0 1/4 60:14:14,64:18:18`, `C 0 1 1/1 60:14:14`, `C 480 0 1/4 63:21:21`, `C 960 0 1/2 67:15:15`; MuseScore had spelled 63 as Eb (11), the pass set D# (21) | matches |
+| `multi` (bar 1) | voice 1: `addNote(60)`, `addNote(64,true)`, `addNote(63)`, half `addNote(67)`; voice 2: whole `addNote(60)`; then respell the 63 found by tick | `C 0 0 1/4 60:14:14,64:18:18`, `C 0 1 1/1 60:14:14`, `C 480 0 1/4 63:21:21`, `C 960 0 1/2 67:15:15`; MuseScore had spelled 63 as Eb (11); the pass set 21, meant as D# but **21 is C#** (D# is 23): an inconsistent pitch/spelling pair that MuseScore accepted silently and drew with a sharp | matches what was written |
 | `tie` (bar 2) | G4, G4 quarters, half rest; `selection.select(firstNote)` returned `true`; `cmd("tie")` | notes present, **no tie flags** | **no tie**; the first G stays selected |
 | `annot` (bar 1 beat 1) | `newElement(HARMONY/DYNAMIC/STAFF_TEXT)`, `cursor.add`, then `text` | `A 0 0 Harmony text=Cmaj7`, `A 0 0 Dynamic dynamicType=0 text=mf`, `A 0 0 StaffText text=reflets` | all three shown, no crash |
 | `tuplet` (bar 3) | `addTuplet(fraction(3,2), fraction(1,4))`, three eighths | `C 3840 0 1/8 72:14:14 t=3/2` ×3 at 3840/4000/4160, then `R 4320 1/4`, `R 4800 1/2` | triplet with "3" |
@@ -66,7 +66,7 @@ Findings:
 - **Ties do not work as specced (6.5).** `select(note)` inside `startCmd` then `cmd("tie")` produced nothing. Not yet known whether the action needs to run outside the command, needs another code, or never works from a plugin; the next round tries variants.
 - Dynamic with `text="mf"` reads back `dynamicType=0`: the text shows, but the type (and so playback velocity) is probably not mf. Needs a check of the enum and of setting `dynamicType` directly.
 - Chord symbol with text set after `cursor.add`: no crash on 4.7.5.
-- Respelling by `tpc1`/`tpc2` after entry works.
+- Respelling by `tpc1`/`tpc2` after entry works, and MuseScore does not check it: a tpc that does not match the pitch is stored as given (correction found on 2026-10-18 while preparing round 5). The server must compute tpc from the spelled pitch itself.
 - Owner report: quitting MuseScore with the plugin window still open took noticeably long. Not measured yet.
 - `screenshot.ps1` first used a screen copy, which captured an unrelated window covering MuseScore; it now uses `PrintWindow` with `PW_RENDERFULLCONTENT`, which captures MuseScore even when covered (the plugin dialog is a separate window and is not included).
 
@@ -124,3 +124,31 @@ Findings:
 - **`readScore` does not open a tab** when a score is open: it starts a new process that the bridge cannot reach. Spec 7.2 (layout C) needs a redesign.
 - The macro bridge outlives closing the score.
 - A first attempt at `open` failed because the plugin refused every verb except `hello`/`ping` when no score was open; fixed in the same round (the verb is now handled before the score check).
+
+## Round 5: plugin 0.0.6 (macro), grace notes in a write
+
+`grace` verb, one `startCmd`: bar 1 quarters C5 D5 E5 F5; then for each grace, `selection.select(mainNote)`, `cmd(<action>)`, and set `pitch`, `tpc1`, `tpc2` on the new grace note, which MuseScore creates at the main note's pitch (`Score::cmdAddGrace`, `src/engraving/editing/cmd.cpp:3784`).
+
+```
+> grace
+3 ok acciaccatura@480:0/1 grace16@960:0/1 grace16@960:0/2 grace8after@1440:0/1
+> read 1
+C 0 0 1/4 72:14:14
+G 480 0 1/8 73:21:21 type=1
+C 480 0 1/4 74:16:16
+G 960 0 1/16 77:13:13 type=8
+G 960 0 1/16 79:15:15 type=8
+C 960 0 1/4 76:18:18
+G 1440 0 1/8 79:15:15 type=32
+C 1440 0 1/4 77:13:13
+> undo
+> read 1
+R 0 0 4/4
+```
+
+Log: `try call action: acciaccatura`, `grace16` ×2, `grace8after`, all handled. Screen: slashed C#5 before D5; sixteenth graces F5 then G5 before E5; eighth G5 after F5.
+
+Findings:
+- **Grace notes are writable** from the macro plugin through the grace actions, with pitch and spelling set afterwards, inside one undo step together with the main notes.
+- `graceNotes` is in left-to-right order, and a newly added grace before a note is inserted at the front (G5 was added first and ended up next to E5). To write graces X Y before a note, add Y, then X.
+- After-graces (`grace8after`) work the same way; `noteType` reads 1 (acciaccatura), 8 (grace16), 32 (grace8after).
