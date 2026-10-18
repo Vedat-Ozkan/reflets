@@ -78,9 +78,9 @@ Rule: the plugin does only what requires the PluginAPI (walk the score, place no
 
 ### 2.5 Supported MuseScore versions
 
-- Official builds from 4.4.2, where the WebSocket API first shipped, through 4.7.5 (`deep:17`, `deep:24`). The plugin checks `api.websocketserver` at start and shows a message if it is undefined, which happens in some distro builds (`deep:17`, `deep:24`).
+- Official 4.7 builds, tested on 4.7.5 (owner decision, 2026-10-18). The WebSocket API exists from 4.4.2 (`deep:17`, `deep:24`), but 4.4.3 stubs `readScore`/`writeScore` (`api-gaps` 3.2) and the undo codes differ before 4.7 (6.8), so older versions are refused at `hello` rather than half supported. The plugin checks `api.websocketserver` at start and shows a message if it is undefined, which happens in some distro builds (`deep:17`, `deep:24`).
 - GUI only: the console and `--extension` contexts have no WebSocket API on 4.7 (`deep:28`, `deep:34`).
-- The owner's Windows install is 4.4.3 (`plan:35`), inside the range. Test matrix as mcp-score's: 4.4.4, 4.6.2, 4.7.5 (`deep:93`).
+- The owner's Windows install is 4.7.5, where the bridge spike passed (`research/spike-bridge-hello-2026-10-18.md`). Test matrix: 4.7.5.
 - Version is read from `mscoreVersion` (major*10000 + minor*100 + patch, 40705 for 4.7.5; `api:21`) and reported in `hello` so the server can refuse unknown versions with a clear message.
 
 ## 3. Protocol A: plugin to server
@@ -397,7 +397,7 @@ The table lives in the plugin, selected by `mscoreVersion` (`api:21`) at hello, 
 | file-export | `file-export` | same | unchanged (`src:20`); fallback route if `writeScore` fails (7.3) |
 | play, stop | `play`, `stop` | same | unchanged (`src:19`); not used by the core, reserved for the playback-check idea |
 
-Only undo and redo need the branch; everything else the core dispatches is stable from 4.4.4 to 4.7.5 (`src:25`). Every `cmd()` is still followed by a read-back (6.6), so a wrong code fails loudly instead of silently.
+With the 4.7 floor (2.5) only the right column is used; the left stays as a record of why older versions are refused. Only undo and redo need the branch; everything else the core dispatches is stable from 4.4.4 to 4.7.5 (`src:25`). Every `cmd()` is still followed by a read-back (6.6), so a wrong code fails loudly instead of silently.
 
 ### 6.9 Discard
 
@@ -479,7 +479,7 @@ These are the **[spike]** marks above. Each is a short experiment on the owner's
 
 1. **Engine packaging.** Import the engine from the `sheet-music-plugin` package as a dependency, or copy `engine/` into this repository (`notes:13`, `plan:20`)? The spec assumes an importable package named `engine`.
 2. **Layouts.** B and C in the first release, A later (`notes:140`, `notes:142-146`, `notes:148`)? A needs `appendPart`, `removeParts` and `Channel.mute` in the plugin (`api:34`, `api:71`).
-3. **Version floor.** Support 4.4.2 and up, which keeps your 4.4.3 install in scope (`plan:35`) but means version-branched action codes (`deep:60`) and a three-version test matrix (`deep:93`), or require 4.7?
+3. **Version floor.** Decided 2026-10-18: require 4.7 (2.5). Original question: support 4.4.2 and up, which keeps your 4.4.3 install in scope (`plan:35`) but means version-branched action codes (`deep:60`) and a three-version test matrix (`deep:93`), or require 4.7?
 4. **Local security.** The plugin binds all interfaces (`deep:6`). Document the firewall prompt only, or add a shared token the plugin writes to Documents/MuseScore4 with `FileIO` (`api:20`) and the server reads before `hello`?
 5. **Port.** 8731 as the default, or another?
 6. **What `check` covers in v1.** The engine's voice-leading rules apply only to chorale-like textures (`engine:81`); melody-versus-accompaniment clash detection and voicing checks are new engine work (`notes:129`). Ship `check` with the current rules and say when they do not apply, or hold the tool until the new checks exist?
@@ -487,7 +487,7 @@ These are the **[spike]** marks above. Each is a short experiment on the owner's
 8. **Codex.** Document the Codex surface (CLI and the ChatGPT desktop app's Codex side) as a supported host in v1 (`hosts:13-14`)?
 9. **Change detection.** On-demand fingerprinting only, or also a timer in the plugin that raises a "changed" flag, at a UI-thread cost (`api:126`, `notes:183`)?
 10. **Overwrite policy.** Should `propose` refuse to write over existing notes without `replace=True` (6.4), or always replace?
-11. **Pending research.** The study of existing bridges' wire protocols and the MuseScore 4.8 roadmap was still running when the handoff was made (`plan:111`). Wait for it, or proceed with this design?
+11. **Pending research.** Answered 2026-10-18: the report landed (`research/bridges-wire-protocols-and-roadmap.md`, summarised in the plan) and confirmed the design. Original question: the study of existing bridges' wire protocols and the MuseScore 4.8 roadmap was still running when the handoff was made (`plan:111`). Wait for it, or proceed with this design?
 12. **Key changes.** The engine keeps only the first key signature (`engine:10`); N1x drops later ones too. Acceptable for v1?
 13. **Grace notes in ideas.** Not writable in v1 (6.4). Acceptable?
 14. **Licence.** MIT for both plugin and server (`hosts:63`). Confirm.
