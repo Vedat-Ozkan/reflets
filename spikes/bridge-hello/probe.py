@@ -1,8 +1,8 @@
 """Throwaway spike client for reflets-bridge-hello.qml.
 
-    python3 probe.py            # stage A: hello + 20 pings
-    python3 probe.py read1      # stage B: read bar 1 of staff 0
-    python3 probe.py write1     # stage B: write middle C at bar 1, return the read-back
+    python3 probe.py                       # hello + 20 pings
+    python3 probe.py "read 1" multi "read 1" undo "read 1"
+                                           # hello, then each argument as one request, in order
 """
 
 import asyncio
@@ -25,11 +25,13 @@ async def request(ws, rid, line):
     return reply
 
 
-async def main(verb):
+async def main(lines):
     async with websockets.connect(URL, open_timeout=TIMEOUT) as ws:
         print(await request(ws, 1, "hello proto=0 client=probe"))
-        if verb:
-            print(await request(ws, 2, verb))
+        for rid, line in enumerate(lines, start=2):
+            print(f"> {line}")
+            print(await request(ws, rid, line))
+        if lines:
             return
         rtts = []
         for rid in range(2, 22):
@@ -42,7 +44,7 @@ async def main(verb):
 
 
 try:
-    asyncio.run(main(sys.argv[1] if len(sys.argv) > 1 else None))
+    asyncio.run(main(sys.argv[1:]))
 except Exception as e:
     print(f"FAIL: {type(e).__name__}: {e}")
     sys.exit(1)

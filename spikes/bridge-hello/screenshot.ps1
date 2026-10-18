@@ -10,6 +10,7 @@ public static class W {
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
     [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+    [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr hdc, uint flags);
 }
 "@
 # Without this, window coordinates are scaled on high-DPI screens and the crop is wrong.
@@ -23,8 +24,13 @@ $r = New-Object W+RECT
 $w = $r.R - $r.L; $h = $r.B - $r.T
 $bmp = New-Object System.Drawing.Bitmap $w, $h
 $g = [System.Drawing.Graphics]::FromImage($bmp)
-# Screen copy, not PrintWindow: it also catches the plugin's separate dialog window when it overlaps.
-$g.CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size)
+# PrintWindow, not a screen copy: a screen copy grabs whatever window is on top, which may be
+# unrelated to MuseScore. PW_RENDERFULLCONTENT (2) is needed for GPU-rendered Qt windows.
+# The plugin's dialog is a separate window and is not in this image.
+$hdc = $g.GetHdc()
+$ok = [W]::PrintWindow($p.MainWindowHandle, $hdc, 2)
+$g.ReleaseHdc($hdc)
+if (-not $ok) { Write-Error "PrintWindow failed"; exit 1 }
 $bmp.Save($Out, [System.Drawing.Imaging.ImageFormat]::Png)
 $g.Dispose(); $bmp.Dispose()
 Write-Output "$Out ${w}x${h}"
