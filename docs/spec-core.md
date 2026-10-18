@@ -188,6 +188,8 @@ r                              rest at the cursor; advances
 t <a>:<b> <z>/<n>              tuplet of a:b over total duration z/n, followed by its n and r entries
 a <track> <tick> <kind> <text> dyn | harm | text, after all voice passes
 ~ <track> <tick> <pitch>       tie the note at (track, tick, pitch) forward, last
+g <track> <tick> <kind> <note> grace note on the chord at (track, tick); kind is the action code
+                               (acciaccatura, appoggiatura, grace4, grace16, grace32, grace8after, ...)
 ```
 
 Execution order inside one `write`: the `v` passes in track order, each a run of `d`, `t`, `n`, `r` lines that must fill the bar exactly (`src:58`); then a spelling pass that revisits each written chord by tick to set `tpc1` and `tpc2` (`src:59`); then `a`; then `~` last, because a tie needs both notes to exist (6.5). The server compiles N1x into this list; the plugin never parses music, only ops.
@@ -362,7 +364,7 @@ Spelling pass, after all voice passes: for each chord written, find its segment 
 
 Existing content: `addNote` overwrites. Note entry carves a gap of the requested duration out of whatever the voice holds and never inserts time (`src:48`). A duration longer than the remaining bar spills into the next bar with an automatic tie (`src:50`), which is why 6.1 requires exact bar fills. Policy: `propose` requires `replace=True` when the pre-snapshot shows anything but rests in the target cells; the read-back (6.6) checks the result either way.
 
-Grace notes are not written in v1: there is no cursor entry for them in the API matrix (`api:49`), and `cursor.add` of a NOTE only attaches to an existing chord (`api:50`).
+Grace notes are written in v1 (decided 2026-10-18, spike round 5, `research/spike-bridge-hello-2026-10-18.md`): there is no cursor entry for them (`api:49`), so per `g` op, after all voice passes and the spelling pass, the plugin selects the main chord's first note, dispatches the grace action, and sets `pitch`, `tpc1`, `tpc2` on the new grace note, which MuseScore creates at the main note's pitch. New graces before a note are inserted at the front of `graceNotes`, so the server emits a note's before-graces in reverse order. Like ties, this needs the dialog-free plugin (2.1).
 
 ### 6.5 Ties
 
@@ -419,7 +421,7 @@ When the idea extends past the last bar, `appendMeasures(n)` (`api:33`) runs ins
 
 ### 6.12 Not written in v1
 
-Grace notes (6.4); slurs and hairpins, which fall through `cursor.add` with no spanner handling (`api:50`); lyrics; articulations; key and time changes mid-idea (possible through `cursor.add` of KeySig and TimeSig, `api:50`, deferred); clefs; bar lines (`notes:169`); parts and staves (`api:34`, reserved for layout A).
+Slurs and hairpins, which fall through `cursor.add` with no spanner handling (`api:50`); lyrics; articulations; key and time changes mid-idea (possible through `cursor.add` of KeySig and TimeSig, `api:50`, deferred); clefs; bar lines (`notes:169`); parts and staves (`api:34`, reserved for layout A).
 
 ## 7. Ideas into MuseScore
 
@@ -451,7 +453,7 @@ File paths across WSL2 and Windows: mirrored networking shares `127.0.0.1` (`pla
 - Startup under one second, no network at import time (`hosts:19`).
 - Connection manager as in 3.3 and 3.4, one request in flight, request ids per connection.
 - Cache: raw `M`/`C`/`R`/`A` lines per measure keyed by fingerprint; `info` refreshed on each `fp` mismatch of the part or measure tables.
-- Engine dependency tiers: core (index, N1x, notes table, harmony, engrave, render, export, no music21; `engine:152`); `[checks]` adds music21 for `part_writing.check` (`engine:153`, 114 MB, `engine:148`); the AnalysisGNN environment is a separate optional download (`engine:22`, `notes:67`).
+- Engine dependency tiers: core (index, N1x, notes table, harmony, engrave, render, export, no music21; `engine:152`); music21 for `part_writing.check` (`engine:153`, 114 MB, `engine:148`) is a required dependency of Reflets (open question 7), so `check` always works; the AnalysisGNN environment is a separate optional download (`engine:22`, `notes:67`).
 - Settings: `REFLETS_PORT` (default 8731), `REFLETS_TMP`, `REFLETS_LOG`.
 - Licence: plugin and server MIT; the plugin is written from scratch against the public API and does not copy the GPL-3.0 `dev_test_websocket` sample (`hosts:57`, `hosts:58`, `hosts:63`).
 
@@ -489,11 +491,11 @@ These are the **[spike]** marks above. Each is a short experiment on the owner's
 4. **Local security.** Decided 2026-10-18: shared token (2.2). Original question: the plugin binds all interfaces (`deep:6`). Document the firewall prompt only, or add a shared token the plugin writes to Documents/MuseScore4 with `FileIO` (`api:20`) and the server reads before `hello`?
 5. **Port.** Decided 2026-10-18: 8731.
 6. **What `check` covers in v1.** Decided 2026-10-18: ship with the current rules and say when they do not apply. Original question: The engine's voice-leading rules apply only to chorale-like textures (`engine:81`); melody-versus-accompaniment clash detection and voicing checks are new engine work (`notes:129`). Ship `check` with the current rules and say when they do not apply, or hold the tool until the new checks exist?
-7. **music21.** `check` needs the 114 MB `[checks]` extra (`engine:148`, `engine:153`). Required install, or optional with a hint?
+7. **music21.** Decided 2026-10-18: required. Original question: `check` needs the 114 MB `[checks]` extra (`engine:148`, `engine:153`). Required install, or optional with a hint?
 8. **Codex.** Decided 2026-10-18: later, after Claude Code works. Original question: Document the Codex surface (CLI and the ChatGPT desktop app's Codex side) as a supported host in v1 (`hosts:13-14`)?
 9. **Change detection.** Decided 2026-10-18: on demand only; reads are cheap (17 ms per 16–32 bar window, spike round 4). Original question: On-demand fingerprinting only, or also a timer in the plugin that raises a "changed" flag, at a UI-thread cost (`api:126`, `notes:183`)?
 10. **Overwrite policy.** Decided 2026-10-18: refuse without `replace=True`. Original question: Should `propose` refuse to write over existing notes without `replace=True` (6.4), or always replace?
 11. **Pending research.** Answered 2026-10-18: the report landed (`research/bridges-wire-protocols-and-roadmap.md`, summarised in the plan) and confirmed the design. Original question: the study of existing bridges' wire protocols and the MuseScore 4.8 roadmap was still running when the handoff was made (`plan:111`). Wait for it, or proceed with this design?
 12. **Key changes.** Decided 2026-10-18: support them when reading: the plugin's `K` lines (3.7), a `ks=` on the bar header in N1x the way `ts=` marks meter changes, and a per-bar key in the engine's `ScoreIndex` (a change in `sheet-music-plugin`). Writing key changes in ideas stays out of v1 (6.12). Original question: The engine keeps only the first key signature (`engine:10`); N1x drops later ones too. Acceptable for v1?
-13. **Grace notes in ideas.** Confirmed writable 2026-10-18 (spike round 5): select the main note, dispatch `acciaccatura`/`appoggiatura`/`grace4`/`grace16`/`grace32`/`grace8after`/…, then set the new grace note's `pitch`, `tpc1`, `tpc2`; one undo step with the idea. New graces before a note are inserted at the front, so the server adds them in reverse order. Original question: Not writable in v1 (6.4). Acceptable?
+13. **Grace notes in ideas.** Decided 2026-10-18: included in v1 (3.8, 6.4). Confirmed writable 2026-10-18 (spike round 5): select the main note, dispatch `acciaccatura`/`appoggiatura`/`grace4`/`grace16`/`grace32`/`grace8after`/…, then set the new grace note's `pitch`, `tpc1`, `tpc2`; one undo step with the idea. New graces before a note are inserted at the front, so the server adds them in reverse order. Original question: Not writable in v1 (6.4). Acceptable?
 14. **Licence.** Decided 2026-10-18: MIT for both plugin and server (`hosts:63`).
