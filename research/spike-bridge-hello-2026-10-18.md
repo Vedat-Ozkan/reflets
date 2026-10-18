@@ -69,3 +69,34 @@ Findings:
 - Respelling by `tpc1`/`tpc2` after entry works.
 - Owner report: quitting MuseScore with the plugin window still open took noticeably long. Not measured yet.
 - `screenshot.ps1` first used a screen copy, which captured an unrelated window covering MuseScore; it now uses `PrintWindow` with `PW_RENDERFULLCONTENT`, which captures MuseScore even when covered (the plugin dialog is a separate window and is not included).
+
+## Round 3: plugin 0.0.4, why the tie failed, and dynamics
+
+Diagnosis from MuseScore's own log (`%LOCALAPPDATA%\MuseScore\MuseScore4\logs\MuseScore_<date>.log`): round 2's `cmd("tie")` logged `ActionsDispatcher::doDispatch | no one can handle the action: tie`. Source at v4.7.5: `tie` is registered with the default enabler `isNotationPage` (`notationactioncontroller.h:234`), which asks `UiContextResolver::matchWithCurrent(UiCtxProjectOpened)`; the plugin's open dialog changes the current UI context, so the controller declines. Undo has its own enabler (`canUndo`), which is why undo worked.
+
+Test: `install.sh` installs the same QML twice: as the dialog plugin (8731) and as a macro plugin with no `pluginType` (8732). New scratch score; only the macro run.
+
+| Step (macro, no dialog open) | Result |
+|---|---|
+| `tie` (bar 2, inside `startCmd`) | `C 1920 0 1/4 67:15:15:f`, `C 2400 0 1/4 67:15:15:b`; tie visible; log `try call action: tie` |
+| `dyn` bar 5: `dynamicType = DynamicType.MF` only | `dynamicType=8 velocity=80 text=` (empty); nothing visible |
+| `dyn` bar 6: `text = "mf"` then `dynamicType = DynamicType.MF` | `dynamicType=8 velocity=80 text=mf`; mf visible |
+| `undo` ×2 | dyn gone from bars 5 and 6, then bar 2 back to a whole rest (tie and notes in one step) |
+
+Then the owner opened the dialog plugin as well:
+
+| Step (dialog open) | Result |
+|---|---|
+| connect to 8731 | timed out: nothing listening |
+| connect to 8732 | answered with `port=8731`, i.e. by the dialog instance's code |
+| `tie` inside `startCmd` (bar 2) | notes written, no tie; log `no one can handle the action: tie` |
+| `tieout`: notes in one command, then `select` + `cmd("tie")` after `endCmd` (bar 4) | notes written, no tie; same log line |
+
+Findings:
+- **The bridge cannot be a dialog plugin.** With any plugin dialog open, notation actions gated on `isNotationPage` are refused. A macro plugin has no dialog, and its object is never deleted (`legacy/extpluginrunner.cpp:49-61`: `component.create()`, no delete), so its server keeps running until MuseScore quits.
+- **One shared WebSocket server per MuseScore** (`websocketserverapi.cpp`): all v1 plugins share one `WebSocketServerApi`. The dialog's `listen(8731)` failed silently (already listening on 8732) but replaced `m_onNewConnected`, so new connections went to the dialog's code.
+- The server does handle socket disconnects internally (it deletes the socket and drops the client id); only JS gets no callback.
+- Dynamics: set `text`, then `dynamicType`.
+- Owner report: quitting MuseScore was faster this time (one to two seconds) than with the dialog open in round 2. Not measured.
+
+Spec updated: 2.1 (no dialog, lifecycle, shared server), 2.2 (port constant, security decision), 6.5 step 4, 6.7, open question 4.

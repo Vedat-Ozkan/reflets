@@ -1,18 +1,20 @@
 """Throwaway spike client for reflets-bridge-hello.qml.
 
+    REFLETS_PORT=8732 python3 probe.py ...  # the macro variant
     python3 probe.py                       # hello + 20 pings
     python3 probe.py "read 1" multi "read 1" undo "read 1"
                                            # hello, then each argument as one request, in order
 """
 
 import asyncio
+import os
 import statistics
 import sys
 import time
 
 import websockets
 
-URL = "ws://127.0.0.1:8731"
+URL = f"ws://127.0.0.1:{os.environ.get('REFLETS_PORT', '8731')}"
 TIMEOUT = 5
 
 

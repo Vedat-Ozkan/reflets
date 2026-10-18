@@ -1,6 +1,8 @@
 // Throwaway spike: does api.websocketserver work in a v1 dialog plugin, and can WSL reach it?
 // Round 2 adds the write-path checks of spec 10: several ops in one undo step, a second voice,
-// respelling, ties, annotations, tuplets. Written from scratch against the public plugin API. MIT.
+// respelling, ties, annotations, tuplets. Round 3 adds tie and dynamic variants; install.sh also
+// installs this file as a non-dialog (macro) plugin on port 8732, to test whether the open dialog
+// is what makes MuseScore refuse cmd("tie") ("no one can handle the action: tie" in its log). Written from scratch against the public plugin API. MIT.
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import MuseScore 3.0
@@ -8,7 +10,7 @@ import MuseScore 3.0
 MuseScore {
     title: "Reflets Bridge Hello"
     description: "Spike: WebSocket server on port 8731 for bridge and write-path checks"
-    version: "0.0.3"
+    version: "0.0.4"
     pluginType: "dialog"
     requiresScore: false
     width: 420
@@ -67,7 +69,7 @@ MuseScore {
             for (var j = 0; ann && j < ann.length; j++) {
                 var a = ann[j]
                 lines.push("A " + seg.tick + " " + a.track + " " + a.name + " harmonyType=" + a.harmonyType
-                    + " dynamicType=" + a.dynamicType + " text=" + escapeText(a.text))
+                    + " dynamicType=" + a.dynamicType + " velocity=" + a.velocity + " text=" + escapeText(a.text))
             }
         }
         return lines
@@ -134,6 +136,38 @@ MuseScore {
         return "select=" + sel
     }
 
+    // Bar 4: same notes as opTie, but the tie action is dispatched after endCmd, outside the undo lock.
+    function opTieOutside() {
+        curScore.startCmd("Reflets: tieout notes")
+        var c = land(4, 0)
+        c.setDuration(1, 4)
+        c.addNote(67, false)
+        c.addNote(67, false)
+        c.setDuration(1, 2)
+        c.addRest()
+        curScore.endCmd(false)
+        var n = chordAt(4, measureAt(4).firstSegment.tick, 0).notes[0]
+        var sel = curScore.selection.select(n)
+        cmd("tie")
+        return "select=" + sel
+    }
+
+    // Bar 5: dynamicType only. Bar 6: text, then dynamicType. One command.
+    function opDyn() {
+        curScore.startCmd("Reflets: dyn")
+        var c = land(5, 0)
+        var d1 = newElement(Element.DYNAMIC)
+        c.add(d1)
+        d1.dynamicType = DynamicType.MF
+        c = land(6, 0)
+        var d2 = newElement(Element.DYNAMIC)
+        c.add(d2)
+        d2.text = "mf"
+        d2.dynamicType = DynamicType.MF
+        curScore.endCmd(false)
+        return "MF=" + DynamicType.MF
+    }
+
     // Bar 1 beat 1: chord symbol, dynamic, staff text; text set after cursor.add (spec 6.7).
     function opAnnot() {
         curScore.startCmd("Reflets: annot")
@@ -171,7 +205,7 @@ MuseScore {
         var verb = head[1]
         if (verb === "hello") {
             var title = curScore ? curScore.scoreName : ""
-            return id + " ok proto=0 plugin=reflets-bridge-hello/0.0.3 mscore=" + mscoreVersion
+            return id + " ok proto=0 plugin=reflets-bridge-hello/0.0.4 port=" + port + " mscore=" + mscoreVersion
                 + " ws=" + (typeof api.websocketserver) + " score=" + (curScore ? 1 : 0)
                 + " title=" + escapeText(title)
         }
@@ -181,7 +215,7 @@ MuseScore {
             return id + " err noscore"
         if (verb === "read")
             return [id + " ok"].concat(readBar(parseInt(head[2]))).join("\n")
-        var ops = { multi: opMulti, tie: opTie, annot: opAnnot, tuplet: opTuplet }
+        var ops = { multi: opMulti, tie: opTie, tieout: opTieOutside, annot: opAnnot, tuplet: opTuplet, dyn: opDyn }
         if (ops[verb])
             return id + " ok " + ops[verb]()
         if (verb === "undo") {

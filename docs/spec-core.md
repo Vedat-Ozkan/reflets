@@ -23,7 +23,7 @@ Marks: **[verified]** read in MuseScore 4.7.5 source or a primary document. **[r
 
 In scope for the core:
 
-1. **Bridge plugin**: one QML file installed in the user's MuseScore plugin folder. It opens a small window, listens on a local WebSocket port, and executes read and write requests against the open score.
+1. **Bridge plugin**: one QML file installed in the user's MuseScore plugin folder. It has no window (2.1), listens on a local WebSocket port, and executes read and write requests against the open score.
 2. **MCP server**: a Python package the user's harness starts over stdio. It owns the connection to the plugin, converts between the two wire protocols, calls the analysis engine, and exposes fewer than ten tools.
 3. **Protocol A**: plugin to server. Line-oriented text with request ids, an application-level ping, and client-side reconnect.
 4. **Protocol B**: model to server. The N1 compact note list from the engine, extended with rests, part identity, dynamics and chord symbols. The same grammar is used for reading and for writing ideas.
@@ -39,7 +39,7 @@ Harness (Claude Code first; Claude Desktop, Codex CLI)          plan:14
 reflets server (Python, MCPServer, imports engine/)             hosts:50, engine:9
    │  Protocol A: WebSocket text frames, ws://127.0.0.1:PORT    deep:6, rig:27
    ▼
-Reflets bridge plugin (QML, legacy v1 "dialog" plugin)          api:90, api:114
+Reflets bridge plugin (QML, legacy v1 plugin, no dialog)       api:90, api:114
    │  PluginAPI v1: curScore, Cursor, startCmd/endCmd, cmd()    api:11, api:31, api:17
    ▼
 the open score in MuseScore Studio 4 (GUI only)                 deep:28
@@ -47,21 +47,23 @@ the open score in MuseScore Studio 4 (GUI only)                 deep:28
 
 ## 2. Placement decisions
 
-### 2.1 The plugin is a legacy v1 QML dialog plugin
+### 2.1 The plugin is a legacy v1 QML plugin without a dialog
 
 - A v1 plugin gets exactly `api.log`, `api.engraving`, `api.websocket`, `api.websocketserver` (`api:90`). That is everything the bridge needs; the v2 extension API adds interactive and theme objects and deliberately omits process and filesystem (`api:92`), so v2 buys nothing for the bridge and costs a manifest.json.
-- Manifest: `pluginType: "dialog"`, `requiresScore: false` so the window can open before a score is loaded (`api:114`: `"false"` maps to UI context `Any`). The manifest is a line scan of the `MuseScore {` block, so these properties are written as plain literal lines (`api:114`).
-- Lifecycle: `Component.onCompleted` fires before `onRun` (`api:115`). The server socket is started in `onRun`, after the dialog is open through the interactive layer (`api:115`), never in `onCompleted`. `quit()` closes the window (`api:115`), which stops the bridge; the window must stay open while the companion is in use (`notes:163`).
+- Manifest: no `pluginType` (a "macro" plugin), `requiresScore: false` (`api:114`: `"false"` maps to UI context `Any`). The manifest is a line scan of the `MuseScore {` block, so these properties are written as plain literal lines (`api:114`).
+- **Why no dialog** (spike, `research/spike-bridge-hello-2026-10-18.md`, round 3): while a v1 plugin's dialog is open, MuseScore refuses every notation action gated on the score page being current. `cmd("tie")` logs `no one can handle the action: tie` with the dialog open, inside or outside `startCmd`, and works with no dialog open. Undo and redo are not affected (own enabler). So a dialog bridge cannot tie, and probably cannot dispatch most other notation actions.
+- Lifecycle: a macro plugin is created by `component.create()` and then never deleted (`src/framework/extensions/internal/legacy/extpluginrunner.cpp:49-61` at v4.7.5), so its object, and the server it started in `onRun`, live until MuseScore quits. The plugin is started once per session from the Plugins menu and cannot be stopped except by quitting MuseScore. This relies on the runner not deleting the object, which is unspecified behaviour; recheck on each new MuseScore release.
+- One server per MuseScore: all v1 plugins share one `WebSocketServerApi` object (`src/framework/network/api/websocketserverapi.cpp` at v4.7.5). A second `listen()` on another port fails silently but replaces the new-connection callback, so the most recently started plugin answers new connections. Running the bridge twice is harmless (the new instance takes over); running another bridge plugin (mcp-score, ghchen99) in the same session steals the connection, which `hello` detects.
 - Qt 6 and QtQuick.Controls 2 idioms only, because a plugin not written for Qt 6 is silently not listed (`deep:49`, `deep:56`).
-- Window contents: MuseScore version, port, listening or connected state, last request, a Quit button. Nothing else (`plan:14`).
+- No status window. Status is reported through `hello` and the server's tool errors; `api.log.info` lines go to MuseScore's log file.
 
 ### 2.2 The plugin listens, the server connects
 
 `api.websocketserver` has `listen`, `onMessage`, `send` and nothing else: no close, no disconnect callback, text frames only (`deep:6`). The research's own conclusion is adopted: the plugin is the listener and the MCP server is the reconnecting client (`deep:13`).
 
-Port: the API default is 8084 when the port is negative (`deep:6`); mcp-score and ghchen99 both use 8765 (`notes:157`, `deep:93`). Reflets uses its own default, **8731**, editable in the plugin window and settable on the server (`REFLETS_PORT`). Reason: a stale plugin instance keeps serving its port after a restart (`deep:81`), and a stale mcp-score plugin on 8765 would otherwise answer a Reflets connection with the wrong protocol. The `hello` handshake (3.5) identifies the plugin in any case.
+Port: the API default is 8084 when the port is negative (`deep:6`); mcp-score and ghchen99 both use 8765 (`notes:157`, `deep:93`). Reflets uses its own default, **8731**, a constant in the plugin file and settable on the server (`REFLETS_PORT`). Reason: a stale plugin instance keeps serving its port after a restart (`deep:81`), and a stale mcp-score plugin on 8765 would otherwise answer a Reflets connection with the wrong protocol. The `hello` handshake (3.5) identifies the plugin in any case.
 
-Security note to document, not to solve in v1: `listen()` binds all interfaces, not loopback (`deep:6`). Windows shows a firewall prompt; the user should deny public access. See open question 4.
+Security: `listen()` binds all interfaces, not loopback (`deep:6`). On the owner's machine Windows already had inbound Allow rules for MuseScore 4 on the Public profile, so no prompt appeared and other devices on the network can likely connect. Decided 2026-10-18 (open question 4): a shared secret. At `onRun` the plugin writes a random token to a file under Documents/MuseScore4 with `FileIO` (`api:20`); the server reads it and sends it in `hello`; the plugin answers nothing else on a connection until a matching `hello`. No TLS, no accounts.
 
 ### 2.3 Music logic lives in Python, the plugin stays thin
 
@@ -369,7 +371,7 @@ There is no API to create a tie: `Cursor::add` has no TIE case, `tieBack`/`tieFo
 1. The server emits `~` only when it has written both the note and a same-pitch successor in the same part and staff, since that is what `searchTieNote` looks for (`src:76`), and because 4.7.5 falls back to adding a brand-new tied note when a lone selected note has no successor (`src:74`).
 2. Find the note at (track, tick, pitch) from a fresh read; `selection.select(note)` (`api:80`; the call is refused if the selection is locked or the element type cannot be recorded, both reported as `write-failed`). A single selected note gives the tie command exactly that note (`src:72`).
 3. Read `note.tieForward` (`api:60`). If already set, skip the command: the toggle would remove it (`deep:70`, `src:73`).
-4. `cmd("tie")` (`api:17`); the code is `tie` on 4.4.4, 4.6.2 and 4.7.5 (`src:15`). The command's own `startCmd`/`endCmd` are no-ops under the plugin's lock (`src:65`), so the tie stays inside the one undo step; the same core logic exists on 4.4.4 (`src:75`).
+4. `cmd("tie")` (`api:17`); the code is `tie` on 4.4.4, 4.6.2 and 4.7.5 (`src:15`). Confirmed on 4.7.5 inside `startCmd`, one undo step with the notes, **only when no plugin dialog is open** (2.1, `research/spike-bridge-hello-2026-10-18.md`). The command's own `startCmd`/`endCmd` are no-ops under the plugin's lock (`src:65`), so the tie stays inside the one undo step; the same core logic exists on 4.4.4 (`src:75`).
 5. Re-read `tieForward`. If still null, `verify-failed` → rollback. Direct Tie creation is never attempted (`deep:77`).
 
 Selection inside an active command: `select(e)` has no undo-stack guard, only the lock and type checks (`api:80`, `api:84`); the claim that `selectRange` is refused inside `startCmd` was refuted 0-3 (`deep:175`). `selectRange` inside a command is applied deferred by tick (`api:81`), which is why ties use `select(note)`, not `selectRange`.
@@ -382,7 +384,7 @@ The read-back is of the score model, not the layout, so `doLayout` (`api:32`) is
 
 ### 6.7 Annotations
 
-Per `a` op: `newElement(type)` (`api:18`), position the cursor (6.4 steps 1 to 2), `cursor.add(el)`, which routes Harmony, Dynamic and StaffText through the default `undoAddElement` path (`api:50`), then set `text`, `dynamicType` or `harmonyType` (`api:59`). Text is set **after** insertion because chord symbols crashed when text was set before (`notes:169`, **[reported]**). Verified by the `A` lines in the read-back.
+Per `a` op: `newElement(type)` (`api:18`), position the cursor (6.4 steps 1 to 2), `cursor.add(el)`, which routes Harmony, Dynamic and StaffText through the default `undoAddElement` path (`api:50`), then set `text`, `dynamicType` or `harmonyType` (`api:59`). Dynamics need both, text first: `dynamicType` alone gives the right type and velocity but empty, invisible text; `text` alone shows "mf" but leaves `dynamicType` at 0 (OTHER) (spike, `research/spike-bridge-hello-2026-10-18.md`). Chord symbol text set after `cursor.add` did not crash on 4.7.5. Text is set **after** insertion because chord symbols crashed when text was set before (`notes:169`, **[reported]**). Verified by the `A` lines in the read-back.
 
 ### 6.8 Version-branched action codes
 
@@ -480,7 +482,7 @@ These are the **[spike]** marks above. Each is a short experiment on the owner's
 1. **Engine packaging.** Import the engine from the `sheet-music-plugin` package as a dependency, or copy `engine/` into this repository (`notes:13`, `plan:20`)? The spec assumes an importable package named `engine`.
 2. **Layouts.** B and C in the first release, A later (`notes:140`, `notes:142-146`, `notes:148`)? A needs `appendPart`, `removeParts` and `Channel.mute` in the plugin (`api:34`, `api:71`).
 3. **Version floor.** Decided 2026-10-18: require 4.7 (2.5). Original question: support 4.4.2 and up, which keeps your 4.4.3 install in scope (`plan:35`) but means version-branched action codes (`deep:60`) and a three-version test matrix (`deep:93`), or require 4.7?
-4. **Local security.** The plugin binds all interfaces (`deep:6`). Document the firewall prompt only, or add a shared token the plugin writes to Documents/MuseScore4 with `FileIO` (`api:20`) and the server reads before `hello`?
+4. **Local security.** Decided 2026-10-18: shared token (2.2). Original question: the plugin binds all interfaces (`deep:6`). Document the firewall prompt only, or add a shared token the plugin writes to Documents/MuseScore4 with `FileIO` (`api:20`) and the server reads before `hello`?
 5. **Port.** 8731 as the default, or another?
 6. **What `check` covers in v1.** The engine's voice-leading rules apply only to chorale-like textures (`engine:81`); melody-versus-accompaniment clash detection and voicing checks are new engine work (`notes:129`). Ship `check` with the current rules and say when they do not apply, or hold the tool until the new checks exist?
 7. **music21.** `check` needs the 114 MB `[checks]` extra (`engine:148`, `engine:153`). Required install, or optional with a hint?
