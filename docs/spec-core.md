@@ -109,11 +109,15 @@ response  <id> ok [<summary> ...]
 
 ### 3.3 Liveness: application-level ping
 
+As built in slice 1 (2026-10-18): no ping loop. The server connects on the first tool call and, if a request fails on a dropped socket, reconnects once (3.4) before reporting that MuseScore is not reachable. The ping loop below waits until something needs it. The plugin registers `onMessage` once per connection, in its new-connection callback, which runs once per client id; and it admits a connection only after a `hello` with the token (2.2).
+
 - The server sends `ping` every 5 s while idle and treats two missed `pong`s as a dead connection, closes its socket and reconnects. The API offers no disconnect callback and no close, so liveness can only be detected at application level (`deep:13`); mcp-score polls a ping every 2 s for readiness (`deep:93`).
 - The plugin registers `onMessage` once per client id (ids start at 2001; `deep:6`); registering twice double-delivers messages (`deep:6`, `deep:13`). The plugin keeps a set of ids it has registered.
 - The plugin cannot drop a client. It keeps the id map and answers whoever speaks. The server's hello (3.5) is the only admission control in v1.
 
 ### 3.4 Reconnect: client side, never blocking startup
+
+As built in slice 1: no state machine or backoff; connect lazily on the first tool call (which already keeps startup instant, about 0.4 s to import), one retry per request. `score_info` returns the not-reachable text as its result; the other tools raise it as `ToolError`.
 
 - Server states: `disconnected`, `connecting`, `hello`, `ready`. Backoff 0.5 s, 1 s, 2 s, 5 s, then 5 s steady.
 - The server never waits for MuseScore at startup. Codex kills a server that takes more than 10 s to start (`hosts:19`) and Claude Code waits at most `MCP_TIMEOUT`, 30 s, for pending servers (`hosts:37`). The process must answer the MCP handshake within a second and connect to the plugin in the background.
@@ -166,7 +170,7 @@ A <tick> <track> <kind> <text>
 H <no> <hash>
 ```
 
-- `C` is a chord (one or more notes at one onset in one voice). `<note>` is `<pitch>:<tpc1>:<tpc2>[:b][:f]`: MIDI pitch, concert tonal pitch class, written tonal pitch class, tie-back flag, tie-forward flag. Sources: `Chord.notes` (`api:63`), `Note.pitch/tpc1/tpc2/tieBack/tieForward` (`api:60`). The tonal pitch class is what distinguishes C sharp from D flat, which harmony analysis needs and which MIDI pitch alone loses (`notes:173`); the engine keeps spelled pitch (`engine:11`).
+- `C` is a chord (one or more notes at one onset in one voice). `<note>` is `<pitch>:<tpc1>:<tpc2>[:b][:f]`: MIDI pitch, concert tonal pitch class, written tonal pitch class, tie-back flag, tie-forward flag. The pitch is the sounding pitch: `Note.pitch` excludes octave lines, so the plugin adds `Staff.pitchOffset(tick)` (since 4.6); without it, 8va passages read an octave low (slice 1, compared against the engine's N1 of the nocturne). A write under an octave line must subtract the offset again. Sources: `Chord.notes` (`api:63`), `Note.pitch/tpc1/tpc2/tieBack/tieForward` (`api:60`). The tonal pitch class is what distinguishes C sharp from D flat, which harmony analysis needs and which MIDI pitch alone loses (`notes:173`); the engine keeps spelled pitch (`engine:11`).
 - `<z>/<n>` is `DurationElement.duration` as numerator and denominator (`api:61`); `T<a>:<b>` is `Tuplet.actualNotes:normalNotes` (`api:64`, there is no ratio property). `G<noteType>` marks a grace note by `Note.noteType` (`api:60`); grace chords come from `Chord.graceNotes` (`api:63`) and are emitted before their parent chord with the parent's tick.
 - `!<artic>` lists `Chord.articulations` by name (`api:63`). Carried in the raw format for later use; not in N1x v1 (4.2).
 - `A` kinds: `dyn` (`dynamicType`), `harm` (`harmonyType` plus `text`), `text` (staff text), `tempo` (`tempo`, `text`), all from `Segment.annotations` as generic items with those properties (`api:59`, `api:65`), typed by `ScoreElement.name` (`api:58`). Lyrics (`ChordRest.lyrics`, `api:62`) are not emitted in v1.

@@ -1,0 +1,28 @@
+[project]
+name = "reflets"
+version = "0.1.0"
+description = "A composing companion for MuseScore Studio, served over MCP"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = [
+    "mcp>=2.2",
+    "websockets>=13",
+    "sheet-music-analysis",  # the engine; brings music21, required for check (spec open question 7)
+]
+
+[project.scripts]
+reflets = "reflets.server:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["reflets"]
+
+# During development the engine comes from the sibling checkout (spec open question 1).
+[tool.uv.sources]
+sheet-music-analysis = { path = "../sheet-music-plugin", editable = true }
