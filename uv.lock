@@ -1624,7 +1624,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "mcp", specifier = ">=2.2" },
-    { name = "sheet-music-analysis", editable = "../sheet-music-plugin" },
+    { name = "sheet-music-analysis", editable = "../sheet-music-engine" },
     { name = "websockets", specifier = ">=13" },
 ]
 
@@ -1849,7 +1849,7 @@ wheels = [
 [[package]]
 name = "sheet-music-analysis"
 version = "0.0.1"
-source = { editable = "../sheet-music-plugin" }
+source = { editable = "../sheet-music-engine" }
 dependencies = [
     { name = "fonttools" },
     { name = "music21" },

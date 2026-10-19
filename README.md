@@ -8,7 +8,7 @@ Status: slice 1. The server has two tools, `score_info` and `read_score`, which 
 
 - MuseScore Studio 4.7 or later
 - Python 3.11+ and [uv](https://docs.astral.sh/uv/)
-- A checkout of the engine, `sheet-music-plugin`, next to this repository (`../sheet-music-plugin`; see `[tool.uv.sources]` in `pyproject.toml`)
+- The engine from `sheet-music-plugin`, as a worktree of its `main` next to this repository: `git -C ../sheet-music-plugin worktree add --detach ../sheet-music-engine main` (see `[tool.uv.sources]` in `pyproject.toml`). To take newer engine changes: `git -C ../sheet-music-engine switch --detach main`, then `uv sync`.
 
 ## Install
 

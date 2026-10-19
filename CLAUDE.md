@@ -14,7 +14,7 @@ MCP server (`reflets/`, Python) plus a MuseScore bridge plugin (`plugin/reflets-
 
 - The owner runs MuseScore Studio 4.7.5 on Windows and works in WSL2 with mirrored networking; the server reaches the plugin at `ws://127.0.0.1:8731`.
 - Plugin folder from WSL: `/mnt/c/Users/Vedat/Documents/MuseScore4/Plugins/reflets-bridge/`. After editing the plugin, copy it there; MuseScore must be restarted and the plugin run again from Plugins > Reflets Bridge.
-- The engine (`import engine`) is the sibling checkout `../sheet-music-plugin`, installed editable through `[tool.uv.sources]`. Engine changes Reflets needs are made in that repository (spec open question 1).
+- The engine (`import engine`) is `../sheet-music-engine`, a detached worktree of `../sheet-music-plugin` at its `main`, installed editable through `[tool.uv.sources]`. It is a separate worktree so branch switching in `../sheet-music-plugin` doesn't change what Reflets runs. Engine changes Reflets needs are made in that repository on a branch, pass its full test suite, merge to its `main`, then reach Reflets with `git -C ../sheet-music-engine switch --detach main` (spec open question 1). The hosted app also uses the engine and N1: keep changes additive, with default output unchanged.
 - MuseScore's log: `%LOCALAPPDATA%\MuseScore\MuseScore4\logs\`.
 
 ## Docs conventions
