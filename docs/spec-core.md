@@ -1,6 +1,6 @@
 # Reflets core spec: bridge plugin, MCP server, wire protocols, write path
 
-Status: draft 1, 2026-10-14. Written from the planning handoff (`notes.md`, `docs/plan-2026-10-14.md`, `research/`). Nothing is built. This document fixes the design of the core so that the first release slice (read the open score reliably, run rule-based checks, write a proposed idea into MuseScore for audition, approve or discard; `plan:13`) can be implemented, and so that the later modes bolt on without changing the protocols.
+Status: draft 1, 2026-10-14; slice 1 (reading the open score: `score_info`, `read_score`) built 2026-10-18, with "As built in slice 1" notes where it narrows the design. Written from the planning handoff (`notes.md`, `docs/plan-2026-10-14.md`, `research/`). This document fixes the design of the core so that the first release slice (read the open score reliably, run rule-based checks, write a proposed idea into MuseScore for audition, approve or discard; `plan:13`) can be implemented, and so that the later modes bolt on without changing the protocols.
 
 Every design choice cites a line in `research/`. Owner decisions cite `docs/plan-2026-10-14.md` or `notes.md`. Where the research says a fact is unverified at runtime, the choice is marked **[spike]** and listed in section 10; the design does not silently depend on it.
 
