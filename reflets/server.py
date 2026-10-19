@@ -1,6 +1,9 @@
-"""The Reflets MCP server (docs/spec-core.md section 5). Slice 1: score_info and read_score."""
+"""The Reflets MCP server (docs/spec-core.md section 5). Slices 1 and 2: reading, and ideas written in place."""
 
 from __future__ import annotations
+
+import itertools
+from dataclasses import dataclass
 
 from engine import notes
 from engine.score import PositionError
@@ -10,6 +13,7 @@ from mcp.types import ToolAnnotations
 
 from reflets.bridge import Bridge, BridgeError
 from reflets.score import ScoreInfo, build_index, parse_info
+from reflets.write import IdeaError, cells, compile_idea, occupied, verify
 
 # Spec 4.4: estimate tokens as characters / 3.5; a default read over this returns the first bars only.
 WHOLE_SCORE_TOKENS = 6000
@@ -22,10 +26,27 @@ mcp = MCPServer(
         "Reflets connects you to the score open in the user's MuseScore Studio. Call score_info first, then "
         "read_score for the notes. Notes come in N1: one 'staff.voice:' line per voice per bar, a bare number "
         "sets the duration in div units per quarter note, '+' joins a chord, 'r' is a rest, a leading 'g' marks "
-        "a grace note, a trailing '~' a tie. Pitches are sounding pitches with their spelling (Eb4, not D#4)."
+        "a grace note, a trailing '~' a tie. Pitches are sounding pitches with their spelling (Eb4, not D#4). "
+        "To try an idea, write it in the same form with propose; it lands in the score in colour as one undo step. "
+        "The user listens in MuseScore, then you call keep or discard as they decide."
     ),
 )
 bridge = Bridge()
+
+
+@dataclass
+class Proposal:
+    label: str
+    start_tick: int
+    end_tick: int
+    tracks: list[int]
+    bars: str
+    pre: list[str]  # the range before the write, all tracks (spec 6.2)
+    post: list[str]  # the range after it, to see whether the user has edited since (6.9)
+
+
+proposals: dict[str, Proposal] = {}
+proposal_numbers = itertools.count(1)  # never reused, so an old id cannot name a newer idea
 
 
 def read_only(title: str) -> ToolAnnotations:
@@ -98,7 +119,8 @@ async def read_score(bars: str = "all") -> str:
     for number in (first, last):
         if number not in numbers:
             raise ToolError(f"Bar {number} does not exist; the score has bars {numbers[0]} to {numbers[-1]}")
-    start_tick = info.ticks[numbers.index(first)]
+    # notes.encode takes the pickup along with a range that starts at bar 1, so its notes must be read too.
+    start_tick = info.ticks[0 if first == 1 and numbers[0] == 0 else numbers.index(first)]
     end_index = numbers.index(last) + 1
     end_tick = info.ticks[end_index] if end_index < len(info.ticks) else 2**31 - 1
     try:
@@ -117,6 +139,122 @@ async def read_score(bars: str = "all") -> str:
     except (notes.NotesError, PositionError) as error:
         raise ToolError(f"Could not encode bars {first}-{last}: {error}") from None
     return text
+
+
+async def request(line: str) -> list[str]:
+    try:
+        _, lines = await bridge.request(line)
+    except BridgeError as error:
+        raise ToolError(str(error)) from None
+    return lines
+
+
+def writes(title: str, destructive: bool) -> ToolAnnotations:
+    return ToolAnnotations(title=title, read_only_hint=False, destructive_hint=destructive, idempotent_hint=False, open_world_hint=False)
+
+
+@mcp.tool(
+    title="Propose an idea",
+    description=(
+        "Use this to write an idea into the open score so the user can hear it. idea is N1 in the form "
+        "read_score returns: the header line, then for each bar to write its 'mN len=' line (len as in the score) "
+        "and one 'staff.voice:' line per voice to write. Each voice line replaces that voice in that bar; voices "
+        "and bars you leave out are untouched; a line of rests only (e.g. '1.2: 288 r') empties a voice. "
+        "Silence at the end of a voice line is filled with rests. Not yet: tuplets, grace chords, dynamics, chord "
+        "symbols. replace=True is needed when a voice you write already has notes there. The idea is written in "
+        "colour as one undo step and read back; the result gives a proposal id for keep or discard."
+    ),
+    annotations=writes("Propose an idea", destructive=True),
+    meta={"anthropic/alwaysLoad": True},
+    structured_output=False,  # plain text only; a structured copy would double the tokens (spec 5.1)
+)
+async def propose(idea: str, label: str = "idea", replace: bool = False) -> str:
+    info = await load_info()
+    staves = max(staff for _, part_staves in info.parts for staff in part_staves)
+    try:
+        plan = compile_idea(idea, info, int(bridge.hello["division"]), staves)
+    except IdeaError as error:
+        raise ToolError(str(error)) from None
+    numbers = [measure.number for measure in info.measures]
+    pre = await request(f"read {plan.start_tick} {plan.end_tick}")
+    taken = occupied(plan, cells(pre, info))
+    if taken and not replace:
+        where = ", ".join(f"bar {numbers[p]} {t // 4 + 1}.{t % 4 + 1}" for p, t in taken)
+        raise ToolError(f"These voices already have notes: {where}. Ask the user, then call again with replace=True.")
+    label = " ".join(label.split()) or "idea"
+    reply = await request(f"write {plan.start_tick} {plan.end_tick} {label}\n" + "\n".join(plan.ops))
+    mismatch, cut = verify(plan, pre, reply, info)
+    if mismatch:
+        # Spec 6.6 verifies inside the command; as built, the plugin commits and a mismatch is undone here.
+        await request("undo")
+        after = await request(f"read {plan.start_tick} {plan.end_tick}")
+        state = "The write was undone." if after == pre else "Undoing it did not restore the bars; ask the user to check them."
+        raise ToolError(f"The idea did not land as written ({mismatch}). {state}")
+    positions = sorted({p for p, _ in plan.cells})
+    bars = f"bars {numbers[positions[0]]}-{numbers[positions[-1]]}" if len(positions) > 1 else f"bar {numbers[positions[0]]}"
+    proposal_id = f"p{next(proposal_numbers)}"
+    tracks = sorted({t for _, t in plan.cells})
+    proposals[proposal_id] = Proposal(label, plan.start_tick, plan.end_tick, tracks, bars, pre, reply)
+    counts = ", ".join(f"{n} {what if n > 1 else what[:-1]}" for what, n in plan.counts.items() if n)
+    voices = ", ".join(f"{t // 4 + 1}.{t % 4 + 1}" for t in tracks)
+    note = f" The tie into or out of bar(s) {', '.join(map(str, cut))} was cut, as the idea replaced its note." if cut else ""
+    return (
+        f'Written: {bars}, voices {voices}, {counts}, as one undo step "Reflets: {label}". Read-back matched.{note}\n'
+        f"The new notes are blue. The user listens with Play in MuseScore; then keep(\"{proposal_id}\") turns them "
+        f"black, or discard(\"{proposal_id}\") removes them.\nproposal id: {proposal_id}"
+    )
+
+
+def find(proposal_id: str) -> Proposal:
+    if proposal_id not in proposals:
+        open_ids = ", ".join(proposals) or "none"
+        raise ToolError(f"There is no open proposal {proposal_id!r} (open: {open_ids}).")
+    return proposals[proposal_id]
+
+
+@mcp.tool(
+    title="Discard an idea",
+    description=(
+        "Use this when the user does not want a proposed idea: it undoes the proposal, restoring the bars. "
+        "Refused if the user has edited those bars since; then they can use Ctrl+Z themselves."
+    ),
+    annotations=writes("Discard an idea", destructive=True),
+    structured_output=False,
+)
+async def discard(proposal_id: str) -> str:
+    p = find(proposal_id)
+    span = f"read {p.start_tick} {p.end_tick}"
+    if await request(span) != p.post:
+        raise ToolError(
+            f"{p.bars.capitalize()} changed since {proposal_id} was written, so undoing would remove the user's edit. "
+            "Nothing was undone; the user can use Ctrl+Z in MuseScore."
+        )
+    await request("undo")
+    if await request(span) != p.pre:
+        # The last undo step was something else, such as an edit elsewhere in the score (spec 6.9): put it back.
+        await request("redo")
+        restored = await request(span) == p.post
+        raise ToolError(
+            f"The last step in MuseScore's undo history was not {proposal_id}"
+            + (", so it was redone and nothing changed." if restored else ", and redoing it did not restore the bars; ask the user to check them.")
+            + " The user can remove the idea with Edit > Undo."
+        )
+    del proposals[proposal_id]
+    return f"Discarded {proposal_id}: the score is back as it was in {p.bars}."
+
+
+@mcp.tool(
+    title="Keep an idea",
+    description="Use this when the user keeps a proposed idea: its notes turn from blue to black.",
+    annotations=writes("Keep an idea", destructive=False),
+    structured_output=False,
+)
+async def keep(proposal_id: str) -> str:
+    p = find(proposal_id)
+    tracks = ",".join(map(str, p.tracks))
+    await request(f"color {p.start_tick} {p.end_tick} {tracks} #000000 keep {p.label}")
+    del proposals[proposal_id]
+    return f'Kept {proposal_id}: the notes in {p.bars} are black now (one undo step, "Reflets: keep {p.label}").'
 
 
 def main() -> None:

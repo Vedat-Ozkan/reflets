@@ -11,11 +11,12 @@ import FileIO 3.0
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.1.0"
+    version: "0.2.0"
     requiresScore: false
 
-    readonly property int proto: 1
+    readonly property int proto: 2
     readonly property int port: 8731
+    readonly property string ideaColor: "#1565c0"
     property string token: ""
     property var authed: ({})
 
@@ -133,6 +134,153 @@ MuseScore {
         return lines
     }
 
+    function offsetAt(track, tick) {
+        return curScore.staves[Math.floor(track / 4)].pitchOffset(fraction(tick, division * 4))
+    }
+
+    // rewindToTick moves on to the next segment holding something in the cursor's track, so check the tick.
+    function elementAt(track, tick) {
+        var c = curScore.newCursor()
+        c.track = track
+        c.rewindToTick(tick)
+        if (!c.segment || c.tick !== tick || !c.element)
+            throw "nothing in track " + track + " at tick " + tick
+        return c.element
+    }
+
+    function noteAt(track, tick, sounding) {
+        var notes = elementAt(track, tick).notes
+        var written = sounding - offsetAt(track, tick)
+        for (var i = 0; notes && i < notes.length; i++) {
+            if (notes[i].pitch === written)
+                return notes[i]
+        }
+        throw "no note " + sounding + " in track " + track + " at tick " + tick
+    }
+
+    // Sets the concert spelling and keeps the instrument's transposition, which is tpc2 - tpc1 in fifths.
+    function respell(n, tpc, color) {
+        var transposition = n.tpc2 - n.tpc1
+        n.tpc1 = tpc
+        n.tpc2 = tpc + transposition
+        n.color = color
+    }
+
+    // Ops of spec 3.8, as one undo step (6.3): v/d/n/r voice passes, then spelling and colour by tick, then
+    // g, then ~. Any failure rolls the whole step back. Returns the read-back of [startTick, endTick).
+    function write(id, startTick, endTick, label, ops) {
+        var c = null, track = 0, step = 0, chords = [], rests = []
+        curScore.startCmd("Reflets: " + label)
+        try {
+            for (; step < ops.length; step++) {
+                var w = ops[step].split(" ")
+                if (w[0] === "v") {
+                    // Spec 6.4: land through voice 1 of the staff, which always has something at the bar
+                    // start, then switch track without moving.
+                    track = parseInt(w[1])
+                    c = curScore.newCursor()
+                    c.track = track - track % 4
+                    c.rewindToTick(parseInt(w[2]))
+                    c.track = track
+                } else if (w[0] === "d") {
+                    var f = w[1].split("/")
+                    c.setDuration(parseInt(f[0]), parseInt(f[1]))
+                } else if (w[0] === "n") {
+                    var tick = parseInt(w[1])
+                    var ns = w[2].split(",")
+                    for (var i = 0; i < ns.length; i++)
+                        c.addNote(parseInt(ns[i].split(":")[0]) - offsetAt(track, tick), i > 0)
+                    chords.push([track, tick, ns])
+                } else if (w[0] === "r") {
+                    c.addRest()
+                    rests.push([track, parseInt(w[1])])
+                } else {
+                    break
+                }
+            }
+            // After addNote the cursor already sits on the next position, so revisit by tick (spec 6.4).
+            for (var j = 0; j < chords.length; j++) {
+                for (var k = 0; k < chords[j][2].length; k++) {
+                    var pt = chords[j][2][k].split(":")
+                    respell(noteAt(chords[j][0], chords[j][1], parseInt(pt[0])), parseInt(pt[1]), ideaColor)
+                }
+            }
+            for (var r = 0; r < rests.length; r++)
+                elementAt(rests[r][0], rests[r][1]).color = ideaColor
+            for (; step < ops.length; step++) {
+                var o = ops[step].split(" ")
+                var otrack = parseInt(o[1]), otick = parseInt(o[2])
+                if (o[0] === "g") {
+                    // The grace action adds a grace note at the main note's pitch, in front of any earlier
+                    // ones, so the first grace still on that pitch is the new one (spike round 5).
+                    var chord = elementAt(otrack, otick)
+                    var main = chord.notes[0]
+                    curScore.selection.select(main)
+                    cmd(o[3])
+                    var gp = o[4].split(":")
+                    var gs = chord.graceNotes
+                    var added = null
+                    for (var g = 0; gs && g < gs.length && !added; g++) {
+                        if (gs[g].notes[0].pitch === main.pitch)
+                            added = gs[g].notes[0]
+                    }
+                    if (!added)
+                        throw o[3] + " added no grace note"
+                    added.pitch = parseInt(gp[0]) - offsetAt(otrack, otick)
+                    respell(added, parseInt(gp[1]), ideaColor)
+                } else if (o[0] === "~") {
+                    // cmd("tie") toggles, so only when the tie is not there yet (spec 6.5).
+                    var n = noteAt(otrack, otick, parseInt(o[3]))
+                    if (!n.tieForward) {
+                        curScore.selection.select(n)
+                        cmd("tie")
+                    }
+                    if (!n.tieForward)
+                        throw "tie not made"
+                } else {
+                    throw "unknown op " + o[0]
+                }
+            }
+        } catch (e) {
+            curScore.endCmd(true)
+            return id + " err write-failed " + step + " " + escapeText(e)
+        }
+        curScore.endCmd(false)
+        curScore.selection.clear()
+        return [id + " ok"].concat(read(startTick, endTick)).join("\n")
+    }
+
+    // Sets the colour of every note and rest of the tracks in [startTick, endTick), as one undo step.
+    function recolor(startTick, endTick, tracks, color, label) {
+        curScore.startCmd("Reflets: " + label)
+        for (var m = curScore.firstMeasure; m; m = m.nextMeasure) {
+            var mt = m.firstSegment.tick
+            if (mt < startTick)
+                continue
+            if (mt >= endTick)
+                break
+            for (var seg = m.firstSegment; seg; seg = seg.nextInMeasure) {
+                for (var t = 0; t < tracks.length; t++) {
+                    var el = seg.elementAt(tracks[t])
+                    if (!el)
+                        continue
+                    if (el.type === Element.REST)
+                        el.color = color
+                    if (el.type !== Element.CHORD)
+                        continue
+                    var cs = [el]
+                    for (var g = 0; el.graceNotes && g < el.graceNotes.length; g++)
+                        cs.push(el.graceNotes[g])
+                    for (var i = 0; i < cs.length; i++) {
+                        for (var k = 0; k < cs[i].notes.length; k++)
+                            cs[i].notes[k].color = color
+                    }
+                }
+            }
+        }
+        curScore.endCmd(false)
+    }
+
     function fields(words) {
         var f = {}
         for (var i = 0; i < words.length; i++) {
@@ -144,7 +292,8 @@ MuseScore {
     }
 
     function handle(clientId, text) {
-        var head = String(text).split("\n")[0].split(" ")
+        var lines = String(text).split("\n")
+        var head = lines[0].split(" ")
         var id = head[0]
         var verb = head[1]
         if (verb === "hello") {
@@ -167,6 +316,19 @@ MuseScore {
             return [id + " ok"].concat(info()).join("\n")
         if (verb === "read")
             return [id + " ok"].concat(read(parseInt(head[2]), parseInt(head[3]))).join("\n")
+        // write <startTick> <endTick> <label...>, ops in the body (spec 3.8).
+        if (verb === "write")
+            return write(id, parseInt(head[2]), parseInt(head[3]), head.slice(4).join(" "), lines.slice(1))
+        // color <startTick> <endTick> <track,...> <#rrggbb> <label...>
+        if (verb === "color") {
+            recolor(parseInt(head[2]), parseInt(head[3]), head[4].split(",").map(Number), head[5], head.slice(6).join(" "))
+            return id + " ok"
+        }
+        // Outside any startCmd. 4.7 renamed the codes; the old ones are silent no-ops there (spec 6.8).
+        if (verb === "undo" || verb === "redo") {
+            cmd("action://notation/" + verb)
+            return id + " ok"
+        }
         return id + " err bad-request unknown verb " + escapeText(verb)
     }
 

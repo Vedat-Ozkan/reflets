@@ -8,8 +8,8 @@ from pathlib import Path
 
 import websockets
 
-PROTO = 1
-CLIENT = "reflets-server/0.1.0"
+PROTO = 2
+CLIENT = "reflets-server/0.2.0"
 TIMEOUT = 10
 NOT_RUNNING = (
     "Reflets cannot reach MuseScore. Open MuseScore Studio 4.7, open your score, and run "

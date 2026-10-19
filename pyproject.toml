@@ -1,6 +1,6 @@
 [project]
 name = "reflets"
-version = "0.1.0"
+version = "0.2.0"
 description = "A composing companion for MuseScore Studio, served over MCP"
 requires-python = ">=3.11"
 license = "MIT"

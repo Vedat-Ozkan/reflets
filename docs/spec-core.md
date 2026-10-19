@@ -1,6 +1,6 @@
 # Reflets core spec: bridge plugin, MCP server, wire protocols, write path
 
-Status: draft 1, 2026-10-14; slice 1 (reading the open score: `score_info`, `read_score`) built 2026-10-18, with "As built in slice 1" notes where it narrows the design. Written from the planning handoff (`notes.md`, `docs/plan-2026-10-14.md`, `research/`). This document fixes the design of the core so that the first release slice (read the open score reliably, run rule-based checks, write a proposed idea into MuseScore for audition, approve or discard; `plan:13`) can be implemented, and so that the later modes bolt on without changing the protocols.
+Status: draft 1, 2026-10-14; slice 1 (reading the open score: `score_info`, `read_score`) and slice 2 (ideas in place: `propose`, `discard`, `keep`) built 2026-10-18, with "As built in slice N" notes where it narrows the design. Written from the planning handoff (`notes.md`, `docs/plan-2026-10-14.md`, `research/`). This document fixes the design of the core so that the first release slice (read the open score reliably, run rule-based checks, write a proposed idea into MuseScore for audition, approve or discard; `plan:13`) can be implemented, and so that the later modes bolt on without changing the protocols.
 
 Every design choice cites a line in `research/`. Owner decisions cite `docs/plan-2026-10-14.md` or `notes.md`. Where the research says a fact is unverified at runtime, the choice is marked **[spike]** and listed in section 10; the design does not silently depend on it.
 
@@ -154,6 +154,8 @@ Reserved for later layouts, not in v1: `mute <partIdx> <0|1>` via writable `Chan
 
 Verbs the API cannot support and that are therefore absent: list open scores (`api:127`), new score (`api:128`), silent open (`api:129`), write or close a non-current score (`api:130`), insert or remove measures (`api:132`), `cmd()` with arguments (`api:134`), playback state (`api:109`), change events (`api:126`).
 
+As built in slice 2 (protocol 2, plugin 0.2.0): `write <startTick> <endTick> <label...>` takes the label last, so it may contain spaces; `undo` and `redo` take no range and return only `ok`, and the server reads the range itself; a new verb `color <startTick> <endTick> <track,...> <#rrggbb> <label...>` sets the colour of every note and rest of those tracks as one undo step, for `keep` (7.1). Not built yet: `fp`, `select`, `export`, `open`, `appendMeasures`.
+
 ### 3.7 Read body: raw event lines
 
 The plugin emits one line per API object it visits. Field order is fixed; unknown trailing fields are ignored by the server so fields can be added without a protocol bump.
@@ -197,6 +199,8 @@ g <track> <tick> <kind> <note> grace note on the chord at (track, tick); kind is
 ```
 
 Execution order inside one `write`: the `v` passes in track order, each a run of `d`, `t`, `n`, `r` lines that must fill the bar exactly (`src:58`); then a spelling pass that revisits each written chord by tick to set `tpc1` and `tpc2` (`src:59`); then `a`; then `~` last, because a tie needs both notes to exist (6.5). The server compiles N1x into this list; the plugin never parses music, only ops.
+
+As built in slice 2: `n <tick> <pitch>:<tpc1>[,...]` and `r <tick>` carry the tick the server computed, so the spelling and colour pass finds each chord by tick, not from the cursor. The plugin keeps the instrument's transposition when spelling (`tpc2 = tpc1 + (old tpc2 - old tpc1)`) and subtracts `pitchOffset` (3.7). Order: voice passes, spelling and colour, `g`, `~`. `t` and `a` are not compiled yet: ideas with tuplets, dynamics or chord symbols are refused.
 
 ### 3.9 Error codes
 
@@ -243,6 +247,8 @@ m1 len=192
 ### 4.3 One grammar for reading and writing
 
 The model writes an idea as an N1x fragment for a bar range and a part. The server decodes it, validates it against the score's meter and part layout, and compiles it to Protocol A ops. A parse error is returned as `ToolError` naming the offending token and bar (`hosts:50`). Using the read format as the write format means the model has seen hundreds of examples of the grammar before it writes, and the tool description does not have to teach a second language. This follows the research conclusion to put verbosity into a compact encoding and a batched write mini-DSL rather than into many tools (`deep:112`).
+
+As built in slice 2: ideas are plain N1 (`engine.notes.decode`), no engine change. Each voice line replaces that voice in that bar; voices and bars not written are untouched; a voice line of rests only empties the voice, and silence at the end of a line becomes rests. Durations that note entry cannot take in one value are split into tied notes; durations needing a tuplet are refused. N1 has no grace type, so a single grace is written as `acciaccatura` and a group as `grace16`; grace chords are refused. A tie needs the next note of that voice, in the idea, back to back on the same pitch. `len=` must equal the score's bar.
 
 ### 4.4 Read windows and the token budget
 
@@ -299,6 +305,8 @@ proposal id: p3
 `idea` is N1x for the target bars and parts. `mode="new_tab"` follows 7.3. `replace=True` is required when the target cells are not rests (6.4).
 
 **`discard(proposal_id)`** → confirms the undo, or refuses with the reason (6.9).
+
+**`keep(proposal_id)`** → turns the idea's notes black as their own undo step, `Reflets: keep <label>`, and closes the proposal (7.1). Added in slice 2, owner decision 2026-10-18; nine tools in all. As built, `propose`, `read_score` and `score_info` are always loaded; `discard` and `keep` are deferred.
 
 **`render(bars, parts=None, annotations=None)`** → path to a PNG the harness can open, plus one line of text. Large outputs go to a file anyway (`plan:69`).
 
@@ -388,6 +396,8 @@ After the ops, the plugin re-walks `[startTick, endTick)` on **all** tracks, not
 
 The read-back is of the score model, not the layout, so `doLayout` (`api:32`) is not required for it; `endCmd` notifies the notation of the change (`api:31`). **[spike]** confirm that annotations added with `undoAddElement` are visible to `Segment.annotations` before `endCmd`.
 
+As built in slice 2: the plugin commits with `endCmd(false)` and returns the read-back; the server compares it with the expected state and, on a mismatch, sends `undo` and checks the range is back to the pre-snapshot. Comparing inside the command would need the expected state in the plugin, against 2.3; the undo path is the one `discard` already depends on. Compared per (bar, track): pitch, concert tpc, written duration, tie flags, grace type and order, and every `A` line. One expected difference is allowed: a tie running into or out of the idea from a bar outside it is cut, because its note was replaced; the result says so. A plugin exception rolls back with `endCmd(true)` and returns `write-failed <op> <why>`.
+
 ### 6.7 Annotations
 
 Per `a` op: `newElement(type)` (`api:18`), position the cursor (6.4 steps 1 to 2), `cursor.add(el)`, which routes Harmony, Dynamic and StaffText through the default `undoAddElement` path (`api:50`), then set `text`, `dynamicType` or `harmonyType` (`api:59`). Dynamics need both, text first: `dynamicType` alone gives the right type and velocity but empty, invisible text; `text` alone shows "mf" but leaves `dynamicType` at 0 (OTHER) (spike, `research/spike-bridge-hello-2026-10-18.md`). Chord symbol text set after `cursor.add` did not crash on 4.7.5. Text is set **after** insertion because chord symbols crashed when text was set before (`notes:169`, **[reported]**). Verified by the `A` lines in the read-back.
@@ -415,6 +425,8 @@ With the 4.7 floor (2.5) only the right column is used; the left stays as a reco
 2. `undo` verb → `cmd(UNDO)` with the version code (6.8), outside any `startCmd`.
 3. Read back; it must equal the pre-snapshot, else report a mismatch and stop (the code may have been a silent no-op, `deep:60`).
 
+As built in slice 2: when step 3 fails, the last undo step was something else, such as an edit the user made elsewhere in the score after the idea; the server sends `redo` to put it back, checks the range equals the post-write state again, and tells the model the user can remove the idea with Edit > Undo. Tested live: an idea in bar 10 written after an idea in bars 5-6 survives a discard of the older one.
+
 ### 6.10 Highlighting
 
 After `endCmd`, `select <startTick> <endTick> <startStaff> <endStaff>` runs `selectRange` (`api:81`) so the user sees where the idea landed. Done after the command, since inside one it is deferred (`api:81`). Not part of correctness.
@@ -434,6 +446,8 @@ Three layouts were sketched: A extra staves, B in place, C separate tab (`notes:
 ### 7.1 In place (layout B)
 
 UX additions decided with B: the idea's notes are coloured (writable `color`, in the same undo step) and set back to black on keep, in addition to the selection of 6.10; `discard` goes through Reflets, which refuses when the bars changed since the write (6.9), so a user edit made after the idea is never undone by mistake; "next idea" is a discard plus a new write.
+
+As built in slice 2: idea notes, rests and grace notes are `#1565c0`; keep is the `keep` tool (5.2); the selection of 6.10 is not built.
 
 `propose(mode="in_place")` → section 6 → the user presses Play (there is no playback API, `api:109`; the notes already assume the user presses play, `notes:184`) → keep by doing nothing, or `discard` (6.9), which is the one Ctrl+Z (`notes:146`).
 
@@ -503,3 +517,4 @@ These are the **[spike]** marks above. Each is a short experiment on the owner's
 12. **Key changes.** Decided 2026-10-18: support them when reading: the plugin's `K` lines (3.7), a `ks=` on the bar header in N1x the way `ts=` marks meter changes, and a per-bar key in the engine's `ScoreIndex` (a change in `sheet-music-plugin`). Writing key changes in ideas stays out of v1 (6.12). Original question: The engine keeps only the first key signature (`engine:10`); N1x drops later ones too. Acceptable for v1?
 13. **Grace notes in ideas.** Decided 2026-10-18: included in v1 (3.8, 6.4). Confirmed writable 2026-10-18 (spike round 5): select the main note, dispatch `acciaccatura`/`appoggiatura`/`grace4`/`grace16`/`grace32`/`grace8after`/…, then set the new grace note's `pitch`, `tpc1`, `tpc2`; one undo step with the idea. New graces before a note are inserted at the front, so the server adds them in reverse order. Original question: Not writable in v1 (6.4). Acceptable?
 14. **Licence.** Decided 2026-10-18: MIT for both plugin and server (`hosts:63`).
+15. **Keeping an idea.** Decided 2026-10-18: a `keep(proposal_id)` tool turns the idea's notes black as its own undo step (5.2, 7.1). Original question: idea notes are written in colour; how do they turn black once the user keeps the idea: a keep tool, recolouring on the next propose, or no colour for now?

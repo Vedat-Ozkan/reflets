@@ -34,10 +34,11 @@ class ScoreInfo:
     ticks: list[int]  # first tick of each measure, same order
     key: str
     keys: dict[int, str]  # tick of a bar where staff 1's key changes -> key
+    lengths: list[Fraction]  # actual length of each measure in quarter notes, same order
 
 
 def parse_info(lines: list[str]) -> ScoreInfo:
-    title, parts, measures, ticks, keys = "", [], [], [], {}
+    title, parts, measures, ticks, keys, lengths = "", [], [], [], {}, []
     staff_part: dict[int, int] = {}
     for line in lines:
         kind, _, rest = line.partition(" ")
@@ -64,11 +65,12 @@ def parse_info(lines: list[str]) -> ScoreInfo:
             )
             measures.append(measure)
             ticks.append(tick)
+            lengths.append(Fraction(4 * numerator, denominator))
         elif kind == "K" and words[1] == "0":
             keys[int(words[0])] = key_name(int(words[2]))
     for staff, part in sorted(staff_part.items()):
         parts[part][1].append(staff + 1)
-    return ScoreInfo(title, parts, measures, ticks, keys.get(0, "0"), keys)
+    return ScoreInfo(title, parts, measures, ticks, keys.get(0, "0"), keys, lengths)
 
 
 def build_index(info: ScoreInfo, lines: list[str], division: int) -> ScoreIndex:

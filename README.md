@@ -2,7 +2,7 @@
 
 A composing companion for MuseScore Studio, served over MCP. A bridge plugin inside MuseScore exposes the open score on a local WebSocket (port 8731); the Reflets MCP server talks to it and gives an MCP host such as Claude Code tools for reading the score.
 
-Status: slice 1. The server has two tools, `score_info` and `read_score`, which return the notes in N1. Checks and writing ideas into the score are designed in `docs/spec-core.md` but not built yet.
+Status: slice 2. The server reads the open score (`score_info`, `read_score`, notes in N1) and writes ideas into it in place: `propose` writes an idea in blue as one undo step and checks it by reading it back, `keep` turns it black, `discard` undoes it. Checks are designed in `docs/spec-core.md` but not built yet.
 
 ## Requirements
 
