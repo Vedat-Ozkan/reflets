@@ -30,7 +30,7 @@ In scope for the core:
 5. **Write path**: one undo step per idea, verified by read-back.
 6. **Ideas into MuseScore**: in place (one undo step) and as a new tab built from a temporary MusicXML file.
 
-Out of scope here: the critic, teacher, collaborator and assistant prompts (`notes:83-86`); the AnalysisGNN draft and PDF reading (`notes:67-68`); any UI inside MuseScore beyond the bridge window (`plan:14`); the full verification rig (`plan:121`, outlined in section 9 only as far as it constrains the design).
+Out of scope here: the critic, teacher, collaborator and assistant prompts (`notes:83-86`); the AnalysisGNN draft and PDF reading (`notes:67-68`); any UI inside MuseScore beyond the bridge window (`plan:14`); the full verification rig (`plan:134`, outlined in section 9 only as far as it constrains the design).
 
 ```
 Harness (Claude Code first; Claude Desktop, Codex CLI)          plan:14
@@ -463,9 +463,9 @@ File paths across WSL2 and Windows: mirrored networking shares `127.0.0.1` (`pla
 
 ## 9. Verification constraints that shaped the design
 
-The full strategy is pending in the plan (`plan:121`). The design already assumes:
+The full strategy is pending in the plan (`plan:134`). The design already assumes:
 
-- End-to-end tests against a real GUI MuseScore, because the WebSocket API is undefined in the console context (`deep:34`): the AppImage extracted with `--appimage-extract` (`rig:9`) under WSLg on `DISPLAY=:0`, where 4.6+ forces xcb unless `MU_QT_QPA_PLATFORM` is set (`rig:6`), with `LIBGL_ALWAYS_SOFTWARE=1` as the first flag to try (`rig:8`); or Xvfb as mcp-score does (`deep:93`). Windows runs by hand on the owner's 4.4.3 (`plan:16`, `plan:35`).
+- End-to-end tests against a real GUI MuseScore, because the WebSocket API is undefined in the console context (`deep:34`): the AppImage extracted with `--appimage-extract` (`rig:9`) under WSLg on `DISPLAY=:0`, where 4.6+ forces xcb unless `MU_QT_QPA_PLATFORM` is set (`rig:6`), with `LIBGL_ALWAYS_SOFTWARE=1` as the first flag to try (`rig:8`); or Xvfb as mcp-score does (`deep:93`). Windows runs by hand on the owner's 4.7.5 (`plan:16`, `plan:35`).
 - Readiness is a successful `hello`, not the window appearing; a malformed plugin produces no error at all (`deep:56`).
 - Independent checking of writes: save, then `mscore -o out.musicxml` under offscreen (`rig:34`) or `unzip -p score.mscz score.mscx` for a diffable XML (`rig:35`), compared with `musicdiff` (`rig:36`). Fixtures with planted errors, as the engine's tests do (`engine:100`, `engine:89`).
 - Model-free driving through the Inspector CLI (`rig:40`) and the in-process SDK client (`rig:41`); model-in-the-loop through `claude -p --mcp-config --strict-mcp-config --allowedTools "mcp__reflets__*"` (`rig:42`), which draws on plan limits rather than per-run billing (`rig:43`).
@@ -499,7 +499,7 @@ These are the **[spike]** marks above. Each is a short experiment on the owner's
 8. **Codex.** Decided 2026-10-18: later, after Claude Code works. Original question: Document the Codex surface (CLI and the ChatGPT desktop app's Codex side) as a supported host in v1 (`hosts:13-14`)?
 9. **Change detection.** Decided 2026-10-18: on demand only; reads are cheap (17 ms per 16–32 bar window, spike round 4). Original question: On-demand fingerprinting only, or also a timer in the plugin that raises a "changed" flag, at a UI-thread cost (`api:126`, `notes:183`)?
 10. **Overwrite policy.** Decided 2026-10-18: refuse without `replace=True`. Original question: Should `propose` refuse to write over existing notes without `replace=True` (6.4), or always replace?
-11. **Pending research.** Answered 2026-10-18: the report landed (`research/bridges-wire-protocols-and-roadmap.md`, summarised in the plan) and confirmed the design. Original question: the study of existing bridges' wire protocols and the MuseScore 4.8 roadmap was still running when the handoff was made (`plan:111`). Wait for it, or proceed with this design?
+11. **Pending research.** Answered 2026-10-18: the report landed (`research/bridges-wire-protocols-and-roadmap.md`, summarised in the plan) and confirmed the design. Original question: the study of existing bridges' wire protocols and the MuseScore 4.8 roadmap was still running when the handoff was made (`plan:113`). Wait for it, or proceed with this design?
 12. **Key changes.** Decided 2026-10-18: support them when reading: the plugin's `K` lines (3.7), a `ks=` on the bar header in N1x the way `ts=` marks meter changes, and a per-bar key in the engine's `ScoreIndex` (a change in `sheet-music-plugin`). Writing key changes in ideas stays out of v1 (6.12). Original question: The engine keeps only the first key signature (`engine:10`); N1x drops later ones too. Acceptable for v1?
 13. **Grace notes in ideas.** Decided 2026-10-18: included in v1 (3.8, 6.4). Confirmed writable 2026-10-18 (spike round 5): select the main note, dispatch `acciaccatura`/`appoggiatura`/`grace4`/`grace16`/`grace32`/`grace8after`/…, then set the new grace note's `pitch`, `tpc1`, `tpc2`; one undo step with the idea. New graces before a note are inserted at the front, so the server adds them in reverse order. Original question: Not writable in v1 (6.4). Acceptable?
 14. **Licence.** Decided 2026-10-18: MIT for both plugin and server (`hosts:63`).
