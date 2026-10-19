@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "reflets": {
+      "command": "uv",
+      "args": ["run", "--project", "/path/to/reflets", "reflets"],
+      "env": {
+        "REFLETS_TOKEN_FILE": "/path/to/Documents/MuseScore4/Plugins/reflets-bridge/reflets-token.txt"
+      }
+    }
+  }
+}
