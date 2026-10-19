@@ -28,7 +28,9 @@ mcp = MCPServer(
         "sets the duration in div units per quarter note, '+' joins a chord, 'r' is a rest, a leading 'g' marks "
         "a grace note, a trailing '~' a tie. Pitches are sounding pitches with their spelling (Eb4, not D#4). "
         "To try an idea, write it in the same form with propose; it lands in the score in colour as one undo step. "
-        "The user listens in MuseScore, then you call keep or discard as they decide."
+        "The user listens in MuseScore, then you call keep or discard as they decide. Before you say which note "
+        "sounds where, find the bar and count through its voice line from the start of the bar; answers given "
+        "at a glance are often wrong."
     ),
 )
 bridge = Bridge()

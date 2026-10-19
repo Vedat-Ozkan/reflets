@@ -214,3 +214,27 @@ Blocks:
 - **Key change on all staves with transposition in one call**: `undoChangeKeySig` is not exposed. Per-staff W2 only.
 - **Counted insert of N bars without a dialog**: covered in `research/api-gaps-2026-10.md` 1.3. `insert-measure` must be repeated N times.
 - **Undoable metadata**: `setMetaTag` bypasses the undo stack (sch:386).
+
+## Live spike, 2026-10-19
+
+MuseScore 4.7.5 (`mscoreVersion` 40705) on the owner's Windows machine, a scratch copy of the nocturne, through `spikes/elements/reflets-spike.qml` (runs JavaScript sent over the WebSocket) and `spikes/elements/client.py`. Every write ran inside one `startCmd`/`endCmd(false)`, was read back, then undone with `cmd("action://notation/undo")` and compared with the state before. Every item below was restored exactly by that one undo. Nothing crashed.
+
+**Read.** `Score.spanners` on the nocturne: 74 slurs, 17 hairpins, 5 pedal lines, 1 ottava, each with tick, ticks, track, `subtypeName()`, `hairpinType`, `beginText`, start and end element. Annotations through `Segment.annotations` as in slice 2.
+
+**Properties (W1).** Work: `Measure.repeatStart`, `repeatEnd`, `repeatCount`; `barlineType = 2` (double) on a generated end bar line, which then reads `generated=false` and **survives** a later command plus `doLayout` (the layout-reset worry above is refuted for this case); `stemDirection`; `Note.headGroup`; `ChordRest.staffMove`; `accidentalType` set to the implied natural (pitch unchanged, an accidental appears); `accidentalBracket`. **Does not work:** setting `beamMode` (silently unchanged for 1, 2, 3); `cmd("beam-break-left")` with the note selected does work.
+
+**Annotations (W2).** All appear on the right tick and track: tempo (`text`, `tempo`=1.5, `tempoFollowText` set before add), rehearsal mark (asked for on track 4, lands on track 0), system text, staff text (track 4, text after add), expression, fermata (`symbol` = `SymId.fermataAbove`), playing technique, figured bass (`text` "6\n4" kept; whether it parsed is not checked), chord symbol, dynamic.
+
+**Chord and note children.** Work **without** setting `track` first: `chord.add` of ARTICULATION (`symbol`), ORNAMENT, ARPEGGIO, TREMOLO_SINGLECHORD; the same through `cursor.add`; `cmd("add-mordent")` with the note selected; `note.add` FINGERING on the second note of a chord; LYRICS through `cursor.add` (`verse`, `syllabic`, text after add); BREATH through `cursor.add` lands in a Breath segment at the cursor's tick. **With `track` set to the chord's track before `chord.add`, articulation, ornament, arpeggio and tremolo silently do not appear**: the advice in W3 above is wrong for 4.7.5 on a score without parts. Linked parts not tested (the nocturne has none).
+
+**Actions over a list selection inside one command.** Work, each followed by `cmd("escape")`: `add-slur` (two notes; the slur ends at the **start** of the end chord, ticks 1200 for notes 1200 apart), `add-8va` (ends at the **end** of the end chord, 1440), `add-noteline`, `system-break`, `insert-measure` (38 to 39 bars).
+
+**Spanners (W2), ticks set before add.** All appear with the given tick, ticks and track: HAIRPIN cresc and dim, HAIRPIN `hairpinType=2` with `beginText` (reads "Crescendo line"), PEDAL on track 4, TRILL (`trillType` 0), OTTAVA `ottavaType=2` (15ma), TEXTLINE (`beginText`), SLUR. VOLTA on track 0 with `beginText` appears, but **`volta_ending` cannot be set or read**: `[1]`, `[1,2]`, `"1"` and `1` all read back as an empty list.
+
+**Bar level.** Work: KEYSIG per staff with `concertKey`/`actualKey` (both staves change from the bar on, the bar before keeps its key); CLEF at a bar start and mid-bar (from that tick on); TIMESIG `timesig = fraction(6, 8)` on track 0 rebars the rest of the score (38 to 66 bars) and one undo restores it; JUMP with `text`, `jumpTo`, `playUntil`, `continueAt`; MARKER `markerType=0` (segno).
+
+**Crash-prone cases.** `add-slur` on a single note inside a command, then `endCmd(true)` while in grip edit: no crash, the slur is gone after the rollback. `cmd("add-hairpin")` with one note selected inside `startCmd`, then `endCmd(false)`: **MuseScore crashed** (the log ends at `try call action: add-hairpin`; the process exited). The `frontSegment` hazard above is confirmed: hairpins are written only through W2.
+
+**Shared WebSocket server.** With the spike plugin listening on 8732 and the bridge started after it on 8731, a client on 8732 got the bridge's replies. `api.websocketserver` is one object per MuseScore process and the last plugin to call `listen` receives every connection, on either port.
+
+**Not run:** save and reload of any of these; linked parts; spacers; fretboard diagrams; harp diagrams; glissando, two-chord tremolo and chord line (crash paths from source, not attempted).
