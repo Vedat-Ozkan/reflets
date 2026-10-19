@@ -202,8 +202,8 @@ Names considered and set aside: Tutti (an iPad sheet-music reader and other apps
 
 ## 11. Open questions
 
-- Is ChatGPT desktop able to use a local MCP server?
-- Which further modes from section 5 make the first release?
+- Is ChatGPT desktop able to use a local MCP server? Answered 2026-10-14: only through its Codex side, not the chat surface (`research/hosts-sdks-licensing.md` lines 13-14); Codex support comes after Claude Code (spec open question 8).
+- Which further modes from section 5 make the first release? Answered 2026-10-14: the critic only; teacher, assistant and collaborator come after (`docs/plan-2026-10-14.md` line 13).
 - Trademark check for Reflets; domain choice.
 - Mac and Windows builds for PDF reading.
 
