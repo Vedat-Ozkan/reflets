@@ -439,6 +439,16 @@ When the idea extends past the last bar, `appendMeasures(n)` (`api:33`) runs ins
 
 Slurs and hairpins, which fall through `cursor.add` with no spanner handling (`api:50`); lyrics; articulations; key and time changes mid-idea (possible through `cursor.add` of KeySig and TimeSig, `api:50`, deferred); clefs; bar lines (`notes:169`); parts and staves (`api:34`, reserved for layout A).
 
+### 6.13 Checkpoints and restore (first release, not built)
+
+Decided 2026-10-18 (open question 16). MuseScore's undo history is linear, interleaves the user's edits with ideas, and is lost when the score closes, so it cannot take the user back to a chosen state after many rounds. Three parts:
+
+1. **Checkpoint files.** The server asks the plugin to `export` the whole score (`writeScore`, confirmed on 4.7.5: 32 ms, no dialog, spike round 4) to a checkpoint file. Nothing is lost across sessions. Going back to a whole checkpoint means the user opens that file: the plugin cannot replace the open score (`readScore` refuted, 7.2).
+2. **Restore bars from a checkpoint.** The server reads the checkpoint, compares it bar by bar with the current score, and writes the chosen bars back through the write path (section 6) as one undo step verified by read-back. Bars outside the request keep the user's later edits. It restores only what the write path can write; the checkpoint file covers the rest.
+3. **Proposals and checkpoints persist on disk** next to the score, so a restart of the harness does not lose open ideas.
+
+Open: whether checkpoints are named by the user, made automatically at each `keep`, or both. Comes after `check`, because restore is only as faithful as the write path (slice 3).
+
 ## 7. Ideas into MuseScore
 
 Three layouts were sketched: A extra staves, B in place, C separate tab (`notes:140`, `notes:142-146`, `notes:148`). Decided 2026-10-18 after the spikes: **B only in the first release**; A later, for comparing several ideas, once adding and removing staves in one undo step is tested (`api:34`, `api:71`); **C dropped**, because `readScore` cannot open a tab (7.2) and a separate-window preview would be slow, re-imported through MusicXML, and invisible to the bridge.
@@ -518,3 +528,4 @@ These are the **[spike]** marks above. Each is a short experiment on the owner's
 13. **Grace notes in ideas.** Decided 2026-10-18: included in v1 (3.8, 6.4). Confirmed writable 2026-10-18 (spike round 5): select the main note, dispatch `acciaccatura`/`appoggiatura`/`grace4`/`grace16`/`grace32`/`grace8after`/…, then set the new grace note's `pitch`, `tpc1`, `tpc2`; one undo step with the idea. New graces before a note are inserted at the front, so the server adds them in reverse order. Original question: Not writable in v1 (6.4). Acceptable?
 14. **Licence.** Decided 2026-10-18: MIT for both plugin and server (`hosts:63`).
 15. **Keeping an idea.** Decided 2026-10-18: a `keep(proposal_id)` tool turns the idea's notes black as its own undo step (5.2, 7.1). Original question: idea notes are written in colour; how do they turn black once the user keeps the idea: a keep tool, recolouring on the next propose, or no colour for now?
+16. **Going back after many iterations.** Decided 2026-10-18: in the first release, checkpoint files, restoring chosen bars from a checkpoint through the write path, and proposals and checkpoints kept on disk (6.13). Original question: with only MuseScore's linear undo history, how does a user who has made many additions and removals go back to a specific earlier state?
