@@ -1,0 +1,24 @@
+# Reflets
+
+MCP server (`reflets/`, Python) plus a MuseScore bridge plugin (`plugin/reflets-bridge.qml`, QML). The design is `docs/spec-core.md`; read the relevant section before changing a protocol or tool. Setup is in `README.md`.
+
+## Layout
+
+- `reflets/bridge.py`: WebSocket client for the plugin (token, hello, reconnect once)
+- `reflets/score.py`: parses the plugin's `info`/`read` lines into the engine's index
+- `reflets/server.py`: MCP tools
+- `plugin/reflets-bridge.qml`: the bridge, a macro plugin with no dialog (spec 2.1)
+- `research/`, `spikes/`: research reports and throwaway spike code, kept as a record
+
+## Environment
+
+- The owner runs MuseScore Studio 4.7.5 on Windows and works in WSL2 with mirrored networking; the server reaches the plugin at `ws://127.0.0.1:8731`.
+- Plugin folder from WSL: `/mnt/c/Users/Vedat/Documents/MuseScore4/Plugins/reflets-bridge/`. After editing the plugin, copy it there; MuseScore must be restarted and the plugin run again from Plugins > Reflets Bridge.
+- The engine (`import engine`) is the sibling checkout `../sheet-music-plugin`, installed editable through `[tool.uv.sources]`. Engine changes Reflets needs are made in that repository (spec open question 1).
+- MuseScore's log: `%LOCALAPPDATA%\MuseScore\MuseScore4\logs\`.
+
+## Docs conventions
+
+- The spec cites other files by line number (`api:34`, `plan:13`, `notes:140`; key in spec section 0). When editing a cited file, keep existing lines where they are: change lines in place or append at the end, so citations stay valid.
+- Owner decisions are recorded in spec section 11 with the date and the original question.
+- Write "As built in slice N" notes in the spec when the code departs from or narrows the design.
