@@ -1,0 +1,196 @@
+N1 div=12 ts=6/4 ks=3s
+m1 len=72
+2.1: 12 r A4 F#~+F#5~ F#+F#5 E+E5 G#
+3.1: 4 A2 E3 C#4 E3 C#4 E3 A2 D# C4 A2 D B3 D3 B3 D3 B3 D3 B3
+3.2: 24 A2 12 A 36 A
+m2 len=72
+2.1: 12 r A4 F#~+F#5~ F#+F#5 E+E5 D+G#
+3.1: 4 A2 C# A3 C#3 A3 C#3 D#2 C3 A3 E2 B2 G#3 B2 G#3 B2 E#2 B2 G#3
+3.2: 24 A2 12 D#2 24 E 12 E#
+m3 len=72
+2.1: 12 r C#4+F#+A4 A4~+F#5~+A5~ A+F#5+A5 G#+E5+G#5 E~+C#5~+E5~
+3.1: 4 F#2 C#3 A3 C#3 A3 C#3 B#1 A2 D# C#2 G#2 E3 G#2 E3 G#2 E C#3 G#3
+3.2: 24 F#2 12 B#1 24 C# 12 E
+m4 len=72
+1.1: 48 r 12 E4
+2.1: 12 E4+C#5+E5 E+B4+D5 D+G#+B4 G# F# E
+3.1: 4 G#2 E3 G# E G# E B E G# 24 E 12 G#
+3.2: 24 G#2 12 B 4 E B3 D B D B G# B D
+m5 len=72
+1.1: 24 A4 12 A 24 F#5 12 E
+2.1: 4 C#5+E E4+A C#5+E E4+A C#5+E E4+A C5+D# D#4+A4 C5+D# D#4+A4 1 r 4 C5+D# D#4+A4
+2.2: 48 r 4 B4+D D4+G# B4+D D4+G# B4+D D4+G#
+3.1: 12 r A3 24 F#4 12 E2 A1~
+m6 len=72
+1.1: 24 E5 12 D# 24 A 12 B
+2.1: 4 Bb4+C# C4+G4 Bb4+C# 6 C4+G4 Bb4+C# C4+G4 4 A4+C C4 A4+C 6 C4 A4+C C4 4 A4+C# C#4 A4+C# C#4 A4+C# C#4
+3.1: 12 A1 A3 24 F#4
+3.2: 60 r 12 E2
+3.3: 72 r 12 A1
+m7 len=72
+1.1: 24 C#5 12 A 24 F#5 12 E
+2.1: 4 C#5+E E4+A C#5+E E4+A C#5+E E4+A 6 C5+D# D#4+A4 4 C5+D# 6 D#4+A4 4 C5+D# D#4+A4 B4+D D4+G# B4+D D4+G# B4+D D4+G#
+3.1: 12 A1 A3 24 F#4
+3.2: 54 r 12 E2 A1~
+m8 len=72
+1.1: 24 C#5 12 D 24 A 12 B
+2.1: 4 Bb4+C# C4+G4 Bb4+C# C4+G4 Bb4+C# C4+G4 A4+D D4 A4+D D4 A4+D D4 A4+B D4+F A4+B D4+F A4+B D4+F
+3.1: 12 A1 A3 24 F#4 12 E2 A1~
+m9 len=72
+1.1: 24 C#5 12 B B 12 r C
+2.1: 4 A4+C# C#4+E A4+C# C#4+E A4+C# C#4+E 6 A4+B B3+D# A4+B B3+D# A4+B B3+D# A4+C C4+E A4+C 4 C4+E A4+C C4+E
+3.1: 12 A1 A3 24 F#4
+3.2: 60 r 12 E2
+3.3: 78 r 12 A1~
+m10 len=72
+1.1: 24 E5 12 D# D# 12 r E
+2.1: 4 A4+C# C#4+E A4+C# C#4+E A4+C# C#4+E 6 A4+B B3+D# A4+B B3+D# A4+B B3+D# 4 G#4+B D+E G#+B D+E G#+B D+E
+3.1: 12 A1 A3 24 F#4
+3.2: 60 r 12 E2
+3.3: 72 r 12 A1~
+m11 len=72
+1.1: 24 A5 12 C#5 18 D# 6 D# E F#
+2.1: 4 A4+C# E A+C# E A+C# E 6 C#5+D# A C#+D# A C#+D# A 4 B#+D# F#+G# B#+D# 6 F#+G# B#+D# F#+G#
+3.1: 12 A1 A3 24 F#4
+3.2: 60 r 12 G#2
+3.3: 72 r 12 C#2~
+m12 len=72
+1.1: 24 E5 12 E F# D# B
+2.1: 4 C#5+E G# C#+E G# C#+E G# E5+F# F#4+C#5 E5+F# F#4+C#5 E5+F# F#4+C#5 D#5+F# A+B D#+F# A+B D#+F# A+B
+3.1: 12 C#2 C#4 24 A4 12 B2 E2
+m13 len=72
+1.1: 24 G#5 12 F# 24 C# 12 D#
+2.1: 4 E5+G# G#4+B E5+G# G#4+B E5+G# G#4+B E5+F# F#4+A# E5+F# F#4+A# E5+F# F#4+A# D#5+F# F#4+A D#5+F# F#4+A D#5+F# F#4+A
+3.1: 12 E2 gD3 G#2 24 E3 12 B B1
+m14 len=72
+1.1: 24 E5 12 E 36 E~
+2.1: 4 C5+E E4+G C5+E E4+G C5+E E4+G 6 C5+E 4 E4+G C5+E E4+G C5+E E4+G D5+E E4+G# D5+E
+2.2: 60 r 4 E4+G# D5+E E4+G#
+3.1: 12 C3 G C
+3.2: 24 C2 C B
+3.3: 37 r 12 G2
+3.4: 48 r 12 B2 E2
+m15 len=72
+1.1: 24 E5 12 C# E D B
+2.1: 16 r 4 E4 G 22 r 4 D F# 6 B
+3.1: 4 A#1+A#2 E3 G 6 C#
+3.2: 30 r 4 B1+B2 D3 F# 6 B
+m16 len=72
+1.1: 12 G#4 12 r E5 36 E~
+2.1: 4 B4+E E4+G# B4+E E4+G# B4+E E4+G# B4+E E4+G# B4+E C+E E4+G C5+E E4+G C5+E E4+G D5+E E4+G# D5+E
+3.1: 12 E2+E3 B2 D2+D3 C+C3 G2 B1+B2
+m17 len=72
+1.1: 12 F#5 E C# E D F#4
+2.1: 22 r 4 E4 G 6 C#
+2.2: 64 r 4 D4 F# 6 B
+3.1: 6 A#1+A#2 E3 G C# 18 r 6 B1+B2 D3 F# B
+m18 len=72
+1.1: 36 A4 24 D 12 G#4
+2.1: 22 r 4 C#4 E 6 A 6 r 36 E+G#
+3.1: 6 E2 C#3 E A 6 r 4 E A C# 36 E3+B3+D4
+m19 len=72
+1.1: 12 A4
+2.1: 16 A2 8 A4 12 F#~+F#5~ F#+F#5 E+E5 G#
+3.1: 4 A2 E3 C#4 E3 C#4 E3 12 A2 36 A
+3.2: 24 r 4 A2 D# C4 A2 D B3 D3 B3 D3 B3 D3 B3
+m20 len=72
+2.1: 4 A2 C# A3 C#3 A3 C#3 D#2 C3 A3 E2 B2 G#3 B2 G#3 B2 E#2 B2 G#3
+3.1: 16 A2 8 A4 12 F#~+F#5~ F#+F#5 E+E5 D+G#
+3.2: 24 r 12 D#2 24 E 12 E#
+m21 len=72
+2.1: 4 F#2 C#3 A3 C#3 A3 C#3 B#1 A2 D# C#2 G#2 E3 G#2 E3 G#2 D# G# F#3
+3.1: 16 F#2 8 C#4+F#+A4 12 A4~+F#5~+A5~ A+F#5+A5 G#+E5+G#5 F#~+D#5+F#5
+3.2: 24 r 12 B#1 24 C# 12 D#
+m22 len=72
+1.1: 60 r 12 B4
+2.1: 12 F#4+D5+F#5 E+C#5+E5 D#+B4+D#5 C#+A4+C#5 C#+F#+A4 B+D#+F#4
+3.1: 4 F#2 C#3 G#3 C#3 G#3 C#3 E#2 C#3 G#3
+3.2: 24 F#2 12 E# 4 F# C#3 A3 A2 C# F# B2 D# F#
+3.3: 48 r 12 A2 B
+m23 len=72
+1.1: 12 C#5 D# E 24 F# 12 B4
+2.1: 9 r 3 E4 24 G+A#+C# 9 r 3 B3 24 D#+F#+B4
+3.1: 12 E2 21 E3+G+A# 3 B 12 E2 21 E3+A 3 B
+m24 len=72
+1.1: 12 C#5 D# E 24 F# 12 B4
+2.1: 9 r 3 E4 24 G+A#+E5 9 r 3 B3 24 D#+F#+B4
+3.1: 12 E2 21 E3+A#+C#4 3 B 12 E2 21 E3+A 3 B
+m25 len=72
+1.1: 12 E5 G# F# E D# C#
+2.1: 9 r 3 G#4 24 B+E+G#5 9 r 3 G# 24 C#+E+G#5
+3.1: 12 E2 21 E3+G#+B3 3 G#2 12 C#2+C#3 21 G#3+C#+E4 3 C#2
+m26 len=72
+1.1: 24 D#5 12 F#~ F# E A#4
+2.1: 9 r 3 F#4 24 B+D#+F#5 9 r 3 F# 24 A#+C#+F#5
+3.1: 12 F#1+F#2 24 F#3+B+D#4 12 F#2 24 F#3+C#4+E4
+m27 len=72
+1.1: 12 B4 12 r D# 24 D# 12 C#
+2.1: 4 B4 D#4 B4 D#4 B4 D#4 A#4+D# E A#+D# E A#+D# E A#+C# E A#+C# E A#+C# E
+3.1: 12 r B3 24 G4 12 F#2 B1~
+m28 len=72
+1.1: 12 B4 12 r D# 24 D# 12 C#
+2.1: 4 B4 D#4 B4 D#4 B4 D#4 A#4+D# E A#+D# E A#+D# E A#+C# E A#+C# E A#+C# E
+3.1: 12 B1 B3 24 G4
+3.2: 60 r 12 F#2
+3.3: 78 r 12 B1
+m29 len=72
+1.1: 12 B4 12 r B D# E F#
+2.1: 6 r B3 24 D+E#+G# 6 r B 24 D#+F#+A4
+3.1: 12 B2 6 r B E# G# 12 B2+F#3+A3 6 r B F#3 A
+m30 len=72
+1.1: 24 C#5 12 B D# E F#
+2.1: 6 r B3 24 D+E#+B4 6 r B 24 D#+F#+B4
+3.1: 12 B2+E#+G#3 6 r B E# G# 12 B2+F#3+A3 6 r B F#3 A
+m31 len=72
+1.1: 24 C#5 12 B E G# F#
+2.1: 12 E4+E5 G#+G#5 F#+F#5 24 E5 12 D#
+2.2: 36 r E4
+3.1: 6 G#2 E3 B3 E3 G#2 E3 B#3 E3 G#2 E3 B#3 E3
+m32 len=72
+1.1: 12 E5 D# C# B G# F#
+2.1: 12 C#5 B A 24 G# 12 F#
+2.2: 36 E4 24 E 12 D#
+3.1: 6 A2 E3 C#4 E3 A2 E3 B3 E3 B E 12 B3
+m33 len=90
+1.1: 12 B4 C# 24 E 12 D#
+2.1: 4 E4+G# G#3 E4+G# G#3 E4+G# G#3 6 E4+G# A#3 E4+G# A#3 E4+G# A#3 A4+B B3+D# A4+B 4 B3+D# A4+B B3+D#
+3.1: 12 r E3 24 C#4
+3.2: 60 r 12 B2
+3.3: 78 r 12 E2~
+m34 len=90
+1.1: 12 E5 E 24 G 12 F#
+2.1: 4 E4+G# B E+G# B E+G# B 6 G4+A# E G+A# E G+A# E 4 C#5+E E4 C#5+E 6 E4 C#5+E E4
+3.1: 12 E2 E3 24 C#4
+3.2: 60 r 12 A#3
+3.3: 72 r 12 G4~
+m35 len=72
+1.1: 12 E5 A#4 24 C# 12 B
+2.1: 4 A#4+C# E A#+C# E A#+C# E A#+C# E A#+C# 36 B3+D#+B4
+3.1: 12 G4 F#3 F#4 36 B2+F#3+A3
+m36 len=72
+1.1: 12 E4
+2.1: 4 E4 G# B3 E G# B3 E G# B3 E B4 B3 E B4 B3 G#4 D5 E4
+3.1: 12 r E2 E3 G#2 G#3 B2
+m37 len=72
+1.1: 60 r 12 E4
+2.1: 4 G#4 D5 E4 G# D5 E4 A D# E4 A D# E4 A E5 E4 A E5 E4
+3.1: 12 B3 E3 B#3 E3
+3.2: 60 r 12 C#4
+m38 len=72
+1.1: 24 A4 12 A 24 F#5 12 E
+2.1: 4 C#5+E E4+A C#5+E E4+A C#5+E E4+A 6 C5+D# D#4+A4 C5+D# D#4+A4 C5+D# D#4+A4 4 B4+D D4+G# B4+D 6 D4+G# B4+D D4+G#
+3.1: 12 r A3 24 F#4
+3.2: 60 r 12 E2
+3.3: 72 r 12 A1~
+m39 len=72
+1.1: 24 E5 12 D# 24 A 12 B
+2.1: 4 B4+C# C#4+G4 B4+C# C#4+G4 B4+C# C#4+G4 6 A4+C C4 A4+C C4 A4+C C4 A4+C# C#4 A4+C# 4 C#4 A4+C# C#4
+3.1: 12 A1 A3 24 F#4
+3.2: 60 r 12 E2
+3.3: 78 r 12 A1~
+m40 len=72
+1.1: 24 C#5 12 A 24 F#5 12 E
+2.1: 4 C#5+E E4+A C#5+E E4+A C#5+E E4+A 6 C5+D# D#4+A4 C5+D# D#4+A4 C5+D# D#4+A4 B4+D D4+G# B4+D 4 D4+G# B4+D D4+G#
+3.1: 12 A1 A3 24 F#4
+3.2: 60 r 12 E2
+3.3: 78 r 12 A1

@@ -1,0 +1,72 @@
+chopin-nocturne N1 Counter({'correct': 7, 'wrong': 1}) {'in': 6758, 'out': 1584} end_turn 
+chopin-nocturne N1#2 Counter({'correct': 8}) {'in': 6758, 'out': 1404} end_turn 
+chopin-nocturne R Counter({'correct': 7, 'wrong': 1}) {'in': 5291, 'out': 1688} end_turn 
+chopin-nocturne P Counter({'correct': 7, 'wrong': 1}) {'in': 6418, 'out': 1534} end_turn 
+chopin-nocturne O Counter({'correct': 7, 'wrong': 1}) {'in': 6022, 'out': 3993} end_turn 
+chopin-nocturne RP Counter({'correct': 8}) {'in': 5082, 'out': 1437} end_turn 
+chopin-nocturne RO Counter({'correct': 7, 'wrong': 1}) {'in': 4811, 'out': 3045} end_turn 
+chopin-nocturne PO Counter({'correct': 7, 'wrong': 1}) {'in': 5868, 'out': 4887} end_turn 
+chopin-nocturne RPO Counter({'correct': 6, 'wrong': 2}) {'in': 4685, 'out': 3794} end_turn 
+chopin-nocturne RT Counter({'correct': 7, 'wrong': 1}) {'in': 5381, 'out': 1504} end_turn 
+chopin-nocturne V1 Counter({'null': 5, 'correct': 3}) {'in': 3787, 'out': 608} end_turn 
+chopin-nocturne V2 Counter({'null': 6, 'correct': 2}) {'in': 4831, 'out': 601} end_turn 
+mozart-k545-1 N1 Counter({'correct': 7, 'wrong': 1}) {'in': 6857, 'out': 810} end_turn 
+mozart-k545-1 N1#2 Counter({'correct': 7, 'wrong': 1}) {'in': 6857, 'out': 803} end_turn 
+mozart-k545-1 R Counter({'correct': 7, 'wrong': 1}) {'in': 6486, 'out': 847} end_turn 
+mozart-k545-1 P Counter({'correct': 7, 'wrong': 1}) {'in': 6266, 'out': 946} end_turn 
+mozart-k545-1 O Counter({'correct': 8}) {'in': 5406, 'out': 1771} end_turn 
+mozart-k545-1 RP Counter({'correct': 8}) {'in': 6033, 'out': 1022} end_turn 
+mozart-k545-1 RO Counter({'correct': 8}) {'in': 5220, 'out': 1562} end_turn 
+mozart-k545-1 PO Counter({'correct': 8}) {'in': 5234, 'out': 1346} end_turn 
+mozart-k545-1 RPO Counter({'correct': 8}) {'in': 5053, 'out': 1872} end_turn 
+mozart-k545-1 RT Counter({'correct': 8}) {'in': 5790, 'out': 955} end_turn 
+mozart-k545-1 V1 Counter({'null': 6, 'correct': 2}) {'in': 5521, 'out': 497} end_turn 
+mozart-k545-1 V2 Counter({'null': 6, 'correct': 2}) {'in': 6623, 'out': 696} end_turn 
+bach-bwv64-4 N1 Counter({'correct': 7, 'wrong': 1}) {'in': 2256, 'out': 547} end_turn 
+bach-bwv64-4 N1#2 Counter({'correct': 8}) {'in': 2256, 'out': 489} end_turn 
+bach-bwv64-4 R Counter({'correct': 7, 'wrong': 1}) {'in': 2279, 'out': 756} end_turn 
+bach-bwv64-4 P Counter({'correct': 8}) {'in': 2246, 'out': 693} end_turn 
+bach-bwv64-4 O Counter({'correct': 8}) {'in': 2171, 'out': 1058} end_turn 
+bach-bwv64-4 RP Counter({'correct': 8}) {'in': 2296, 'out': 739} end_turn 
+bach-bwv64-4 RO Counter({'correct': 7, 'wrong': 1}) {'in': 2232, 'out': 1085} end_turn 
+bach-bwv64-4 PO Counter({'correct': 7, 'wrong': 1}) {'in': 2254, 'out': 1299} end_turn 
+bach-bwv64-4 RPO Counter({'correct': 8}) {'in': 2289, 'out': 1361} end_turn 
+bach-bwv64-4 RT Counter({'correct': 7, 'wrong': 1}) {'in': 2331, 'out': 722} end_turn 
+bach-bwv64-4 V1 Counter({'null': 6, 'correct': 2}) {'in': 1431, 'out': 299} end_turn 
+bach-bwv64-4 V2 Counter({'null': 6, 'correct': 2}) {'in': 1735, 'out': 356} end_turn 
+chopin-prelude-4 N1 Counter({'correct': 7, 'wrong': 1}) {'in': 3307, 'out': 544} end_turn 
+chopin-prelude-4 N1#2 Counter({'correct': 8}) {'in': 3307, 'out': 604} end_turn 
+chopin-prelude-4 R Counter({'correct': 8}) {'in': 3297, 'out': 731} end_turn 
+chopin-prelude-4 P Counter({'correct': 7, 'wrong': 1}) {'in': 2498, 'out': 1041} end_turn 
+chopin-prelude-4 O Counter({'correct': 8}) {'in': 3114, 'out': 1104} end_turn 
+chopin-prelude-4 RP Counter({'correct': 8}) {'in': 2512, 'out': 920} end_turn 
+chopin-prelude-4 RO Counter({'correct': 8}) {'in': 3137, 'out': 1095} end_turn 
+chopin-prelude-4 PO Counter({'correct': 7, 'wrong': 1}) {'in': 2628, 'out': 1551} end_turn 
+chopin-prelude-4 RPO Counter({'correct': 8}) {'in': 2627, 'out': 1417} end_turn 
+chopin-prelude-4 RT Counter({'correct': 8}) {'in': 3387, 'out': 686} end_turn 
+chopin-prelude-4 V1 Counter({'null': 6, 'correct': 2}) {'in': 1638, 'out': 314} end_turn 
+chopin-prelude-4 V2 Counter({'null': 6, 'correct': 2}) {'in': 1925, 'out': 568} end_turn 
+brahms-fruehlingstrost N1 Counter({'correct': 8}) {'in': 7385, 'out': 1097} end_turn 
+brahms-fruehlingstrost N1#2 Counter({'correct': 8}) {'in': 7385, 'out': 1133} end_turn 
+brahms-fruehlingstrost R Counter({'correct': 8}) {'in': 7148, 'out': 1417} end_turn 
+brahms-fruehlingstrost P Counter({'correct': 8}) {'in': 6431, 'out': 1314} end_turn 
+brahms-fruehlingstrost O Counter({'correct': 8}) {'in': 6637, 'out': 2519} end_turn 
+brahms-fruehlingstrost RP Counter({'correct': 8}) {'in': 6264, 'out': 1253} end_turn 
+brahms-fruehlingstrost RO Counter({'correct': 8}) {'in': 6466, 'out': 2696} end_turn 
+brahms-fruehlingstrost PO Counter({'correct': 8}) {'in': 6155, 'out': 2917} end_turn 
+brahms-fruehlingstrost RPO Counter({'correct': 8}) {'in': 5978, 'out': 3150} end_turn 
+brahms-fruehlingstrost RT Counter({'correct': 8}) {'in': 7205, 'out': 1455} end_turn 
+brahms-fruehlingstrost V1 Counter({'null': 6, 'correct': 2}) {'in': 3770, 'out': 415} end_turn 
+brahms-fruehlingstrost V2 Counter({'null': 6, 'correct': 2}) {'in': 4961, 'out': 3537} end_turn 
+haydn-104 N1 Counter({'correct': 8}) {'in': 20975, 'out': 588} end_turn 
+haydn-104 N1#2 Counter({'correct': 8}) {'in': 20975, 'out': 542} end_turn 
+haydn-104 R Counter({'correct': 8}) {'in': 17112, 'out': 790} end_turn 
+haydn-104 P Counter({'correct': 8}) {'in': 18742, 'out': 854} end_turn 
+haydn-104 O Counter({'correct': 8}) {'in': 18143, 'out': 909} end_turn 
+haydn-104 RP Counter({'correct': 8}) {'in': 15580, 'out': 1021} end_turn 
+haydn-104 RO Counter({'correct': 8}) {'in': 15063, 'out': 1215} end_turn 
+haydn-104 PO Counter({'correct': 8}) {'in': 17511, 'out': 992} end_turn 
+haydn-104 RPO Counter({'correct': 8}) {'in': 14626, 'out': 1227} end_turn 
+haydn-104 RT Counter({'correct': 8}) {'in': 16057, 'out': 837} end_turn 
+haydn-104 V1 Counter({'null': 6, 'correct': 2}) {'in': 12069, 'out': 860} end_turn 
+haydn-104 V2 Counter({'null': 6, 'correct': 2}) {'in': 14739, 'out': 643} end_turn 

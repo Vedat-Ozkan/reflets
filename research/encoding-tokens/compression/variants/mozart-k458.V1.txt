@@ -1,0 +1,31 @@
+overview div=4 ts=6/8 ks=2f
+m0 len=2
+top: 2 F5
+bass: D5
+m1 len=12
+top: 2 F5 D5 D5 D5 Bb4 Bb4
+bass: Bb3 Bb2
+m2 len=12
+top: 4 Bb4 2 D5 4 C5 2 D5
+bass: D3 F3
+m3 len=12
+top: 3 Eb5 1 D5 2 C5 G4 Bb4 A4
+bass: C3 Eb3
+m4 len=12
+top: 4 Bb4 2 D5 4 C5 2 F5
+bass: D3 F3
+m5 len=12
+top: 1 F5 G5 2 F5 D5 1 D5 Eb5 2 D5 Bb4
+bass: Bb3 Bb2
+m6 len=12
+top: 4 Bb4 2 D5 4 C5 2 D5
+bass: D3 F3
+m7 len=12
+top: 3 Eb5 1 D5 2 C5 G4 Bb4 A4
+bass: C3 Eb3
+m8 len=12
+top: 4 Bb4 2 D5 4 Bb4 2 F4
+bass: Bb2 Bb2
+m9 len=12
+top: 4 G4 2 F4 3 Eb4 1 D4 2 Eb4
+bass: Bb2 Bb2

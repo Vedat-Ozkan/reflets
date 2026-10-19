@@ -1,0 +1,7 @@
+overview div=2 ts=9/8 ks=5f
+m1 len=9
+top: 1 r Ab4~ Ab5~ 3 Ab5 F5~
+bass: r F4 F4
+m2 len=9
+top: 1 F5 Eb5 F5 6 Eb5~
+bass: Gb4 Gb4 Gb4

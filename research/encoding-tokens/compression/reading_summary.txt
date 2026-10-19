@@ -1,0 +1,162 @@
+variant	correct	null	wrong	input_tokens	output_tokens	cost_usd
+N1	39	1	8	47538	3507	0.13
+N1#2	41	1	6	47538	3859	0.13
+R	39	1	8	41613	4076	0.12
+P	36	7	5	42601	3778	0.12
+O	46	0	2	41493	6602	0.15
+RP	48	0	0	37767	5859	0.13
+RO	43	0	5	36929	7003	0.14
+PO	42	1	5	39650	5184	0.13
+RPO	35	7	6	35258	6304	0.13
+RT	43	2	3	40151	4340	0.12
+V1	12	33	3	28216	338	0.06
+V2	13	32	3	34814	338	0.07
+total cost $1.46
+N1 | brahms-fruehlingstrost q1 (null): got null, truth ["A#4", "C#5"]
+N1 | brahms-fruehlingstrost q3 (wrong): got "G5", truth "E5"
+N1 | brahms-fruehlingstrost q4 (wrong): got ["7", "8", "9", "10", "11"], truth [7, 9, 10, 11, 39, 40]
+N1 | brahms-fruehlingstrost q6 (wrong): got {"low": "A1", "high": "A3"}, truth {"low": "A1", "high": "F#4"}
+N1 | haydn-104 q1 (wrong): got ["C#4", "E4"], truth ["D4", "F#4"]
+N1 | haydn-104 q4 (wrong): got ["35"], truth [35, 209, 211]
+N1 | haydn-104 q5 (wrong): got 4, truth 8
+N1 | haydn-104 q7 (wrong): got 4, truth 8
+N1 | mozart-k545-1 q6 (wrong): got {"low": "F#3", "high": "E4"}, truth {"low": "F#3", "high": "F4"}
+N1 | chopin-prelude-4: retries=1 error=None
+N1 | mozart-k545-1: retries=1 error=None
+N1#2 | brahms-fruehlingstrost q1 (null): got null, truth ["A#4", "C#5"]
+N1#2 | brahms-fruehlingstrost q3 (wrong): got "G5", truth "E5"
+N1#2 | brahms-fruehlingstrost q4 (wrong): got ["7"], truth [7, 9, 10, 11, 39, 40]
+N1#2 | brahms-fruehlingstrost q5 (wrong): got 19, truth 18
+N1#2 | haydn-104 q1 (wrong): got ["C#4", "E4"], truth ["D4", "F#4"]
+N1#2 | haydn-104 q4 (wrong): got ["35"], truth [35, 209, 211]
+N1#2 | mozart-k545-1 q6 (wrong): got {"low": "F#3", "high": "E4"}, truth {"low": "F#3", "high": "F4"}
+N1#2 | mozart-k545-1: retries=1 error=None
+R | bach-bwv64-4 q5 (wrong): got 6, truth 3
+R | bach-bwv64-4 q6 (wrong): got {"low": "A2", "high": "A3"}, truth {"low": "E2", "high": "A3"}
+R | bach-bwv64-4 q7 (wrong): got 2, truth 3
+R | brahms-fruehlingstrost q1 (wrong): got ["A#4", "D#5"], truth ["A#4", "C#5"]
+R | brahms-fruehlingstrost q2 (null): got null, truth "E2"
+R | brahms-fruehlingstrost q4 (wrong): got [7, 9, 10, 11, 38, 39, 40], truth [7, 9, 10, 11, 39, 40]
+R | brahms-fruehlingstrost q5 (wrong): got 19, truth 18
+R | brahms-fruehlingstrost q7 (wrong): got 2, truth 3
+R | mozart-k545-1 q6 (wrong): got {"low": "F#3", "high": "E4"}, truth {"low": "F#3", "high": "F4"}
+R | bach-bwv64-4: retries=1 error=None
+R | chopin-prelude-4: retries=1 error=None
+P | brahms-fruehlingstrost q1 (null): got null, truth ["A#4", "C#5"]
+P | brahms-fruehlingstrost q3 (wrong): got "G5", truth "E5"
+P | brahms-fruehlingstrost q4 (null): got null, truth [7, 9, 10, 11, 39, 40]
+P | brahms-fruehlingstrost q5 (null): got null, truth 18
+P | brahms-fruehlingstrost q6 (null): got null, truth {"low": "A1", "high": "F#4"}
+P | brahms-fruehlingstrost q7 (null): got null, truth 3
+P | brahms-fruehlingstrost q8 (null): got null, truth ["C#5", "B4", "B4", "C5"]
+P | mozart-k545-1 q1 (wrong): got ["A3", "C4", "D4"], truth ["D3", "A3", "C4"]
+P | mozart-k545-1 q3 (null): got null, truth "D6"
+P | mozart-k545-1 q5 (wrong): got 15, truth 16
+P | mozart-k545-1 q6 (wrong): got {"low": "C3", "high": "E4"}, truth {"low": "F#3", "high": "F4"}
+P | mozart-k545-1 q7 (wrong): got 8, truth 16
+P | brahms-fruehlingstrost: retries=1 error=None
+P | mozart-k545-1: retries=2 error=None
+O | chopin-nocturne q6 (wrong): got {"low": "Bb1", "high": "Ab4"}, truth {"low": "Bb1", "high": "D5"}
+O | mozart-k545-1 q6 (wrong): got {"low": "F#3", "high": "E4"}, truth {"low": "F#3", "high": "F4"}
+RO | bach-bwv64-4 q6 (wrong): got {"low": "A2", "high": "A3"}, truth {"low": "E2", "high": "A3"}
+RO | bach-bwv64-4 q7 (wrong): got 2, truth 3
+RO | chopin-nocturne q6 (wrong): got {"low": "Bb1", "high": "Ab4"}, truth {"low": "Bb1", "high": "D5"}
+RO | chopin-nocturne q7 (wrong): got 9, truth 7
+RO | mozart-k545-1 q6 (wrong): got {"low": "C3", "high": "F4"}, truth {"low": "F#3", "high": "F4"}
+PO | brahms-fruehlingstrost q1 (wrong): got ["A#4", "D#5"], truth ["A#4", "C#5"]
+PO | brahms-fruehlingstrost q4 (wrong): got [7, 8, 9, 10, 11], truth [7, 9, 10, 11, 39, 40]
+PO | brahms-fruehlingstrost q5 (wrong): got 38, truth 18
+PO | brahms-fruehlingstrost q7 (wrong): got 1, truth 3
+PO | haydn-104 q1 (wrong): got ["C#4", "E4"], truth ["D4", "F#4"]
+PO | haydn-104 q7 (null): got null, truth 8
+RPO | chopin-nocturne q6 (wrong): got {"low": "Bb1", "high": "Ab4"}, truth {"low": "Bb1", "high": "D5"}
+RPO | chopin-nocturne q7 (wrong): got 9, truth 7
+RPO | chopin-prelude-4 q1 (wrong): got ["F3", "Ab3", "Eb4"], truth ["F#3", "A3", "E4"]
+RPO | chopin-prelude-4 q2 (null): got null, truth "F3"
+RPO | chopin-prelude-4 q3 (null): got null, truth "C5"
+RPO | chopin-prelude-4 q4 (wrong): got [13, 14, 15], truth [2, 3, 13, 14, 15]
+RPO | chopin-prelude-4 q5 (null): got null, truth 22
+RPO | chopin-prelude-4 q6 (wrong): got {"low": "B1", "high": "F#2"}, truth {"low": "B1", "high": "B2"}
+RPO | chopin-prelude-4 q7 (null): got null, truth 8
+RPO | chopin-prelude-4 q8 (null): got null, truth ["B4", "C5"]
+RPO | haydn-104 q1 (null): got null, truth ["D4", "F#4"]
+RPO | haydn-104 q4 (wrong): got [35], truth [35, 209, 211]
+RPO | haydn-104 q7 (null): got null, truth 8
+RT | brahms-fruehlingstrost q1 (null): got null, truth ["A#4", "C#5"]
+RT | brahms-fruehlingstrost q3 (wrong): got "A5", truth "E5"
+RT | brahms-fruehlingstrost q4 (wrong): got [7, 9, 10, 11, 28, 39, 40], truth [7, 9, 10, 11, 39, 40]
+RT | brahms-fruehlingstrost q5 (null): got null, truth 18
+RT | mozart-k545-1 q6 (wrong): got {"low": "F#3", "high": "E4"}, truth {"low": "F#3", "high": "F4"}
+RT | chopin-prelude-4: retries=1 error=None
+V1 | bach-bwv64-4 q1 (null): got null, truth ["A2"]
+V1 | bach-bwv64-4 q4 (null): got null, truth [9]
+V1 | bach-bwv64-4 q5 (null): got null, truth 3
+V1 | bach-bwv64-4 q6 (null): got null, truth {"low": "E2", "high": "A3"}
+V1 | bach-bwv64-4 q7 (null): got null, truth 3
+V1 | bach-bwv64-4 q8 (null): got null, truth ["A4", "A4", "D5", "C5"]
+V1 | brahms-fruehlingstrost q1 (null): got null, truth ["A#4", "C#5"]
+V1 | brahms-fruehlingstrost q3 (wrong): got "G5", truth "E5"
+V1 | brahms-fruehlingstrost q4 (null): got null, truth [7, 9, 10, 11, 39, 40]
+V1 | brahms-fruehlingstrost q5 (null): got null, truth 18
+V1 | brahms-fruehlingstrost q6 (null): got null, truth {"low": "A1", "high": "F#4"}
+V1 | brahms-fruehlingstrost q7 (null): got null, truth 3
+V1 | brahms-fruehlingstrost q8 (null): got null, truth ["C#5", "B4", "B4", "C5"]
+V1 | chopin-nocturne q1 (null): got null, truth ["A3", "D#4"]
+V1 | chopin-nocturne q5 (null): got null, truth 22
+V1 | chopin-nocturne q6 (null): got null, truth {"low": "Bb1", "high": "D5"}
+V1 | chopin-nocturne q7 (null): got null, truth 7
+V1 | chopin-nocturne q8 (null): got null, truth ["Cb6", "Bb5", "Bbb5", "Bbb5", "Ab5", "Ab5", "G5", "G5", "F5", "Eb5"]
+V1 | chopin-prelude-4 q1 (null): got null, truth ["F#3", "A3", "E4"]
+V1 | chopin-prelude-4 q4 (wrong): got [], truth [2, 3, 13, 14, 15]
+V1 | chopin-prelude-4 q5 (null): got null, truth 22
+V1 | chopin-prelude-4 q6 (null): got null, truth {"low": "B1", "high": "B2"}
+V1 | chopin-prelude-4 q7 (null): got null, truth 8
+V1 | chopin-prelude-4 q8 (null): got null, truth ["B4", "C5"]
+V1 | haydn-104 q1 (null): got null, truth ["D4", "F#4"]
+V1 | haydn-104 q2 (null): got null, truth "A2"
+V1 | haydn-104 q4 (wrong): got ["35", "37", "39", "209", "211", "213", "215"], truth [35, 209, 211]
+V1 | haydn-104 q5 (null): got null, truth 8
+V1 | haydn-104 q6 (null): got null, truth {"low": "D3", "high": "G3"}
+V1 | haydn-104 q7 (null): got null, truth 8
+V1 | haydn-104 q8 (null): got null, truth ["C#5", "D5", "B4", "C#5", "A4", "C#5", "B4", "A4"]
+V1 | mozart-k545-1 q1 (null): got null, truth ["D3", "A3", "C4"]
+V1 | mozart-k545-1 q5 (null): got null, truth 16
+V1 | mozart-k545-1 q6 (null): got null, truth {"low": "F#3", "high": "F4"}
+V1 | mozart-k545-1 q7 (null): got null, truth 16
+V1 | mozart-k545-1 q8 (null): got null, truth ["D6", "B5", "G5", "A5", "B5", "A5", "G5"]
+V2 | bach-bwv64-4 q1 (null): got null, truth ["A2"]
+V2 | bach-bwv64-4 q4 (null): got null, truth [9]
+V2 | bach-bwv64-4 q5 (null): got null, truth 3
+V2 | bach-bwv64-4 q6 (null): got null, truth {"low": "E2", "high": "A3"}
+V2 | bach-bwv64-4 q7 (null): got null, truth 3
+V2 | bach-bwv64-4 q8 (null): got null, truth ["A4", "A4", "D5", "C5"]
+V2 | brahms-fruehlingstrost q1 (null): got null, truth ["A#4", "C#5"]
+V2 | brahms-fruehlingstrost q3 (wrong): got "G5", truth "E5"
+V2 | brahms-fruehlingstrost q4 (null): got null, truth [7, 9, 10, 11, 39, 40]
+V2 | brahms-fruehlingstrost q5 (null): got null, truth 18
+V2 | brahms-fruehlingstrost q6 (null): got null, truth {"low": "A1", "high": "F#4"}
+V2 | brahms-fruehlingstrost q7 (null): got null, truth 3
+V2 | brahms-fruehlingstrost q8 (null): got null, truth ["C#5", "B4", "B4", "C5"]
+V2 | chopin-nocturne q1 (null): got null, truth ["A3", "D#4"]
+V2 | chopin-nocturne q5 (null): got null, truth 22
+V2 | chopin-nocturne q6 (null): got null, truth {"low": "Bb1", "high": "D5"}
+V2 | chopin-nocturne q7 (null): got null, truth 7
+V2 | chopin-nocturne q8 (null): got null, truth ["Cb6", "Bb5", "Bbb5", "Bbb5", "Ab5", "Ab5", "G5", "G5", "F5", "Eb5"]
+V2 | chopin-prelude-4 q1 (null): got null, truth ["F#3", "A3", "E4"]
+V2 | chopin-prelude-4 q4 (wrong): got [13], truth [2, 3, 13, 14, 15]
+V2 | chopin-prelude-4 q5 (null): got null, truth 22
+V2 | chopin-prelude-4 q6 (null): got null, truth {"low": "B1", "high": "B2"}
+V2 | chopin-prelude-4 q7 (null): got null, truth 8
+V2 | chopin-prelude-4 q8 (null): got null, truth ["B4", "C5"]
+V2 | haydn-104 q1 (null): got null, truth ["D4", "F#4"]
+V2 | haydn-104 q4 (wrong): got [35, 37, 39, 209, 211, 213, 215], truth [35, 209, 211]
+V2 | haydn-104 q5 (null): got null, truth 8
+V2 | haydn-104 q6 (null): got null, truth {"low": "D3", "high": "G3"}
+V2 | haydn-104 q7 (null): got null, truth 8
+V2 | haydn-104 q8 (null): got null, truth ["C#5", "D5", "B4", "C#5", "A4", "C#5", "B4", "A4"]
+V2 | mozart-k545-1 q1 (null): got null, truth ["D3", "A3", "C4"]
+V2 | mozart-k545-1 q5 (null): got null, truth 16
+V2 | mozart-k545-1 q6 (null): got null, truth {"low": "F#3", "high": "F4"}
+V2 | mozart-k545-1 q7 (null): got null, truth 16
+V2 | mozart-k545-1 q8 (null): got null, truth ["D6", "B5", "G5", "A5", "B5", "A5", "G5"]
+V2 | chopin-nocturne: retries=2 error=None

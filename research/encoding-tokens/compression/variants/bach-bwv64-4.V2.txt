@@ -1,0 +1,52 @@
+overview div=2 ts=4/4 ks=2s
+m0 len=2
+top: 2 A4
+beats: C#3 A E
+m1 len=8
+top: 2 F#4 1 F#4 E4 2 A4 A4
+beats: D3 C# A F# | D3 E A F# | F#3 E A D | F#3 D A
+m2 len=8
+top: 6 B4 2 B4
+beats: G3 D B | G3 D B | G3 D B | G2 D B
+m3 len=8
+top: 2 E4 E4 A4 G4
+beats: A2 G C# D E | A2 B F# G C# E | C#3 B E A | C#3 A E G
+m4 len=8
+top: 2 F#4 D4 2 r A4
+beats: D3 A F# | D3 F# A | r | F#3 A D
+m5 len=8
+top: 2 B4 B4 A4 G4
+beats: G3 A D B | E3 B G | A3 C# D F# | A2 C# D E G
+m6 len=8
+top: 6 F#4 2 E4
+beats: D3 A F# | D3 A F# | D3 A F# | A2 C# E
+m7 len=8
+top: 2 F#4 G#4 3 A4 1 B4
+beats: D3 C# A F# | D3 B E G# | C#3 B A E | C#3 D A E F# B
+m8 len=8
+top: 4 G#4 2 A4 A4
+beats: E3 B G# | E2 B G# | A2 C# E | A2 C# E
+m9 len=8
+top: 2 A4 A4 D5 C5
+beats: D3 C# E F# A | D3 E F# G A | F#3 E D G A | F#3 D A C
+m10 len=8
+top: 6 B4 2 B4
+beats: G3 D B | G3 D B | G3 D B | D#3 A B F#
+m11 len=8
+top: 2 B4 B4 E5 D5
+beats: E3 D# F# G# B | E3 F# G# A B | G#3 F# A B E | G#3 E B D
+m12 len=8
+top: 6 C#5 2 A4
+beats: A3 E C# | A3 E C# | A3 E C# | F#3 D A
+m13 len=8
+top: 2 B4 A4 B4 C#5
+beats: G3 A D B | G3 F# D A | G3 F# D B | G3 E A# B C#
+m14 len=8
+top: 6 D5 2 A4
+beats: B3 F# D | B3 F# D | B3 F# D | C#3 E G A
+m15 len=8
+top: 2 A4 1 G4 F#4 2 E4 E4
+beats: D3 E F# A | F#3 G A D E | A3 B D E | A2 G C# E
+m16 len=6
+top: 6 D4
+beats: D3 F# A | D3 F# A | D3 F# A

@@ -1,0 +1,23 @@
+chopin-prelude-4 RPO Counter({'null': 5, 'wrong': 3}) {'in': 2627, 'out': 821} end_turn 
+brahms-fruehlingstrost N1 Counter({'correct': 4, 'wrong': 3, 'null': 1}) {'in': 7385, 'out': 223} end_turn 
+brahms-fruehlingstrost N1#2 Counter({'correct': 4, 'wrong': 3, 'null': 1}) {'in': 7385, 'out': 850} end_turn 
+brahms-fruehlingstrost R Counter({'wrong': 4, 'correct': 3, 'null': 1}) {'in': 7148, 'out': 230} end_turn 
+brahms-fruehlingstrost RP Counter({'correct': 8}) {'in': 6264, 'out': 986} end_turn 
+brahms-fruehlingstrost RO Counter({'correct': 8}) {'in': 6466, 'out': 1265} end_turn 
+brahms-fruehlingstrost PO Counter({'wrong': 5, 'correct': 3}) {'in': 6155, 'out': 198} end_turn 
+brahms-fruehlingstrost RPO Counter({'correct': 8}) {'in': 5978, 'out': 1469} end_turn 
+brahms-fruehlingstrost RT Counter({'correct': 4, 'null': 2, 'wrong': 2}) {'in': 7205, 'out': 94} end_turn 
+brahms-fruehlingstrost V1 Counter({'null': 6, 'correct': 1, 'wrong': 1}) {'in': 3770, 'out': 53} end_turn 
+brahms-fruehlingstrost V2 Counter({'null': 6, 'correct': 1, 'wrong': 1}) {'in': 4961, 'out': 53} end_turn 
+haydn-104 N1 Counter({'wrong': 4, 'correct': 4}) {'in': 20975, 'out': 103} end_turn 
+haydn-104 N1#2 Counter({'correct': 6, 'wrong': 2}) {'in': 20975, 'out': 103} end_turn 
+haydn-104 R Counter({'correct': 8}) {'in': 17112, 'out': 726} end_turn 
+haydn-104 P Counter({'correct': 8}) {'in': 18742, 'out': 727} end_turn 
+haydn-104 O Counter({'correct': 8}) {'in': 18143, 'out': 793} end_turn 
+haydn-104 RP Counter({'correct': 8}) {'in': 15580, 'out': 940} end_turn 
+haydn-104 RO Counter({'correct': 8}) {'in': 15063, 'out': 1064} end_turn 
+haydn-104 PO Counter({'correct': 5, 'wrong': 2, 'null': 1}) {'in': 17511, 'out': 109} end_turn 
+haydn-104 RPO Counter({'correct': 5, 'null': 2, 'wrong': 1}) {'in': 14626, 'out': 95} end_turn 
+haydn-104 RT Counter({'correct': 8}) {'in': 16057, 'out': 881} end_turn 
+haydn-104 V1 Counter({'null': 6, 'correct': 1, 'wrong': 1}) {'in': 12069, 'out': 66} end_turn 
+haydn-104 V2 Counter({'null': 5, 'correct': 2, 'wrong': 1}) {'in': 14739, 'out': 66} end_turn 

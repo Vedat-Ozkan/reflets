@@ -1,0 +1,72 @@
+{
+ "score": "haydn-104",
+ "variant": "V1",
+ "model": "claude-sonnet-5-5",
+ "effort": "high",
+ "questions": {
+  "q1": "Which pitches are attacked (grace notes excluded) in voice 1.1 of bar 24 at offset 12? A list, low to high.",
+  "q2": "What is the lowest pitch sounding at the very start (offset 0) of bar 187, in any staff (grace notes excluded)?",
+  "q3": "What is the highest pitch attacked in bar 279, across all staves (grace notes excluded)?",
+  "q4": "List every bar (other than bar 33) that is identical to bar 33 in every voice: same voices, notes and durations.",
+  "q5": "How many notes are attacked in staff 1 of bar 279, all voices of that staff? Count each note of a chord separately; exclude grace notes.",
+  "q6": "In voice 2.2, across bars 43 to 46, what are the lowest and the highest pitch (grace notes excluded)? As {\"low\": \u2026, \"high\": \u2026}.",
+  "q7": "How many times is the pitch D4 attacked in voice 2.1 in bars 218 and 219 together (grace notes excluded)?",
+  "q8": "List the attacks of voice 1.1 in bar 58 in order (grace notes excluded); write a chord as its pitches joined by + low to high, e.g. \"C4+E4\"."
+ },
+ "truth": {
+  "q1": [
+   "D4",
+   "F#4"
+  ],
+  "q2": "A2",
+  "q3": "D6",
+  "q4": [
+   35,
+   209,
+   211
+  ],
+  "q5": 8,
+  "q6": {
+   "low": "D3",
+   "high": "G3"
+  },
+  "q7": 8,
+  "q8": [
+   "C#5",
+   "D5",
+   "B4",
+   "C#5",
+   "A4",
+   "C#5",
+   "B4",
+   "A4"
+  ]
+ },
+ "answers": {
+  "q1": null,
+  "q2": "A2",
+  "q3": "D6",
+  "q4": null,
+  "q5": null,
+  "q6": null,
+  "q7": null,
+  "q8": null
+ },
+ "grades": {
+  "q1": "null",
+  "q2": "correct",
+  "q3": "correct",
+  "q4": "null",
+  "q5": "null",
+  "q6": "null",
+  "q7": "null",
+  "q8": "null"
+ },
+ "retries": 0,
+ "error": null,
+ "usage": {
+  "in": 12069,
+  "out": 860
+ },
+ "stop": "end_turn"
+}

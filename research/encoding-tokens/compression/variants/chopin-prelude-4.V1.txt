@@ -1,0 +1,76 @@
+overview div=24 ts=2/2 ks=1s
+m0 len=24
+top: 18 B3 6 B4
+bass: B3
+m1 len=96
+top: 72 B4 24 C5
+bass: G3 G3
+m2 len=96
+top: 72 B4 24 C5
+bass: F#3 F#3
+m3 len=96
+top: 72 B4 24 C5
+bass: F3 F3
+m4 len=96
+top: 72 B4 24 Bb4
+bass: E3 E3
+m5 len=96
+top: 72 A4 24 B4
+bass: E3 E3
+m6 len=96
+top: 72 A4 24 B4
+bass: E3 D#3
+m7 len=96
+top: 72 A4 18 B4 6 A4
+bass: D3 D3
+m8 len=96
+top: 72 A4 24 G#4~
+bass: D3 D3
+m9 len=96
+top: 24 G#4 12 A4 B4 D5 C5 E4 A4
+bass: C3 C3
+m10 len=96
+top: 72 F#4 24 A4
+bass: B2 C3
+m11 len=96
+top: 72 F#4 24 A4
+bass: B2 C3
+m12 len=96
+top: 12 G4 F#4 C4 B3 D#4 F#4 8 D5 C5 B4
+bass: B2 D#4
+m13 len=96
+top: 72 B4 24 C5
+bass: G3 G3
+m14 len=96
+top: 72 B4 24 C5
+bass: F#3 F3
+m15 len=96
+top: 72 B4 24 C5
+bass: F3 E3
+m16 len=96
+top: 18 B4 6 A#4 12 A#4 3 B4 A#4 G##4 A#4 24 G5 18 F#5 6 E5
+bass: E3 C#3
+m17 len=96
+top: 12 E5 D#5 C6 D#5 D#5 E5 G5 B4
+bass: B1 G3
+m18 len=96
+top: 12 D5 C5 E5 E4 A4 24 r 12 A4
+bass: A3 B2
+m19 len=96
+top: 72 F#4 24 A4
+bass: B2 C3
+m20 len=96
+top: 72 F#4~ 18 F#4 6 E4
+bass: B2 B2
+m21 len=96
+top: 72 E4 24 F#4
+bass: C3 C3
+m22 len=96
+top: 72 E4 24 F#4
+bass: B2 B2
+m23 len=96
+top: 48 E4
+bass: Bb2 r
+m24 len=96
+top: 48 E4 D#4
+bass: B1 B1

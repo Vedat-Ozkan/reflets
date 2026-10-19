@@ -1,0 +1,382 @@
+overview div=120 ts=4/4 ks=5f
+m1 len=480
+top: 240 Gbbb4 Gbb4
+bass: E2 E2 D2 D2
+m2 len=480
+top: 240 Gbbb4 Gbb4
+bass: E2 E2 Db2 Db2
+m3 len=480
+top: 240 Gbbb4 Abbb4
+bass: Bbb2 Bbb2 Gb2 Gb2
+m4 len=480
+top: 480 Bbbb4~
+bass: Db2 Db2 Db2 Db2
+m5 len=480
+top: 60 Bbbb4 120 r 60 F4 240 F4~
+bass: Db2 Db3 Db3 Db3
+m6 len=480
+top: 60 F4 Eb4 360 F4
+bass: Db3 Db2 Db2 Db2
+m7 len=480
+top: 90 F4 30 Ab4 120 Ab4 90 F4 30 Eb4 120 Db4
+bass: Db2 Db2 Db2 Db2
+m8 len=480
+top: 90 Eb4 30 F4 90 Ab4 30 F4 240 Eb4
+bass: Db2 Db2 Db2 Db2
+m9 len=480
+top: 90 F4 30 Ab4 120 Ab4 90 F4 30 Eb4 120 Db4
+bass: Db2 Db2 F2 F2
+m10 len=480
+top: 60 Eb4 F4 90 Eb4 30 Db4 240 Db4
+bass: Gb2 Ab2 Db2 Db2
+m11 len=480
+top: 90 Bb4 30 Db5 120 Db5 60 C5 Ab4 120 Bb4
+bass: Gb2 Gb2 Gb2 Gb2
+m12 len=480
+top: 60 Bb4 Db5 C5 Ab4 240 Bb4
+bass: Gb2 Gb2 Gb2 Gb2
+m13 len=480
+top: 90 Bb4 30 Db5 120 Db5 60 C5 Ab4 120 Bb4
+bass: Gb2 Gb2 Gb2 Gb2
+m14 len=480
+top: 60 Bb4 Db5 C5 Ab4 240 Bb4
+bass: Gb2 Gb2 Gb2 Gb2
+m15 len=480
+top: 90 F4 30 Ab4 120 Ab4 60 F4 Eb4 F4 Db4
+bass: Db2 Db2 Db2 Db2
+m16 len=480
+top: 90 Eb4 30 F4 90 Ab4 30 F4 240 Eb4
+bass: Db2 Db2 Db2 Db2
+m17 len=480
+top: 90 F4 30 Ab4 120 Ab4 90 Db5 30 Eb5 120 F5
+bass: Db2 C2 Bb1 Ab1
+m18 len=480
+top: 90 Eb5 30 Db5 60 Eb5 Bb4 240 Db5
+bass: Ab1 Ab1 Db2 Db2
+m19 len=480
+top: 90 D5 30 C5 60 D5 A4 240 C5
+bass: Gb3 Gb3 Db3 Db3
+m20 len=480
+top: 180 D5 60 C5 120 D5 A4
+bass: Gb3 Gb3 Gb3 Gb3
+m21 len=480
+top: 360 C5 40 Db5 F5 Ab5
+bass: Db3 Db3 Db3 Db3
+m22 len=480
+top: 240 Db6 D6
+bass: Db4 Db4 B3 B3
+m23 len=480
+top: 240 Db6 D6
+bass: Db4 Db4 Bb3 Bb3
+m24 len=480
+top: 240 Db6 Eb6
+bass: Gb4 Gb4 Eb4 Eb4
+m25 len=480
+top: 480 F6~
+bass: Db4 Db4 Db3 Db3
+m26 len=480
+top: 120 F6 120 r 60 Gbb5
+bass: Db3 Db3 Db3 Db3
+m27 len=480
+top: 90 F5 30 Ab5 120 Ab5 60 Gb5 Eb5 120 F5
+bass: Db3 Db3 Db3 Db3
+m28 len=480
+top: 60 Db5 F5 Eb5 C5 240 Db5
+bass: Db3 Db3 Db3 Db3
+m29 len=480
+top: 90 F5 30 Ab5 120 Ab5 60 Gb5 Eb5 120 F5
+bass: Db3 Db3 Db3 Db3
+m30 len=480
+top: 60 Db5 F5 Eb5 C5 240 Db5
+bass: Db3 Db3 Db3 Db3
+m31 len=480
+top: 60 Db5 F5 Eb5 C5 240 Db5
+bass: Db3 Db3 Db3 Db3
+m32 len=480
+top: 60 Db5 F5 Eb5 C5 Db5 Bb4 C5 Ab4
+bass: Db3 Db3 Db3 Db3
+m33 len=480
+top: 60 Db5 F5 Eb5 C5 Db5 Bb4 C5 Ab4
+bass: Db3 Db3 Db3 Db3
+m34 len=240
+top: 60 Db5 Bb4 C5 Ab4
+bass: Db3 Db3
+m35 len=480
+top: 360 Db5 60 Cb5 Bbb4
+bass: Db3 Db3 Db3 Db3
+m36 len=480
+top: 90 Ab4 30 Ab4 120 Ab4
+bass: Db2 Db2 Db2 Db2
+m37 len=480
+top: 120 Ab4 90 Ab4 30 r 60 Ab4 180 Ab4
+bass: Db2 Db2 Db2 Db2
+m38 len=480
+top: 60 F4 30 F4 Ab4 120 Ab4 90 Db5 30 Eb5 120 F5
+bass: Db2 C2 Bb1 Ab1
+m39 len=480
+top: 90 Eb5 30 Db5 60 Eb5 Bb4 240 Db5
+bass: Gb1 Gb1 Db2 Db2
+m40 len=480
+top: 90 D5 30 C5 60 D5 A4 240 C5
+bass: Gb3 Gb3 Db3 Db3
+m41 len=480
+top: 180 Eb5 60 Db5 120 Eb5 Bb4
+bass: Gb3 Gb3 Gb3 Gb3
+m42 len=480
+top: 240 Db5 Ab4
+bass: Db3 Db3 Db3 Db3
+m43 len=480
+top: 240 Db5 Ab4~
+bass: Db2 Db2 Db2 Db2
+m44 len=480
+top: 90 Ab4 30 G#4 120 G#4 90 E#4 30 G#4 120 G#4
+bass: Db2 Db2 Db2 Db2
+m45 len=480
+top: 90 E#4 30 G#4 360 G#4
+bass: Db2 G#4 G#4 G#4
+m46 len=480
+top: 40 E5 D#5 C#5 120 C#5~ 60 C#5 E5 D#5 C#5
+bass: C#2 C#2 A3 A3
+m47 len=480
+top: 40 E5 D#5 C#5 120 C#5~ 60 C#5 E5 D#5 C#5
+bass: C#4 C#4 A3 A3
+m48 len=480
+top: 40 B4 G#4 B4 120 C#5 30 A4 C#5 B4 A4 120 B4
+bass: G#3 G#3 F#3 B3
+m49 len=480
+top: 120 G#4 40 B4 G#4 B4 240 C#5
+bass: E4 E4 C#4 C#4
+m50 len=480
+top: 40 E5 D#5 C#5 120 C#5~ 60 C#5 E5 D#5 C#5
+bass: C#4 C#4 A3 A3
+m51 len=480
+top: 40 E5 D#5 C#5 120 C#5~ 60 C#5 E5 D#5 C#5
+bass: C#2 C#2 F#4 F#4
+m52 len=480
+top: 30 C#5 E5 G#5 G#5 180 G#5 60 F#5 24 E5 F#5 A5 G#5 F#5
+bass: Db4 B3 A3 A3
+m53 len=480
+top: 480 C#6
+bass: C#3 C#3 C#3 C#3
+m54 len=480
+top: 240 C#5 120 D#5 E5
+bass: C#2 G#2 F#2 G#2
+m55 len=480
+top: 120 G#5 240 F#5 120 A5~
+bass: F#2 D3 F#3 C#3
+m56 len=480
+top: 120 A5 G#5~ 60 G#5 120 F#5 60 E5
+bass: C#3 E3 B#2 C#3
+m57 len=480
+top: 120 E5 D#5 F#5 60 E5 D#5
+bass: F#2 A2 D#2 G#2
+m58 len=480
+top: 30 E5 90 C#5~ 360 C#5~
+bass: C#2 G#2 B2 G#2
+m59 len=480
+top: 240 E5 120 F#5 G#5
+bass: C#2 E2 A2 E3
+m60 len=480
+top: 180 B5 30 C#6 B5 B5 90 G#5~ 120 G#5
+bass: B2 C#3 E3 G#2
+m61 len=480
+top: 180 F#5 60 G#5 120 A5 E5
+bass: D3 F#2 A1 C#2
+m62 len=480
+top: 240 E5 120 F#5 90 E5 30 C#5
+bass: F#2 A2 D#2 G#2
+m63 len=480
+top: 450 C#5 15 C#5 D#5
+bass: C#2 B2 G#2 C#2
+m64 len=480
+top: 40 E5 D#5 C#5 C#5 D#5 E5 240 F#5
+bass: C#2 C#3 A3 A3
+m65 len=480
+top: 60 G#5 20 r 40 C#5 C#5 D#5 E5 240 F#5
+bass: C#4 C#4 A3 A3
+m66 len=480
+top: 240 G#5 120 A5 G#5~
+bass: G#3 G#3 F#3 B3
+m67 len=480
+top: 60 G#5 F#5 D#5 E5~ E5 F#5 E5 D#5
+bass: C#2 C#2 C#4 C#4
+m68 len=480
+top: 40 E5 D#5 C#5 E5 F#5 G#5 240 A5
+bass: C#4 C#4 E4 E4
+m69 len=480
+top: 60 G#5 20 r 40 C#5 E5 F#5 G#5 240 A5
+bass: C#4 C#4 E4 E4
+m70 len=480
+top: 240 A5 D6
+bass: C#2 C#2 F#4 F#4
+m71 len=480
+top: 360 G#6 60 E6 C#6
+bass: G#4 G#4 G#4 G#4
+m72 len=480
+top: 60 B#5 G#5 F#5 E5 D#5 C#5 B#4 F#5
+bass: G#3 F#5 D#5 B#4
+m73 len=480
+top: 120 E5 240 D#5 120 D5
+bass: A4 A4 F#4 F#4
+m74 len=480
+top: 360 D#5 120 C#5~
+bass: G4 F#4 E4 E4
+m75 len=480
+top: 120 C#5 B#4 240 A4~
+bass: D#4 D#4 D#4 C#4
+m76 len=480
+top: 120 A4 G#4 240 F##4~
+bass: B#3 B#3 B#2 B#2
+m77 len=480
+top: 120 F##4 G#4 60 A4 G#4 D#4 E4
+bass: G#1 G#1 G#1 G#1
+m78 len=480
+top: 180 C#4 60 E4 120 D#4 60 E4 E4
+bass: C#2 E2 F#2 G#2
+m79 len=480
+top: 120 G#4 60 F#4 F#4 120 r A4
+bass: F#2 D3 F#3 C#3
+m80 len=480
+top: 120 A4 60 G#4 G#4 G#4 120 F#4 60 C#5
+bass: C#2 C#2 B#2 C#3
+m81 len=480
+top: 120 E4 60 D#4 A4 120 F#4 60 E4 G#4
+bass: F#2 A2 D#2 G#2
+m82 len=480
+top: 180 G#4 60 G#4 G#4 60 r C#4 G#4
+bass: C#2 B2 G#2 E2
+m83 len=480
+top: 180 E4 60 G#4 120 F#4 G#4
+bass: C#2 E2 A2 C#2
+m84 len=480
+top: 180 B4 30 C#5 B4 B4 90 G#4~ 60 G#4 G#4
+bass: B2 D#3 E3 G#2
+m85 len=480
+top: 60 A4 120 r 60 D5 C#5 60 r G#4
+bass: D3 F#2 A2 C#3
+m86 len=480
+top: 60 A4 60 r D#4 A4 120 F#4 60 E4 G#4
+bass: F#2 A2 D#2 G#2
+m87 len=480
+top: 40 E4 D#4 C#4 120 C#4~ 60 C#4 E4 D#4 C#4
+bass: C#2 C#2 E2 E2
+m88 len=480
+top: 40 E4 D#4 C#4 120 C#4~ 60 C#4 E4 D#4 C#4
+bass: C#2 C#2 E2 E2
+m89 len=480
+top: 40 E4 D#4 C#4 360 G#4~
+bass: C#2 C#2 C#2 C#2
+m90 len=480
+top: 20 E#5 F#5 G#5 E#5 D#5 C#5 D#5 E#5 F#5 E#5 D#5 C#5 D#5 E#5 F#5 E#5 G#5 20 r F#5 E#5 D#5 E#5 C#5
+bass: C#2 C#2 C#2 C#2
+m91 len=480
+top: 60 G#5 30 C#6 30 r 60 B#5 30 C#6 30 r F#6 D#6 C#6 30 r 60 B#5 30 C#6
+bass: C#2 C#2 C#2 C#2
+m92 len=480
+top: 20 E#6 F#6 G#6 E#6 D#6 C#6 D#6 E#6 F#6 E#6 D#6 C#6 D#6 E#6 F#6 E#6 G#6 20 r F#6 E#6 D#6 E#6 C#6
+bass: C#2 C#2 C#2 C#2
+m93 len=480
+top: 480 G#6 A#5
+bass: C#2 C#2 C#2 C#2
+m94 len=480
+top: 20 G#6 G#6 G#6 G#6 G#6 G#6~ G#6 G#6 G#6 G#6 G#6 G#6~ G#6 G#6 G#6 G#6 G#6 G#6~ G#6 G#6 G#6 G#6 G#6 G#6
+bass: E#2 D#2 D#2 F#2
+m95 len=480
+top: 20 G#6 G#6 G#6 G#6 G#6 G#6~ G#6 G#6 G#6 G#6 G#6 G#6~ G#6 G#6 G#6 G#6 G#6 G#6~ G#6 G#6 G#6 G#6 G#6 G#6
+bass: F#2 F#2 F#2 F#2
+m96 len=480
+top: 360 A6 90 A6 30 A6
+bass: C#2 C#2 C#2 C#2
+m97 len=480
+top: 30 F#6 90 E6 360 A6~
+bass: C#2 C#2 C#2 C#2
+m98 len=480
+top: 120 A6 90 A6 30 A6 F#6 90 E6 A6 30 A6
+bass: C#2 C#2 C#2 C#2
+m99 len=480
+top: 30 F#6 90 E6 A6 30 A6 F#6 90 E6
+bass: C#2 C#2 E1 E1
+m100 len=480
+top: 60 E6 60 r 90 A5 30 A5 F#5 90 E5 120 Cb5
+bass: A1 A1 A1 A1
+m101 len=480
+top: 240 Db5~ 60 Db5
+bass: C#2 Db3 Db3 Db3
+m102 len=480
+top: 120 Ab4 90 Ab4
+bass: Db3 Db3 Db3 Db3
+m103 len=480
+top: 90 Ab4 30 Ab4 120 Ab4 240 A4
+bass: Db3 Db3 F2 F2
+m104 len=480
+top: 120 Bb4 C5 240 Db5
+bass: Gb2 Ab2 Db3 Db3
+m105 len=480
+top: 90 Bb4 30 Db5 120 Db5 60 C5 Ab4 120 Bb4
+bass: Gb2 Gb2 Gb2 Gb2
+m106 len=480
+top: 60 Bb4 Db5 C5 Ab4 240 Bb4
+bass: Gb2 Gb2 Gb2 Gb2
+m107 len=480
+top: 60 Bb4 Db5 120 Db5 60 C5 Ab4
+bass: Gb2 Gb2 Gb2 r
+m108 len=480
+top: 240 Bb4 120 r 60 Bb4 Db5
+bass: Gb2 Gb2 r Gb2
+m109 len=480
+top: 60 C5 Ab4 240 Bb4
+bass: Gb2 Gb2 Gb2 r
+m110 len=480
+top: 90 F4 30 Ab4 120 Ab4 90 F4 30 Eb4 120 Db4
+bass: Db3 Db3 Db3 Db3
+m111 len=480
+top: 240 A4 120 Eb4 E4
+bass: Db3 Db3 Db3 Db3
+m112 len=480
+top: 90 F4 30 Ab4 120 Ab4 90 Db5 30 Eb5 120 F5
+bass: Db3 C3 Bb2 Ab2
+m113 len=480
+top: 90 Eb5 30 Db5 60 Eb5 C5 Db5 Db5 F5 Ab5
+bass: Gb2 Gb2 Db2 Db2
+m114 len=480
+top: 240 Bb5 180 Ab5 60 Ab5
+bass: Gb3 Gb3 Db3 Db3
+m115 len=480
+top: 240 Bb5~ 60 Bb5 Ab5 Db6 Bb5
+bass: Gb3 Gb3 Db3 Db3
+m116 len=480
+top: 60 Ab5 F5 Bb5 Ab5 F5 Ab5 F5 Eb5
+bass: Eb2 Eb2 Ab3 Ab3
+m117 len=480
+top: 60 Db5 F5 Ab5 30 F5 Eb5 60 Db5 Bb4 Ab4 F4
+bass: Ab3 Ab5 Db5 Ab4
+m118 len=480
+top: 120 F4 60 Db4 Eb4 F4 120 Ab4 60 F4
+bass: F4 Db4 F4 Ab4
+m119 len=480
+top: 120 F4 Eb4 Db4 Bb3
+bass: F4 Eb4 Db4 Bb3
+m120 len=480
+top: 240 E4 D4
+bass: Db3 Db3 B2 B2
+m121 len=480
+top: 240 E4 F#4
+bass: Db3 Db3 Bb2 Bb2
+m122 len=480
+top: 240 D4 Eb4
+bass: Gb2 Gb2 Eb2 Eb2
+m123 len=480
+top: 420 F4 60 F4
+bass: Db2 Db2 Db2 Db2
+m124 len=480
+top: 120 F5 60 F5 Ab5 Db6 Eb6 F6 Ab6
+bass: Db3 Db3 Db3 Db3
+m125 len=480
+top: 480 Db7~
+bass: Db3 Db5 Db5 Db5
+m126 len=480
+top: 120 Db7 120 r F3
+bass: Db5 r Db2 r
+m127 len=480
+top: 240 F3~ 60 F3
+bass: Db2 Db2 Db2 r

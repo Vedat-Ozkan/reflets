@@ -218,31 +218,47 @@ The engine's N1 note list (`engine/notes.py`) round-trips through `encode`/`deco
 
 ### 4.2 Extensions: N1x
 
-N1 drops rests, part identity, clefs, key changes, slurs, dynamics, articulations, lyrics, chord symbols and tuplet markup (`engine:68-71`). N1x adds the four the companion cannot do without, and nothing else in v1:
+N1 drops rests, part identity, clefs, key changes, slurs, dynamics, articulations, lyrics, chord symbols and tuplet markup (`engine:68-71`). N1x carries every element a MuseScore user can read and write (open question 17), as additions to N1's grammar (`src:94-95`). Plain N1 stays valid for its existing callers (`src:100`); the header tag `N1x` marks the extended text. Decided 2026-10-19 with the owner after the element survey (`research/musescore-4.7.5-element-coverage.md`) and the compression study (`research/encoding-compression-2026-10-18.md`); not built yet.
 
-| Extension | Why | Source in Protocol A |
-|---|---|---|
-| **Rests** decoded to rest events | N1 already writes `r` tokens, but its decoder drops them and trailing silence is never written (`src:95-97`, `engine:68`). The N1x decoder creates rest events (`Event.pitch` is `None` for a rest, `src:98`) and treats silence between the last token and `len` as rest, so the write path can place them (`api:49` `addRest`) | `R` lines |
-| **Part identity**: header lines `P<n> <name> staves=<a>-<b>` | N1 numbers staves across the whole score (`engine:69`); the model must say "the cello", and the server maps staff to `Part.startTrack..endTrack` (`api:70`) | `P`, `S` lines |
-| **Dynamics**: `!<mark>` token at an onset in a staff line | `dynamicType` is readable and writable (`api:59`); the assistant and critic modes need them (`notes:86`) | `A dyn` lines |
-| **Chord symbols**: `"<text>"` token at an onset | `harmonyType` and `text` are readable (`api:59`); harmonisation ideas are expressed as chord symbols first (`notes:107`, `notes:109-113`) | `A harm` lines |
+Illustration (the nocturne's opening; slur and pedal placement is made up):
 
-Kept from N1 unchanged: spelled pitch, `staff.layer` voices, `~` ties, `+` chords, `g` grace, `len=` and meter changes, first `ks=` (`engine:61-65`). Added: key changes as `ks=` on the bar header, like `ts=` (open question 12; needs the engine change there). Still dropped in v1: articulations, lyrics, slurs, clefs. Tuplets stay as durations in `div` units with no tuplet markup (`engine:65`); the server reconstructs tuplet ratios for the write path from the duration arithmetic and refuses an idea whose durations do not fit a measure.
+```
+N1x div=48 ts=12/8 ks=3f
+title="Nocturne Op.9 No.2" composer="Chopin"
+P1 "Piano" staves=1-2 instr=piano
+m0 len=24
+1.1: q60 s"Andante" x"espress. dolce" !p 24 Bb4
+2.1: 24 r
+m1 len=288
+1.1: ( 72 G5~ 24 G5 F5 G5 ) ( 72 F5[ten] 48 Eb5 24 Bb4 )
+2.1: ped( 24 Eb2 G3+Eb4 Bb3+Eb4+G4 ped)@72 ped( 24 Eb3 ...
+m9 = m1
+```
+
+**Header lines**, after the version line: `title="…"`, `composer="…"` (score metadata), and one `P<n> "<name>" staves=<a>-<b> instr=<instrumentId>` per part. Quoted text escapes `"` as `\"`.
+
+**Bar line fields**, on the `mN len=` line: `ts=` and `ks=` where the meter or key changes (open question 12); `rep=start|end|both` and `x=<count>` for repeats; `volta=1` or `volta=1,2` on each bar under an ending (consecutive bars with the same value are one volta); `bar=double|final|dashed|…` for a bar line the user set; `break=line|page|section`; `jump=<type>` (D.C., D.S. al Coda, … by MuseScore's jump type) and `mark=segno|coda|fine|tocoda|…`.
+
+**Marks at a moment**, written just before the note or rest they fall on, or after a note with `@<offset>` (in `div` units from the bar start) when they fall inside it (open question 18): `!mf` dynamic, `"G7"` chord symbol, `x"…"` expression, `s"…"` staff text, `S"…"` system text, `q60` or `q60"Andante"` tempo in quarter notes per minute, `R"A"` rehearsal mark, `fb"6/4"` figured bass, `pt"pizz."` playing technique, `clef=bass` clef change. Tempo, rehearsal marks, system text, jumps, markers and voltas are system objects that MuseScore keeps on track 0, so they appear in staff 1 voice 1.
+
+**Lines** with a start and an end, in the voice line of their track: `( … )` slur; `<( … <)` crescendo and `>( … >)` diminuendo hairpin; `cresc( … cresc)` and `dim( … dim)` text lines; `ped( … ped)` pedal; `8va( … 8va)`, also `8vb`, `15ma`, `15mb`, `22ma`; `tr( … tr)` trill line; `vib(`, `lr(` (let ring), `pm(` (palm mute); `line"text"( … line)` text line. An opener goes before the note the line starts on; a closer after the note it ends with (the line ends at that note's end), or with `@<offset>`. Lines may cross bars. Pitches stay sounding pitches under octave lines.
+
+**Decorations of a note or chord**, in brackets right after it: `G5[stacc,acc]`, `Eb4+G4[arp]`. Short names for the common ones (`stacc`, `staccis`, `ten`, `acc`, `marc`, `port`, `fermata`, `breath`, `caesura`, `arp`, `arp-up`, `arp-down`, `tr`, `mord`, `prall`, `turn`, `trem8` to `trem64`, `lv`, `paren`), MuseScore's own symbol name for any other (`[articStressAbove]`), so nothing is lost. Engraving choices appear only where the user changed MuseScore's default: `up`/`down` stem, `beam=none|start|mid|…`, `head=x|…`, `staff+1`/`staff-1` cross-staff. Grace types other than the default (a single grace is an acciaccatura, a group 16ths) go on the grace token: `gD5[appog]`, `gD5[after]`. Fingering goes on the note: `C4'1+E4'3+G4'5`.
+
+**Groups**: braces group notes. Brackets before the braces apply to every note inside, written once (open question 21): `[stacc]{ 12 C4 D4 E4 F4 }`; a note can add its own: `D4[acc]`. A ratio before the braces makes the group a tuplet, with durations inside still in `div` units of actual time: `3:2{ 16 C5 D5 E5 }`, `3:2[acc]{ … }`. Explicit ratios keep tuplets from being rewritten as dotted values.
+
+**Lyrics**, one line per verse under the voice line, one syllable per note in order, grace notes and rests skipped, ABC style: `1.1 L1: Ah vous di- rai- je`. A trailing `-` continues the word, `_` holds the previous syllable over one more note, `*` skips a note.
+
+**Repeated bars** (open question 20): `mN = mK` for a bar identical to bar K in every voice and mark, `s.v = mK` for one voice. K is always a bar written out in full within the same text. No transposed references, relative octaves, repeat groups or pitch shapes (open questions 20, 21). Spelling stays `Bb4` (open question 19).
+
+**In ideas**: a voice line replaces everything in that voice for that bar: notes, rests, decorations, marks and the lines that start or end in it, so the read-back shows exactly what was written. A line that holds only marks, with no durations, notes or rests, changes those marks and leaves the notes alone. A system object is rewritten only through staff 1 voice 1.
+
+**Read but not written** (the plugin API cannot, `research/musescore-4.7.5-element-coverage.md`): glissando, two-chord tremolo and chord lines (`[gliss]`, `[trem2]`, `[fall]` and the like are refused in ideas, with the reason), instrument changes with a real instrument (only the label could be added), fretboard diagram dots and harp pedal states. Bar lines other than repeats and key changes on transposing staves are partial; title and composer are written outside the undo step, so `discard` cannot remove them.
 
 Rules for N1x:
 
 - It lives next to `notes.py` in the engine, stdlib-only (`engine:17`), with a round-trip test in the style of `tests/test_notes.py` (`engine:75`).
-- `decode` returns a `ScoreIndex` via `from_measures` (`engine:8`, `engine:48`) with rest events added, so `part_writing.check`, `draft.build`, `harmony` and `reduce.as_text` run on it unchanged (`engine:50-55`).
-- Illustrative fragment. The header tag is `N1x` because the N1 decoder requires `N1 ` (`src:97`) and plain N1 must stay valid for its existing callers (`src:100`). The `P` lines, `!mf` and `"G7"` are the new tokens; everything else is N1's grammar (`src:94-95`):
-
-```
-N1x div=48 ts=4/4 ks=1s
-P1 "Violin I" staves=1
-P2 "Violoncello" staves=2
-m1 len=192
-1.1: !mf "G7" 48 G4 B4 24 D5 F5 48 G5~
-2.1: !p 96 G2 48 r D3
-```
+- `decode` returns a `ScoreIndex` via `from_measures` (`engine:8`, `engine:48`), so `part_writing.check`, `draft.build`, `harmony` and `reduce.as_text` run on it unchanged (`engine:50-55`); the new elements live in additive fields.
 
 ### 4.3 One grammar for reading and writing
 
@@ -439,6 +455,8 @@ When the idea extends past the last bar, `appendMeasures(n)` (`api:33`) runs ins
 
 Slurs and hairpins, which fall through `cursor.add` with no spanner handling (`api:50`); lyrics; articulations; key and time changes mid-idea (possible through `cursor.add` of KeySig and TimeSig, `api:50`, deferred); clefs; bar lines (`notes:169`); parts and staves (`api:34`, reserved for layout A).
 
+Superseded 2026-10-19 by open question 17: everything in 4.2 is written in v1 except the kinds listed there as read only. Each kind's write path (properties, `newElement` plus `cursor.add`, `Chord.add`/`Note.add`, or an action over a list selection) is in `research/musescore-4.7.5-element-coverage.md`; parts and staves stay reserved for layout A.
+
 ### 6.13 Checkpoints and restore (first release, not built)
 
 Decided 2026-10-18 (open question 16). MuseScore's undo history is linear, interleaves the user's edits with ideas, and is lost when the score closes, so it cannot take the user back to a chosen state after many rounds. Three parts:
@@ -529,3 +547,8 @@ These are the **[spike]** marks above. Each is a short experiment on the owner's
 14. **Licence.** Decided 2026-10-18: MIT for both plugin and server (`hosts:63`).
 15. **Keeping an idea.** Decided 2026-10-18: a `keep(proposal_id)` tool turns the idea's notes black as its own undo step (5.2, 7.1). Original question: idea notes are written in colour; how do they turn black once the user keeps the idea: a keep tool, recolouring on the next propose, or no colour for now?
 16. **Going back after many iterations.** Decided 2026-10-18: in the first release, checkpoint files, restoring chosen bars from a checkpoint through the write path, and proposals and checkpoints kept on disk (6.13). Original question: with only MuseScore's linear undo history, how does a user who has made many additions and removals go back to a specific earlier state?
+17. **What Claude can read and write.** Decided 2026-10-18: in the first release, Claude reads and writes every element a MuseScore user can read and write, not only notes, dynamics and chord symbols: per-note notation (articulations, ornaments, fingering, lyrics, noteheads, tremolos, arpeggios), lines (slurs, hairpins, pedal, octave lines, trills, voltas), text of every kind (expression, staff, tempo, rehearsal), fermatas and breaths, bar-level elements (bar lines, repeats, jumps, markers, key, time and clef changes). This widens 4.2 and 6.12; a feasibility survey of the 4.7.5 plugin API and a live spike decide how each kind is read and written, and any kind the API cannot write is listed with the reason. Measured cost on the nocturne (1,259 notes): about 160 per-note and line elements and 50 text elements, estimated at +10% and +3% on about 6,000 tokens; scores with an articulation on most notes cost more. Original question: N1x v1 carries dynamics and chord symbols only and drops articulations, slurs, hairpins, pedal, lyrics, clefs and text (4.2). Should Claude see everything in the score?
+18. **A mark inside a held note.** Decided 2026-10-18: written after that note with `@` and its offset from the start of the bar in `div` units, e.g. `"Bb7"@72`. Original question: a dynamic or chord symbol is placed before the note it falls on; where does one go when no note starts there?
+19. **Pitch spelling.** Decided 2026-10-18: keep `Bb4`, the simplest form; neither music21's `B-4` nor key-relative spelling. Original question: `B-4` saves 2–10% of Claude tokens in flat keys and key-relative spelling 3–17% (`research/encoding-tokens.md`); adopt either for N1x now that Reflets is Claude Code first?
+20. **Compression.** Decided 2026-10-19: N1x writes a bar or one voice that repeats an earlier bar as a back-reference, `mN = mK` or `s.v = mK`, always pointing at a bar written out in full within the same read; no transposed references, no relative octaves, no repeat groups; an overview view (top line and bass) comes after the first release. Measured in `research/encoding-compression-2026-10-18.md`: references save 7% median per score (25% on the nocturne, 46% on a Mozart symphony) with no loss in reading; relative octaves saved 15% but Claude misread and miswrote octaves silently. Original question: can Claude's token use for reading scores go lower, and which of back-references, repeat groups, relative octaves and an overview view are worth it?
+21. **Shapes.** Decided 2026-10-19: a decoration shared by a run of notes is written once for the group, e.g. `[stacc]{ 12 C4 D4 E4 F4 }`, with every pitch still written out; scales, arpeggios and other pitch-generating shapes are not part of N1x. Original question: could N1x save tokens by writing a scale or arpeggio as a shape, and an articulation shared by its notes once for all of them? Shapes hide pitches the way relative octaves did, which Claude misread and miswrote silently (`research/encoding-compression-2026-10-18.md`); transposed figures were 0–3% of beats there.

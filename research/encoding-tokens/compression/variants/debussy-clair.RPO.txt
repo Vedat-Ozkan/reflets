@@ -1,0 +1,8 @@
+N1 div=2 ts=9/8 ks=5f
+m1 len=9
+1.1: 2 r 1 F5~+Ab~ 3 F+Ab Db~+F~
+2.1: 1 r 2 F4~ 6 F+Ab
+2.2: 1 r Ab4~ F5+Ab
+m2 len=9
+1.1: 1 Db5+F C+Eb Db+F 6 C~+Eb~
+2.1: 6 Gb4~+A~ 3 Gb+A

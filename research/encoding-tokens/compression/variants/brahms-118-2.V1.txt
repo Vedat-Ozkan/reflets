@@ -1,0 +1,25 @@
+overview div=4 ts=3/4 ks=3s
+m0 len=4
+top: 2 C#5 B4
+bass: A2
+m1 len=12
+top: 8 D5 2 C#5 B4
+bass: A1 A3 A2
+m2 len=12
+top: 8 A5 3 A4 1 B4
+bass: A1 A2 D2
+m3 len=12
+top: 3 B4 1 E5 4 E5 D5
+bass: D3 C#3 B1
+m4 len=12
+top: 4 A4 G#4 2 C#5 B4
+bass: E2 E3 E3
+m5 len=12
+top: 8 D5 2 C#5 B4
+bass: F#2 A3 E2
+m6 len=12
+top: 8 A5 3 C#5 1 D#5
+bass: D#2 D#3 A2
+m7 len=12
+top: 3 D#5 1 E5 4 E5 F#4
+bass: G#2 A2 B2

@@ -1,0 +1,52 @@
+chopin-nocturne N1#2 Counter({'correct': 8}) {'in': 6758, 'out': 1112} end_turn 
+chopin-nocturne R Counter({'correct': 8}) {'in': 5291, 'out': 1140} end_turn 
+chopin-nocturne P Counter({'correct': 8}) {'in': 6418, 'out': 1050} end_turn 
+chopin-nocturne O Counter({'correct': 7, 'wrong': 1}) {'in': 6022, 'out': 1600} end_turn 
+chopin-nocturne RP Counter({'correct': 8}) {'in': 5082, 'out': 1190} end_turn 
+chopin-nocturne RO Counter({'correct': 6, 'wrong': 2}) {'in': 4811, 'out': 1534} end_turn 
+chopin-nocturne PO Counter({'correct': 7, 'wrong': 1}) {'in': 5868, 'out': 1721} end_turn 
+chopin-nocturne RPO Counter({'correct': 6, 'wrong': 2}) {'in': 4685, 'out': 1714} end_turn 
+chopin-nocturne RT Counter({'correct': 8}) {'in': 5381, 'out': 1077} end_turn 
+chopin-nocturne V1 Counter({'null': 5, 'correct': 3}) {'in': 3787, 'out': 57} end_turn 
+chopin-nocturne V2 Counter({'null': 5, 'correct': 3}) {'in': 4831, 'out': 57} end_turn 
+mozart-k545-1 N1 Counter({'correct': 7, 'wrong': 1}) {'in': 6857, 'out': 723} end_turn 
+mozart-k545-1 N1#2 Counter({'correct': 7, 'wrong': 1}) {'in': 6857, 'out': 678} end_turn 
+mozart-k545-1 R Counter({'correct': 7, 'wrong': 1}) {'in': 6486, 'out': 711} end_turn 
+mozart-k545-1 P Counter({'wrong': 5, 'correct': 2, 'null': 1}) {'in': 6266, 'out': 99} end_turn 
+mozart-k545-1 O Counter({'correct': 7, 'wrong': 1}) {'in': 5406, 'out': 1066} end_turn 
+mozart-k545-1 RP Counter({'correct': 8}) {'in': 6033, 'out': 1033} end_turn 
+mozart-k545-1 RO Counter({'correct': 7, 'wrong': 1}) {'in': 5220, 'out': 1271} end_turn 
+mozart-k545-1 PO Counter({'correct': 8}) {'in': 5234, 'out': 1055} end_turn 
+mozart-k545-1 RPO Counter({'correct': 8}) {'in': 5053, 'out': 1084} end_turn 
+mozart-k545-1 RT Counter({'correct': 7, 'wrong': 1}) {'in': 5790, 'out': 961} end_turn 
+mozart-k545-1 V1 Counter({'null': 5, 'correct': 2, 'wrong': 1}) {'in': 5521, 'out': 56} end_turn 
+mozart-k545-1 V2 Counter({'null': 5, 'correct': 3}) {'in': 6623, 'out': 55} end_turn 
+bach-bwv64-4 N1 Counter({'correct': 8}) {'in': 2256, 'out': 569} end_turn 
+bach-bwv64-4 N1#2 Counter({'correct': 8}) {'in': 2256, 'out': 543} end_turn 
+bach-bwv64-4 R Counter({'correct': 5, 'wrong': 3}) {'in': 2279, 'out': 591} end_turn 
+bach-bwv64-4 P Counter({'correct': 8}) {'in': 2246, 'out': 918} end_turn 
+bach-bwv64-4 O Counter({'correct': 8}) {'in': 2171, 'out': 1139} end_turn 
+bach-bwv64-4 RP Counter({'correct': 8}) {'in': 2296, 'out': 872} end_turn 
+bach-bwv64-4 RO Counter({'correct': 6, 'wrong': 2}) {'in': 2232, 'out': 982} end_turn 
+bach-bwv64-4 PO Counter({'correct': 8}) {'in': 2254, 'out': 1021} end_turn 
+bach-bwv64-4 RPO Counter({'correct': 8}) {'in': 2289, 'out': 1121} end_turn 
+bach-bwv64-4 RT Counter({'correct': 8}) {'in': 2331, 'out': 701} end_turn 
+bach-bwv64-4 V1 Counter({'null': 6, 'correct': 2}) {'in': 1431, 'out': 53} end_turn 
+bach-bwv64-4 V2 Counter({'null': 6, 'correct': 2}) {'in': 1735, 'out': 53} end_turn 
+chopin-prelude-4 N1 Counter({'correct': 8}) {'in': 3307, 'out': 614} end_turn 
+chopin-prelude-4 N1#2 Counter({'correct': 8}) {'in': 3307, 'out': 573} end_turn 
+chopin-prelude-4 R Counter({'correct': 8}) {'in': 3297, 'out': 678} end_turn 
+chopin-prelude-4 P Counter({'correct': 7, 'wrong': 1}) {'in': 2498, 'out': 931} end_turn 
+chopin-prelude-4 O Counter({'correct': 8}) {'in': 3114, 'out': 834} end_turn 
+chopin-prelude-4 RP Counter({'correct': 8}) {'in': 2512, 'out': 838} end_turn 
+chopin-prelude-4 RO Counter({'correct': 8}) {'in': 3137, 'out': 887} end_turn 
+chopin-prelude-4 PO Counter({'correct': 7, 'wrong': 1}) {'in': 2628, 'out': 1080} end_turn 
+chopin-prelude-4 RPO Counter({'null': 8}) None None unparsed, stop=end_turn: '{"q1":["F3","Ab3","Eb4"],"q2":"F3","q3":null,"q4":[13,14,15],"q5":null,"q6":{"low":"B1","high":"F#2"},"q7":null,"q8":null}\n\nWait — I should correct that; here is the full answer worked out properly.\n\n'
+chopin-prelude-4 RT Counter({'correct': 8}) {'in': 3387, 'out': 626} end_turn 
+chopin-prelude-4 V1 Counter({'null': 5, 'correct': 2, 'wrong': 1}) {'in': 1638, 'out': 53} end_turn 
+chopin-prelude-4 V2 Counter({'null': 5, 'correct': 2, 'wrong': 1}) {'in': 1925, 'out': 54} end_turn 
+brahms-fruehlingstrost N1 Counter({'null': 8}) None None unparsed, stop=end_turn: '{"q1":null,"q2":"E2","q3":"G5","q4":["7"],"q5":"18","q6":{"low":"A1","high":"F#4"},"q7":"3","q8":["C#5","B4","B4","C5"]}\n\nSeveral of these answers depend on assumptions about the notation or on a bar '
+brahms-fruehlingstrost N1#2 Counter({'null': 8}) None None unparsed, stop=end_turn: '{"q1":null,"q2":"E2","q3":"G5","q4":["7"],"q5":"18","q6":{"low":"A1","high":"F#4"},"q7":"3","q8":["C#5","B4","B4","C5"]}\n\nNotes on the answers:\n\n- **q1:** Voice 2.1 of bar 28 is made of 4-div notes, w'
+brahms-fruehlingstrost R Counter({'null': 8}) None None unparsed, stop=end_turn: '{"q1":["A4","C5"],"q2":null,"q3":"G#5","q4":["m7","m9","m10","m11","m38","m39","m40"],"q5":18,"q6":{"low":"A1","high":"F#4"},"q7":2,"q8":["C#5","B4","B4","C5"]}\n\nWait, let me correct these carefully b'
+brahms-fruehlingstrost P Counter({'null': 6, 'correct': 1, 'wrong': 1}) {'in': 6431, 'out': 53} end_turn 
+brahms-fruehlingstrost O Counter({'correct': 8}) {'in': 6637, 'out': 1170} end_turn 

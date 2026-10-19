@@ -1,0 +1,70 @@
+{
+ "score": "mozart-k545-1",
+ "variant": "V1",
+ "model": "claude-sonnet-5-5",
+ "effort": "high",
+ "questions": {
+  "q1": "Which pitches are attacked (grace notes excluded) in voice 2.1 of bar 30 at offset 72? A list, low to high.",
+  "q2": "What is the lowest pitch sounding at the very start (offset 0) of bar 23, in any staff (grace notes excluded)?",
+  "q3": "What is the highest pitch attacked in bar 25, across all staves (grace notes excluded)?",
+  "q4": "List every bar (other than bar 11) that is identical to bar 11 in every voice: same voices, notes and durations.",
+  "q5": "How many notes are attacked in staff 1 of bar 54, all voices of that staff? Count each note of a chord separately; exclude grace notes.",
+  "q6": "In voice 2.1, across bars 68 to 71, what are the lowest and the highest pitch (grace notes excluded)? As {\"low\": \u2026, \"high\": \u2026}.",
+  "q7": "How many times is the pitch C4 attacked in voice 2.1 in bars 22 and 23 together (grace notes excluded)?",
+  "q8": "List the attacks of voice 1.1 in bar 16 in order (grace notes excluded); write a chord as its pitches joined by + low to high, e.g. \"C4+E4\"."
+ },
+ "truth": {
+  "q1": [
+   "D3",
+   "A3",
+   "C4"
+  ],
+  "q2": "C4",
+  "q3": "D6",
+  "q4": [
+   56
+  ],
+  "q5": 16,
+  "q6": {
+   "low": "F#3",
+   "high": "F4"
+  },
+  "q7": 16,
+  "q8": [
+   "D6",
+   "B5",
+   "G5",
+   "A5",
+   "B5",
+   "A5",
+   "G5"
+  ]
+ },
+ "answers": {
+  "q1": null,
+  "q2": "C4",
+  "q3": "D6",
+  "q4": null,
+  "q5": null,
+  "q6": null,
+  "q7": null,
+  "q8": null
+ },
+ "grades": {
+  "q1": "null",
+  "q2": "correct",
+  "q3": "correct",
+  "q4": "null",
+  "q5": "null",
+  "q6": "null",
+  "q7": "null",
+  "q8": "null"
+ },
+ "retries": 0,
+ "error": null,
+ "usage": {
+  "in": 5521,
+  "out": 497
+ },
+ "stop": "end_turn"
+}

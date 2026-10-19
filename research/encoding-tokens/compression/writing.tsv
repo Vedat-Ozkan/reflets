@@ -1,0 +1,25 @@
+score	variant	trial	exact	bars_wrong	uses_feature	in	out
+chopin-nocturne	R	#1	True	[]	{'voice_refs': '2/2'}	1686	1124
+chopin-nocturne	R	#2	False	[6]	{'voice_refs': '3/2'}	1686	1043
+chopin-nocturne	P	#1	True	[]	{'groups': '1/1'}	1661	1870
+chopin-nocturne	P	#2	True	[]	{'groups': '1/1'}	1661	1786
+chopin-nocturne	O	#1	False	TypeError("'NoneType' object is not subscriptable")	{'octaveless': '139/139'}	1795	6229
+chopin-nocturne	O	#2	True	[]	{'octaveless': '66/139'}	1795	5338
+chopin-nocturne	RPO	#1	True	[]	{'voice_refs': '2/2', 'octaveless': '41/123'}	1924	6624
+chopin-nocturne	RPO	#2	False	[2, 3, 6, 7]	{'voice_refs': '2/2', 'octaveless': '99/123'}	1924	6018
+mozart-k545-1	R	#1	True	[]	{}	982	609
+mozart-k545-1	R	#2	True	[]	{}	982	609
+mozart-k545-1	P	#1	True	[]	{'groups': '1/1'}	957	601
+mozart-k545-1	P	#2	True	[]	{'groups': '0/1'}	957	609
+mozart-k545-1	O	#1	True	[]	{'octaveless': '88/88'}	1091	2341
+mozart-k545-1	O	#2	True	[]	{'octaveless': '86/88'}	1091	2603
+mozart-k545-1	RPO	#1	True	[]	{'groups': '0/1', 'octaveless': '88/85'}	1220	2678
+mozart-k545-1	RPO	#2	False	[4, 5]	{'groups': '0/1', 'octaveless': '89/85'}	1220	1848
+chopin-prelude-4	R	#1	True	[]	{'voice_refs': '3/3'}	1278	884
+chopin-prelude-4	R	#2	True	[]	{'voice_refs': '3/3'}	1278	884
+chopin-prelude-4	P	#1	True	[]	{'groups': '15/15'}	1253	558
+chopin-prelude-4	P	#2	True	[]	{'groups': '15/15'}	1253	558
+chopin-prelude-4	O	#1	True	[]	{'octaveless': '127/129'}	1387	1218
+chopin-prelude-4	O	#2	True	[]	{'octaveless': '128/129'}	1387	1532
+chopin-prelude-4	RPO	#1	True	[]	{'voice_refs': '3/3', 'groups': '14/15', 'octaveless': '0/52'}	1516	515
+chopin-prelude-4	RPO	#2	True	[]	{'voice_refs': '3/3', 'groups': '12/15', 'octaveless': '1/52'}	1516	529

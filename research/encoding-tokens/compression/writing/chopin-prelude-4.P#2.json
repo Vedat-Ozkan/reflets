@@ -1,0 +1,28 @@
+{
+ "score": "chopin-prelude-4",
+ "variant": "P",
+ "model": "claude-sonnet-5-5",
+ "written": "N1 div=24 ts=2/2 ks=1s\nm1 len=96\n1.1: 72 B4 24 C5\n2.1: 12 G3~+B3+E4 (G3+B3+E4)*7\nm2 len=96\n1.1: 72 B4 24 C5\n2.1: 12 F#3~+A3+E4 (F#3+A3+E4)*3 F#3~+A3+Eb4 (F#3+A3+Eb4)*3\nm3 len=96\n1.1: 72 B4 24 C5\n2.1: 12 (F3+A3+Eb4)*4 F3~+A3+D4 F3+A3+D4 (F3+G#3+D4)*2\nm4 len=96\n1.1: 72 B4 24 Bb4\n2.1: 12 (E3+G#3+D4)*4 (E3+G3+D4)*2 (E3+G3+C#4)*2\nm5 len=96\n1.1: 72 A4 24 B4\n2.1: 12 E3~+G3+C4 (E3+G3+C4)*3 (E3+F#3+C4)*4\nm6 len=96\n1.1: 72 A4 24 B4\n2.1: 12 (E3+F#3+C4)*4 (D#3+F#3+C4)*4\nm7 len=96\n1.1: 72 A4 18 B4 6 A4\n2.1: 12 (D3+F#3+C4)*8\nm8 len=96\n1.1: 72 A4 24 G#4~\n2.1: 12 D3~+F3+C4 (D3+F3+C4)*3 D3~+F3+B3 (D3+F3+B3)*3\n",
+ "decoded": "N1 div=24 ts=2/2 ks=1s\nm1 len=96\n1.1: 72 B4 24 C5\n2.1: 12 G3~+B3+E4 G3+B3+E4 G3+B3+E4 G3+B3+E4 G3+B3+E4 G3+B3+E4 G3+B3+E4 G3+B3+E4\nm2 len=96\n1.1: 72 B4 24 C5\n2.1: 12 F#3~+A3+E4 F#3+A3+E4 F#3+A3+E4 F#3+A3+E4 F#3~+A3+Eb4 F#3+A3+Eb4 F#3+A3+Eb4 F#3+A3+Eb4\nm3 len=96\n1.1: 72 B4 24 C5\n2.1: 12 F3+A3+Eb4 F3+A3+Eb4 F3+A3+Eb4 F3+A3+Eb4 F3~+A3+D4 F3+A3+D4 F3+G#3+D4 F3+G#3+D4\nm4 len=96\n1.1: 72 B4 24 Bb4\n2.1: 12 E3+G#3+D4 E3+G#3+D4 E3+G#3+D4 E3+G#3+D4 E3+G3+D4 E3+G3+D4 E3+G3+C#4 E3+G3+C#4\nm5 len=96\n1.1: 72 A4 24 B4\n2.1: 12 E3~+G3+C4 E3+G3+C4 E3+G3+C4 E3+G3+C4 E3+F#3+C4 E3+F#3+C4 E3+F#3+C4 E3+F#3+C4\nm6 len=96\n1.1: 72 A4 24 B4\n2.1: 12 E3+F#3+C4 E3+F#3+C4 E3+F#3+C4 E3+F#3+C4 D#3+F#3+C4 D#3+F#3+C4 D#3+F#3+C4 D#3+F#3+C4\nm7 len=96\n1.1: 72 A4 18 B4 6 A4\n2.1: 12 D3+F#3+C4 D3+F#3+C4 D3+F#3+C4 D3+F#3+C4 D3+F#3+C4 D3+F#3+C4 D3+F#3+C4 D3+F#3+C4\nm8 len=96\n1.1: 72 A4 24 G#4~\n2.1: 12 D3~+F3+C4 D3+F3+C4 D3+F3+C4 D3+F3+C4 D3~+F3+B3 D3+F3+B3 D3+F3+B3 D3+F3+B3\n",
+ "exact": true,
+ "bars_wrong": [],
+ "error": null,
+ "stats": {
+  "bar_refs": 0,
+  "voice_refs": 0,
+  "transposed_refs": 0,
+  "groups": 15,
+  "octaveless": 0
+ },
+ "expected_stats": {
+  "bar_refs": 0,
+  "voice_refs": 0,
+  "transposed_refs": 0,
+  "groups": 15,
+  "octaveless": 0
+ },
+ "usage": {
+  "in": 1253,
+  "out": 558
+ }
+}

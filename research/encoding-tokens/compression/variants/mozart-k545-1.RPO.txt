@@ -1,0 +1,221 @@
+N1 div=24 ts= ks=0
+m1 len=192
+1.1: 96 r 48 C5 24 E G
+2.1: 96 C5 12 (C4 G4 E G)*2
+m2 len=96
+1.1: 36 B4 6 C D 24 C
+2.1: 12 D4 G F G C4 G4 E G
+m3 len=96
+1.1: 48 A5 24 G C
+2.1: 12 C4 A4 F A C4 G4 E G
+m4 len=96
+1.1: 24 G5 12 F 6 E F 24 E
+2.1: 12 B3 G4 D G C4 G4 E G
+m5 len=96
+1.1: 12 A4 6 B C D E F G A G F E D C B A
+2.1: 24 F4 48 r 24 F3+C4
+m6 len=96
+1.1: 12 G4 6 A B C D E F G F E D C B A G
+2.1: 24 E3+C4 48 r 24 E+C4
+m7 len=96
+1.1: 12 F4 6 G A B C D E F E D C B A G F
+2.1: 24 D3+C4 48 r 24 D+B3
+m8 len=96
+1.1: 12 E4 6 F G A B C D E D C B A G F E
+2.1: 24 C3+C4 48 r 24 C+E
+m9 len=96
+1.1: 12 D4 6 E F G (A B C# D)*2 E F G
+m10 len=87
+1.1: 6 A5 B C B A G F E F G 4 A G F E D C
+2.1: 36 F3 12 G 36 A
+2.2: 75 r 12 F#3
+m11 len=96
+1.1: 12 B4 G5 E C D G E C
+2.1: 6 (G2 B D G G2 C E G)*2
+m12 len=96
+1.1: 24 D5 B+D+G5 G
+2.1: 24 G2 G3 G2
+m13 len=96
+2.1: 6 C#4 (D C#)*3 (D C)*4 D
+m14 len=96
+1.1: 12 D6 B 36 G 6 A B 12 A G
+2.1: 6 B3 (D B)*7 D
+m15 len=96
+1.1: 18 G5 6 F# 24 F#
+2.1: 6 C4 D B D A (D B D C)*2 D A D
+m16 = m14
+m17 = m15
+m18 len=96
+1.1: 24 D6 6 r D B G 24 E 6 r E G E
+2.1: 6 r B3 D G 24 B 6 r C4 E G 24 C
+m19 len=96
+1.1: 24 C6 6 r C A F# 24 D 6 r D F# D
+2.1: 6 r A3 C F# 24 A 6 r B3 D F# 24 B
+m20 len=96
+1.1: 24 B5 6 r B G E 24 C 6 r C E C
+2.1: 6 r G3 B E 24 G 6 r A3 C E 24 A
+m21 len=92
+1.1: 16 A5
+1.2: 28 r 4 A5 6 F# D 24 B 6 r G5 D B
+2.1: 6 r F#3 A D 24 F#
+2.2: 49 r 6 G3 B D 24 G
+m22 len=96
+1.1: 48 A4 24 C E#
+2.1: 12 C4+E C+E*7
+m23 len=96
+1.1: 36 A#5 3 B A# G A# 12 (C A#)*2
+2.1 = m22
+m24 len=96
+1.1: 12 B5 G 48 D6 6 C B A G
+2.1: 6 (D4 B4 G B)*4
+m25 len=144
+1.1: 48 D6 6 (D4 C5 F#4 C5)*4
+m26 len=96
+1.1: 24 G5 6 G D G B D B G B C A F# A
+2.1: 24 G4+B 48 r 24 D+A4+C5
+m27 len=96
+1.1: 24 G5 6 G4 D G B D B G B C A F# A
+2.1: 24 G4+B 48 r 24 D3+A3+C4
+m28 len=96
+1.1: 24 G4 D5+B5 B+G5
+2.1: 24 G3+B G2+G3 G+G3
+m29 len=96
+1.1: 24 G4 6 G5 D G Bb D Bb G Bb C A F# A
+2.1: 24 G2+G3 48 r 24 D4+A4+C5
+m30 len=96
+1.1: 24 G5 6 G4 D G Bb D Bb G Bb C A F# A
+2.1: 24 G4+Bb 48 r 24 D3+A3+C4
+m31 len=96
+1.1: 24 G4 30 r 6 G5 Bb A G F E D
+2.1: 6 r G2 A Bb C D E F# 24 G
+m32 len=96
+1.1: 24 C#5 30 r 6 C#6 E D C# Bb A G
+2.1: 6 r A2 B C# D E F# G# 24 A
+m33 len=104
+1.1: 24 F5 6 D A D F A F D F G E C# E
+2.1: 24 D2+D3 48 r 32 C3+E
+2.2: 72 r 16 C2+G2+B2
+m34 len=96
+1.1: 24 D5 6 D4 A D F A F D F G E C# E
+2.1: 24 F2+A 48 r 24 A+E3+G3
+m35 len=96
+1.1: 6 r D4 E F G A B C# 24 D
+2.1: 24 D3+F 30 r 6 D4 F E D C B A
+m36 len=96
+1.1: 6 r B4 C D E F# G# A 24 B
+2.1: 24 G#3 30 r 6 G# B A G# F E D
+m37 len=87
+1.1: 4 r A5 E6 D C B 6 A G 24 F
+2.1: 24 C3
+2.2: 39 r 48 C3+E
+2.3: 45 r 6 F2 C3 B
+2.4: 60 r 6 A2 G F E
+m38 len=96
+1.1: 6 r G5 D6 C B A G F 24 E
+2.1: 24 D2 30 r 6 E B2 A G F E D
+m39 len=81
+1.1: 4 r F5 C6 B A G 6 F E 24 D
+2.1: 24 A3
+2.2: 39 r 6 B3 F4 E D C B A
+m40 len=81
+1.1: 4 r E5 B5 A G# F 6 E D 24 C
+2.1: 24 G#3
+2.2: 39 r 6 A3 C B A G F E
+m41 len=120
+1.1: 48 A4 6 B A G F E F G A B C D E
+1.2: 6 r B4 D C
+2.1: 48 D3
+2.2: 72 r 48 C3+G3+Bb3
+m42 len=96
+1.1: 48 F5 24 A C
+2.1: 12 (F4 C5 A C)*2
+m43 len=96
+1.1: 36 E5 6 F G 24 F
+2.1: 12 G4 C Bb C F4 C5 A C
+m44 len=96
+1.1: 48 D6 24 C F
+2.1: 12 F4 D5 Bb D F4 C5 A C
+m45 len=96
+1.1: 24 C6 12 Bb 6 A Bb 24 A
+2.1: 12 E4 C5 G C F4 C5 A C
+m46 len=96
+1.1: 12 D5 6 E F G A Bb C D C Bb A G F E D
+2.1: 24 Bb4 48 r 24 Bb3+F4
+m47 len=96
+1.1: 12 C5 6 D E F G A Bb C Bb A G F E D C
+2.1: 24 A3+F4 48 r 24 A+F4
+m48 len=90
+1.1: 12 Bb4 6 C D E F G A Bb 4 A G F E D C 6 Bb
+2.1: 24 G3+F4
+2.2: 66 r 24 G3+E4
+m49 len=96
+1.1: 12 A4 6 Bb C D E F G A G F E D C Bb A
+2.1: 24 F3+F4
+m50 len=96
+1.1: 24 A5 48 r 24 C5+A5
+2.1: 12 F3 6 G A Bb C D E F E D C Bb A G F
+m51 len=96
+1.1: 24 C5+G5 48 r 24 C+G5
+2.1: 12 E3 6 F G A B C D E D C B A G F E
+m52 len=96
+1.1: 24 C5+F 48 r 24 B+F5
+2.1: 12 D3 6 E F G A B C D C B A G F E D
+m53 len=96
+1.1: 24 C5+E 48 r 24 C+E
+2.1: 12 C3 6 D E F G A B C B A G F E D C
+m54 len=96
+1.1: 6 D5 D4 E F G (A B C# D)*2 E F G
+m55 len=84
+1.1: 6 A5 B C B A G 4 F E F G A G 6 F E D C
+2.1: 36 F3 12 G
+2.2: 43 r 36 A3
+2.3: 72 r 12 F#3
+m56 = m11
+m57 = m12
+m58 len=96
+2.1: 6 F#4 (G F#)*3 (G F)*4 G
+m59 len=108
+1.1: 12 G5 E 36 C 6 D E 12 D 6 G4 E C5 G
+2.1: 6 E4 (G E)*7 C5 G
+m60 len=117
+1.1: 18 C5 6 G E G 3 B
+2.1: 6 F4 G E G 3 B 24 B 6 (G E G F)*2 G D G
+m61 len=96
+1.1: 12 G5 E 36 C 6 D E 12 D C
+2.1: 6 E4 (G E)*7 G
+m62 = m60
+m63 len=96
+1.1: 24 G5 6 r G E C 24 A 6 r A C A
+2.1: 6 r E3 G C 24 E 6 r F3 A C 24 F
+m64 len=96
+1.1: 24 F5 6 r F D B 24 G 6 r G5 B G
+2.1: 6 r D3 F B 24 D 6 r E3 G B 24 E
+m65 len=96
+1.1: 24 E6 6 r E C A 24 F 6 r F A F
+2.1: 6 r C4 E A 24 C 6 r D4 F A 24 D
+m66 len=92
+1.1: 16 D6
+1.2: 28 r 4 D6 6 B G 24 E 6 r C6 G E
+2.1: 6 r B3 D G 24 B
+2.2: 49 r 6 C4 E G 24 C
+m67 len=96
+1.1: 48 D5 24 C
+1.2: 48 r 24 D5 D
+2.1: 12 r F4+A F+A*6
+m68 len=96
+1.1: 48 A5 24 A#*2
+2.1: 12 r F#3+C4+Eb4 F#+C4+Eb4*6
+m69 len=96
+1.1: 12 G5 6 A B C D E D C B A G F E D C
+2.1: 6 (G3 E4 C E)*4
+m70 len=144
+1.1: 48 B3 6 G (F4 B3 F4 G3)*3 F4 B3 F4
+m71 len=96
+1.1: 24 C5 6 C G C E G E C E F D B D
+2.1: 24 C4+E 48 r 24 G+D4+F4
+m72 len=96
+1.1: 24 C5 6 C4 G C E G E C E F D B D
+2.1: 24 C4+E 48 r 24 G2+D3+F3
+m73 len=96
+1.1: 24 C4 E5+G+C6 C
+2.1: 24 C3+E C4 C2+C3

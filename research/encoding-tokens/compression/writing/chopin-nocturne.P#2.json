@@ -1,0 +1,28 @@
+{
+ "score": "chopin-nocturne",
+ "variant": "P",
+ "model": "claude-sonnet-5-5",
+ "written": "N1 div=48 ts=12/8 ks=3f\nm1 len=288\n1.1: 72 G5~ 24 G5 F5 G5 72 F5 48 Eb5 24 Bb4\n2.1: 24 Eb2 G3+Eb4 Bb3+Eb4+G4 Eb3 Ab3+D4 Cb4+D4+Ab4 Eb2 G3+Eb4 Bb3+Eb4+G4 D2 G3+Eb4 Bb3+Eb4+G4\nm2 len=288\n1.1: 48 G5 24 C5 48 C6 24 G5 72 Bb5 48 Ab5 24 G5\n2.1: 24 C2 G3+E4 Bb3+E4+G4 C3 G3+E4 C4+E4+Bb4 F2 F3+Db4 Bb3+Db4+E4 F2 F3+C4 Ab3+C4+F4\nm3 len=288\n1.1: 72 F5 48 G5 24 D5 72 Eb5 C5\n2.1: 24 Bb2 F3+D4 Bb3+D4+Ab4 B2 G3+F4 D4+F4+G4 C3 G3+Eb4 C4+Eb4+G4 A2 Gb3+Eb4 C4+Eb4+Gb4\nm4 len=288\n1.1: 24 Bb4 D6 C6 12 Bb5 Ab5 G5 Ab5 C5 D5 72 Eb5 48 r 24 Bb4\n2.1: 24 Bb2 F3+Eb4 Bb3+Eb4+Ab4 Bb1 F3+D4 Bb3+Ab4 Eb2 G3+Eb4 Bb3+Eb4+G4 Eb3 G3+Eb4 Bb3+Eb4+G4\nm5 len=288\n1.1: 72 G5 12 F5 G5 F5 E5 F5 G5 24 F5 48 Eb5~ 12 Eb5 F5 Eb5 D5 Eb5 F5\n2.1: 24 Eb3 G3+Eb4 Bb3+Eb4+G4 Eb3 Ab3+D4 Cb4+D4+Ab4 Eb3 G3+Eb4 Bb3+Eb4+G4 D3 G3+Eb4 Bb3+Eb4+G4\nm6 len=288\n1.1: 12 G5 B4 C5 Db5 C5 F5 E5 Ab5 G5 Db6 C6 G5 72 Bb5 48 Ab5 24 G5\n2.1: 24 C3 G3+E4 Bb3+E4+G4 C3 G3+E4 C4+E4+Bb4 F2 F3+Db4 Bb3+Db4+E4 F2 F3+C4 Ab3+C4+F4\nm7 len=288\n1.1: 72 F5 gE5 gF5 24 G5*2 D5 72 Eb5 C5\n2.1: 24 Bb2 F3+D4 Bb3+D4+Ab4 B2 G3+F4 D4+F4+G4 C3 G3+Eb4 C4+Eb4+G4 A2 Gb3+Eb4 C4+Eb4+Gb4\nm8 len=288\n1.1: 24 Bb4 D6 C6 12 Bb5 Ab5 G5 Ab5 gAb5 C5 D5 72 Eb5~ 24 Eb5 D5 Eb5\n2.1: 24 Bb2 F3+Eb4 Bb3+Eb4+Ab4 Bb1 F3+D4 Bb3+Ab4 Eb2 G3+Eb4 Bb3+Eb4+G4 Eb3 G3+Eb4 Bb3+Eb4+G4\n",
+ "decoded": "N1 div=48 ts=12/8 ks=3f\nm1 len=288\n1.1: 72 G5~ 24 G5 F5 G5 72 F5 48 Eb5 24 Bb4\n2.1: 24 Eb2 G3+Eb4 Bb3+Eb4+G4 Eb3 Ab3+D4 Cb4+D4+Ab4 Eb2 G3+Eb4 Bb3+Eb4+G4 D2 G3+Eb4 Bb3+Eb4+G4\nm2 len=288\n1.1: 48 G5 24 C5 48 C6 24 G5 72 Bb5 48 Ab5 24 G5\n2.1: 24 C2 G3+E4 Bb3+E4+G4 C3 G3+E4 C4+E4+Bb4 F2 F3+Db4 Bb3+Db4+E4 F2 F3+C4 Ab3+C4+F4\nm3 len=288\n1.1: 72 F5 48 G5 24 D5 72 Eb5 C5\n2.1: 24 Bb2 F3+D4 Bb3+D4+Ab4 B2 G3+F4 D4+F4+G4 C3 G3+Eb4 C4+Eb4+G4 A2 Gb3+Eb4 C4+Eb4+Gb4\nm4 len=288\n1.1: 24 Bb4 D6 C6 12 Bb5 Ab5 G5 Ab5 C5 D5 72 Eb5 48 r 24 Bb4\n2.1: 24 Bb2 F3+Eb4 Bb3+Eb4+Ab4 Bb1 F3+D4 Bb3+Ab4 Eb2 G3+Eb4 Bb3+Eb4+G4 Eb3 G3+Eb4 Bb3+Eb4+G4\nm5 len=288\n1.1: 72 G5 12 F5 G5 F5 E5 F5 G5 24 F5 48 Eb5~ 12 Eb5 F5 Eb5 D5 Eb5 F5\n2.1: 24 Eb3 G3+Eb4 Bb3+Eb4+G4 Eb3 Ab3+D4 Cb4+D4+Ab4 Eb3 G3+Eb4 Bb3+Eb4+G4 D3 G3+Eb4 Bb3+Eb4+G4\nm6 len=288\n1.1: 12 G5 B4 C5 Db5 C5 F5 E5 Ab5 G5 Db6 C6 G5 72 Bb5 48 Ab5 24 G5\n2.1: 24 C3 G3+E4 Bb3+E4+G4 C3 G3+E4 C4+E4+Bb4 F2 F3+Db4 Bb3+Db4+E4 F2 F3+C4 Ab3+C4+F4\nm7 len=288\n1.1: 72 F5 gE5 gF5 24 G5 G5 D5 72 Eb5 C5\n2.1: 24 Bb2 F3+D4 Bb3+D4+Ab4 B2 G3+F4 D4+F4+G4 C3 G3+Eb4 C4+Eb4+G4 A2 Gb3+Eb4 C4+Eb4+Gb4\nm8 len=288\n1.1: 24 Bb4 D6 C6 12 Bb5 Ab5 G5 Ab5 gAb5 C5 D5 72 Eb5~ 24 Eb5 D5 Eb5\n2.1: 24 Bb2 F3+Eb4 Bb3+Eb4+Ab4 Bb1 F3+D4 Bb3+Ab4 Eb2 G3+Eb4 Bb3+Eb4+G4 Eb3 G3+Eb4 Bb3+Eb4+G4\n",
+ "exact": true,
+ "bars_wrong": [],
+ "error": null,
+ "stats": {
+  "bar_refs": 0,
+  "voice_refs": 0,
+  "transposed_refs": 0,
+  "groups": 1,
+  "octaveless": 0
+ },
+ "expected_stats": {
+  "bar_refs": 0,
+  "voice_refs": 0,
+  "transposed_refs": 0,
+  "groups": 1,
+  "octaveless": 0
+ },
+ "usage": {
+  "in": 1661,
+  "out": 1786
+ }
+}

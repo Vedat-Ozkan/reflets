@@ -1,0 +1,28 @@
+{
+ "score": "mozart-k545-1",
+ "variant": "P",
+ "model": "claude-sonnet-5-5",
+ "written": "N1 div=24 ts= ks=0\nm1 len=192\n1.1: 96 r 48 C5 24 E5 G5\n2.1: 96 C5 12 (C4 G4 E4 G4)*2\nm2 len=96\n1.1: 36 B4 6 C5 D5 24 C5\n2.1: 12 D4 G4 F4 G4 C4 G4 E4 G4\nm3 len=96\n1.1: 48 A5 24 G5 C6\n2.1: 12 C4 A4 F4 A4 C4 G4 E4 G4\nm4 len=96\n1.1: 24 G5 12 F5 6 E5 F5 24 E5\n2.1: 12 B3 G4 D4 G4 C4 G4 E4 G4\nm5 len=96\n1.1: 12 A4 6 B4 C5 D5 E5 F5 G5 A5 G5 F5 E5 D5 C5 B4 A4\n2.1: 24 F4 48 r 24 F3+C4\nm6 len=96\n1.1: 12 G4 6 A4 B4 C5 D5 E5 F5 G5 F5 E5 D5 C5 B4 A4 G4\n2.1: 24 E3+C4 48 r 24 E3+C4\nm7 len=96\n1.1: 12 F4 6 G4 A4 B4 C5 D5 E5 F5 E5 D5 C5 B4 A4 G4 F4\n2.1: 24 D3+C4 48 r 24 D3+B3\nm8 len=96\n1.1: 12 E4 6 F4 G4 A4 B4 C5 D5 E5 D5 C5 B4 A4 G4 F4 E4\n2.1: 24 C3+C4 48 r 24 C3+E3\n",
+ "decoded": "N1 div=24 ts= ks=0\nm1 len=192\n1.1: 96 r 48 C5 24 E5 G5\n2.1: 96 C5 12 C4 G4 E4 G4 C4 G4 E4 G4\nm2 len=96\n1.1: 36 B4 6 C5 D5 24 C5\n2.1: 12 D4 G4 F4 G4 C4 G4 E4 G4\nm3 len=96\n1.1: 48 A5 24 G5 C6\n2.1: 12 C4 A4 F4 A4 C4 G4 E4 G4\nm4 len=96\n1.1: 24 G5 12 F5 6 E5 F5 24 E5\n2.1: 12 B3 G4 D4 G4 C4 G4 E4 G4\nm5 len=96\n1.1: 12 A4 6 B4 C5 D5 E5 F5 G5 A5 G5 F5 E5 D5 C5 B4 A4\n2.1: 24 F4 48 r 24 F3+C4\nm6 len=96\n1.1: 12 G4 6 A4 B4 C5 D5 E5 F5 G5 F5 E5 D5 C5 B4 A4 G4\n2.1: 24 E3+C4 48 r 24 E3+C4\nm7 len=96\n1.1: 12 F4 6 G4 A4 B4 C5 D5 E5 F5 E5 D5 C5 B4 A4 G4 F4\n2.1: 24 D3+C4 48 r 24 D3+B3\nm8 len=96\n1.1: 12 E4 6 F4 G4 A4 B4 C5 D5 E5 D5 C5 B4 A4 G4 F4 E4\n2.1: 24 C3+C4 48 r 24 C3+E3\n",
+ "exact": true,
+ "bars_wrong": [],
+ "error": null,
+ "stats": {
+  "bar_refs": 0,
+  "voice_refs": 0,
+  "transposed_refs": 0,
+  "groups": 1,
+  "octaveless": 0
+ },
+ "expected_stats": {
+  "bar_refs": 0,
+  "voice_refs": 0,
+  "transposed_refs": 0,
+  "groups": 1,
+  "octaveless": 0
+ },
+ "usage": {
+  "in": 957,
+  "out": 601
+ }
+}

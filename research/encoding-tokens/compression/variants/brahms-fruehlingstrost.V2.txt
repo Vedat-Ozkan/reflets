@@ -1,0 +1,121 @@
+overview div=12 ts=6/4 ks=3s
+m1 len=72
+top: 4 A2 E3 C#4 12 A4 F#5~ F#5 E5 G#4
+beats: A2 E C# | A2 E C# | A2 D# C F# | A2 D B F# | A2 D B E | A2 D B G#
+m2 len=72
+top: 4 A2 C#3 A3 12 A4 F#5~ F#5 E5 G#4
+beats: A2 C# | A2 C# | D#2 C A F# | E2 B G# F# | E2 B G# | E#2 B G# D
+m3 len=72
+top: 4 F#2 C#3 A3 12 A4 A5~ A5 G#5 E5~
+beats: F#2 C# A | F#2 C# A | B#1 A D# F# | C#2 G# E A F# | C#2 G# E | E2 C# G#
+m4 len=72
+top: 12 E5 D5 B4 G#4 F#4 E4
+beats: G#2 E C# | G#2 E B D | B2 E G# D | E3 B D G# | E3 B D F# | G#3 B D E
+m5 len=72
+top: 4 E5 A4 E5 A4 E5 A4 D#5 A4 D#5 24 F#5 12 E5
+beats: A4 E C# | A3 E C# | F#4 D# A C | D#4 F# A C | E2 D D# G# A B F# | A1 D G# B E
+m6 len=72
+top: 24 E5 12 D#5 2 A4 4 C5 6 r C5 6 r 4 C#5 4 r C#5 C#4 C#5 C#4
+beats: A1 C G Bb C# E | A3 C G Bb C# E | C4 F# G A D# | C4 F# A | A4 C | E2 C# A B
+m7 len=72
+top: 4 E5 4 r E5 4 r E5 4 r 6 D#5 A4 24 F#5 12 E5 2 r 4 G#4
+beats: A1 E C# | A3 E C# | F#4 D# A C | F#4 D# A C | C5 E D D# G# A B F# | E2 A D G# B
+m8 len=72
+top: 8 C#5 4 C#5 4 r C#5 4 r 8 D5 4 D5 A4 D5 4 r B4 4 r B4 B4 B4
+beats: A1 C G Bb C# | A3 C G Bb C# | F#4 D A | D4 F# A | E2 D F A B | A1 D F B
+m9 len=72
+top: 8 C#5 4 C#5 4 r C#5 4 r 12 B4 B4 6 B4 D#4 12 C5 6 C5 4 E4 C5 E4
+beats: A1 C# E | A3 C# E | F#4 B D# A | F#4 B D# A | A4 B D# | E2 C A
+m10 len=72
+top: 24 E5 12 D#5 D#5 6 B4 D#4 12 E5 4 E4 B4 E4
+beats: A1 C# E | A3 C# E | F#4 B D# A | F#4 B D# A | A4 B D# | E2 D G# B
+m11 len=72
+top: 24 A5 6 D#5 6 r 12 D#5 6 D#5 D#5 E5 F#5 G#4 D#5 G#4
+beats: A1 E C# | A3 E C# | F#4 A C# D# | F#4 A C# D# | C#5 A D# | G#2 F# B# D# E
+m12 len=72
+top: 8 E5 4 E5 4 r E5 4 r F#5 4 r F#5 F#5 F#5 4 r F#5 4 r F#5 B4 F#5 B4
+beats: C#2 G# E | C#4 G# E | A4 F# C# E | F#4 A C# E | B2 A D# F# | E2 A B D# F#
+m13 len=72
+top: 8 G#5 4 G#5 4 r G#5 4 r 8 F#5 4 F#5 C#5 F#5 4 r F#5 4 r F#5 D#5 F#5
+beats: E2 G# B | G#2 B E | E3 F# A# | E3 F# A# C# | B2 F# A C# D# | B1 F# A D#
+m14 len=72
+top: 8 E5 4 E5 4 r E5 4 r 10 E5 2 E5 6 E5 4 E5 4 r E5 4 r E5 2 r 4 E5
+beats: C2 E G | C2 G E | C2 E G | C2 G E | B1 G E G# D | B1 E G# D
+m15 len=72
+top: 24 E5 12 C#5 E5 D5 B4
+beats: A#1 E G | C#4 E G | C#5 B D | D3 F# B E | D4 F# B | B4
+m16 len=72
+top: 4 E5 G#4 E5 G#4 E5 G#4 8 E5 4 E5 8 E5 4 E5 4 r E5 4 r E5 4 r E5
+beats: E2 G# B | B2 E G# | D2 E G# B | C2 E G | G2 E C | B1 E G# D
+m17 len=72
+top: 12 F#5 E5 6 C#5 C#5 12 E5 D5 8 F#4 4 F#4 6 B4
+beats: A#1 E F# | G3 C# E | E4 G C# | E5 B | D3 F# | B3 D F#
+m18 len=72
+top: 30 A4 6 A4 24 D5 12 G#4
+beats: E2 C# A | E3 A C# | C#4 E A | A3 E B C# D G# | E3 B D G# | E3 B D G#
+m19 len=72
+top: 12 A4 4 E3 8 A4 12 F#5~ F#5 E5 G#4
+beats: A2 E C# | A2 E C# | A2 D# C F# | A2 D B F# | A2 D B E | A2 D B G#
+m20 len=72
+top: 4 A2 C#3 A3 C#3 8 A4 12 F#5~ F#5 E5 G#4
+beats: A2 C# | A2 C# | D#2 C A F# | E2 B G# F# | E2 B G# | E#2 B G# D
+m21 len=72
+top: 4 F#2 C#3 A3 C#3 8 A4 12 A5~ A5 G#5 F#5
+beats: F#2 C# A | F#2 C# A | B#1 A D# F# | C#2 G# E A F# | C#2 G# E | D#2 G# F#
+m22 len=72
+top: 12 F#5 E5 D#5 C#5 A4 B4
+beats: F#2 C# G# D | F#2 C# G# E | E#2 C# G# D# B | F#2 C# A | A2 C# F# | B2 D# F#
+m23 len=72
+top: 12 C#5 D#5 E5 24 F#5 12 B4
+beats: E2 C# | E3 G A# C# D# | E3 B G A# C# | E2 B F# | E3 A D# F# B | E3 B A D# F#
+m24 len=72
+top: 12 C#5 E5 E5 24 F#5 12 B4
+beats: E2 C# | E3 A# C# G D# | E3 B A# C# G | E2 B F# | E3 A D# F# B | E3 B A D# F#
+m25 len=72
+top: 12 E5 G#5 12 r E5 24 G#5
+beats: E2 G# | E3 G# B | E3 G# B F# | C#2 G# E | G#3 C# E D# | G#3 C# E
+m26 len=72
+top: 12 D#5 F#5 F#5~ F#5 24 F#5
+beats: F#1 D# | F#3 B D# | F#3 B D# | F#2 | F#3 C# E A# | F#3 C# E A#
+m27 len=72
+top: 8 B4 4 B4 D#4 B4 D#4 8 D#5 4 D#5 D#5 D#5 16 r 4 C#5 C#5
+beats: B4 D# | B3 D# | G4 E A# D# | E4 G A# D# | F#2 E A# C# D# | B1 E A# C#
+m28 len=72
+top: 8 B4 4 B4 D#4 B4 D#4 8 D#5 4 D#5 D#5 D#5 16 r 4 C#5 C#5 10 r 12 B1
+beats: B1 D# | B3 D# | G4 E A# D# | E4 G A# D# | A#4 E C# D# | F#2 E A# C#
+m29 len=72
+top: 12 B4 G#4 B4 D#5 E5 F#5
+beats: B2 | D4 B E# G# | E#3 G# D B | B2 F# A D# | D#4 B F# A E | F#3 A D#
+m30 len=72
+top: 24 C#5 12 B4 D#5 E5 F#5
+beats: B2 E# G# C# | D4 B E# C# | E#3 G# D B | B2 F# A D# | D#4 B F# E | F#3 A D# B
+m31 len=72
+top: 12 E5 G#5 F#5 E5 G#5 F#5
+beats: G#2 E C# | B3 E G# C# | G#2 E F# B | B#3 E | G#2 E | B#3 E D# F#
+m32 len=72
+top: 12 E5 D#5 C#5 B4 G#4 F#4
+beats: A2 E C# | C#4 E B D# | A2 E C# | B3 E G# | B2 E G# | B3 D# F#
+m33 len=90
+top: 12 B4 C#5 24 E5 12 D#5 6 B4 D#4 B4 4 D#4 B4 D#4
+beats: E4 G# B | E3 G# C# | C#4 A# E G# | C#4 A# E G# | E4 A# G# D# | B2 D# A | A4 E B D# | E2 B D# A
+m34 len=90
+top: 12 E5 E5 24 G5 12 F#5 4 E5 E4 E5 6 G4 E5 E4
+beats: E2 B G# | E3 B G# | C#4 E G A# | C#4 E G A# | G4 E A# F# | A#3 E C# | E4 G C# | E4
+m35 len=72
+top: 12 E5 4 A#4 C#5 4 r 8 C#5 4 C#5 12 r B4
+beats: G4 E A# C# | F#3 E A# C# | F#4 E A# C# | B2 F# A D# C# | B2 F# A D# | B2 F# A D#
+m36 len=72
+top: 4 E4 G#4 4 r E4 G#4 B3 E4 G#4 B3 E4 B4 B3 E4 B4 B3 G#4 D5 E4
+beats: E4 B G# | E2 B G# | E3 B G# | G#2 B E | G#3 B E | B2 E G# D
+m37 len=72
+top: 4 G#4 D5 E4 G#4 D5 E4 A4 D#5 E4 A4 D#5 E4 A4 E5 E4 A4 E5 E4
+beats: B3 E G# D | E3 G# D | B#3 E A D# | E3 A D# | A4 E | C#4 E A
+m38 len=72
+top: 4 E5 A4 E5 A4 E5 A4 6 D#5 A4 24 F#5 12 E5 6 G#4 D5 G#4
+beats: A4 E C# | A3 E C# | F#4 D# A C | F#4 D# A C | C5 D# A F# | E2 D G# B
+m39 len=72
+top: 24 E5 12 D#5 6 C5 6 r C5 6 r C#5 6 r C#5 4 C#4 C#5 C#4
+beats: A1 C# G B E | A3 C# G B E | F#4 C A D# | F#4 C A | A4 C | E2 C# A B
+m40 len=72
+top: 4 E5 4 r E5 4 r E5 4 r 6 D#5 A4 24 F#5 12 E5 6 D5 4 G#4 D5 G#4
+beats: A1 E C# | A3 E C# | F#4 D# A C | F#4 D# A C | C5 D# A F# | E2 D G# B
