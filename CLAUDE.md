@@ -9,6 +9,7 @@ MCP server (`reflets/`, Python) plus a MuseScore bridge plugin (`plugin/reflets-
 - `reflets/write.py`: compiles an N1 idea into the plugin's write ops and checks the read-back
 - `reflets/server.py`: MCP tools
 - `plugin/reflets-bridge.qml`: the bridge, a macro plugin with no dialog (spec 2.1)
+- `tests/live_write.py`: end-to-end check of the write path against a live MuseScore with the nocturne open
 - `research/`, `spikes/`: research reports and throwaway spike code, kept as a record
 
 ## Environment

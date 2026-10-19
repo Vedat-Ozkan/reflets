@@ -200,7 +200,7 @@ g <track> <tick> <kind> <note> grace note on the chord at (track, tick); kind is
 
 Execution order inside one `write`: the `v` passes in track order, each a run of `d`, `t`, `n`, `r` lines that must fill the bar exactly (`src:58`); then a spelling pass that revisits each written chord by tick to set `tpc1` and `tpc2` (`src:59`); then `a`; then `~` last, because a tie needs both notes to exist (6.5). The server compiles N1x into this list; the plugin never parses music, only ops.
 
-As built in slice 2: `n <tick> <pitch>:<tpc1>[,...]` and `r <tick>` carry the tick the server computed, so the spelling and colour pass finds each chord by tick, not from the cursor. The plugin keeps the instrument's transposition when spelling (`tpc2 = tpc1 + (old tpc2 - old tpc1)`) and subtracts `pitchOffset` (3.7). Order: voice passes, spelling and colour, `g`, `~`. `t` and `a` are not compiled yet: ideas with tuplets, dynamics or chord symbols are refused.
+As built in slice 2: `n <tick> <pitch>:<tpc1>[,...]` and `r <tick>` carry the tick the server computed, so the spelling and colour pass finds each chord by tick, not from the cursor. The plugin keeps the instrument's transposition when spelling (`tpc2 = tpc1 + (old tpc2 - old tpc1)`) and subtracts `pitchOffset` (3.7); the transposition part is untested, since the test score is for piano. Live test: `tests/live_write.py`. Order: voice passes, spelling and colour, `g`, `~`. `t` and `a` are not compiled yet: ideas with tuplets, dynamics or chord symbols are refused.
 
 ### 3.9 Error codes
 

@@ -65,9 +65,14 @@ class Bridge:
             raise
         self.hello = dict(word.split("=", 1) for word in words if "=" in word)
         if self.hello.get("proto") != str(PROTO):
+            self.socket = None
+            # A newer plugin with an older server usually means the harness still runs a server it started
+            # before Reflets was updated.
+            newer = int(self.hello.get("proto", "0")) > PROTO
             raise BridgeError(
                 f"The Reflets Bridge plugin speaks protocol {self.hello.get('proto')}, this server {PROTO}. "
-                "Install the plugin file that came with this server and restart MuseScore."
+                + ("Restart the Reflets server (in Claude Code: /mcp, then reconnect reflets)." if newer
+                   else "Install the plugin file that came with this server and restart MuseScore.")
             )
 
     async def _send(self, line: str) -> tuple[list[str], list[str]]:
