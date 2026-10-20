@@ -5,10 +5,10 @@ import FileIO 3.0
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.3.0"
+    version: "0.4.0"
     requiresScore: false
 
-    readonly property int proto: 3
+    readonly property int proto: 4
     readonly property int port: 8731
     readonly property string ideaColor: "#1565c0"
     property string token: ""
@@ -134,16 +134,33 @@ MuseScore {
         return lines.concat(voltas())
     }
 
+    function clefLines(seg) {
+        var lines = []
+        for (var s = 0; s < curScore.nstaves; s++) {
+            var clef = seg.elementAt(s * 4)
+            if (clef && !clef.generated)
+                lines.push("F " + seg.tick + " " + (s * 4) + " " + clef.concertClefType)
+        }
+        return lines
+    }
+
     function read(startTick, endTick) {
         var lines = []
         var ntracks = curScore.ntracks
         for (var m = curScore.firstMeasure; m; m = m.nextMeasure) {
             var mt = m.firstSegment.tick
-            if (mt < startTick)
+            if (mt < startTick && !(m.nextMeasure && m.nextMeasure.firstSegment.tick === startTick))
                 continue
             if (mt >= endTick)
                 break
             for (var seg = m.firstSegment; seg; seg = seg.nextInMeasure) {
+                if (seg.segmentType === Segment.Clef) {
+                    if (seg.tick >= startTick && seg.tick < endTick)
+                        lines = lines.concat(clefLines(seg))
+                    continue
+                }
+                if (mt < startTick)
+                    continue
                 for (var track = 0; track < ntracks; track++) {
                     var el = seg.elementAt(track)
                     if (!el)
@@ -161,7 +178,8 @@ MuseScore {
                 var ann = seg.annotations
                 for (var j = 0; ann && j < ann.length; j++) {
                     var a = ann[j]
-                    var sub = a.name === "Dynamic" ? a.dynamicType : a.name === "Harmony" ? a.harmonyType : 0
+                    var sub = a.name === "Dynamic" ? a.dynamicType : a.name === "Harmony" ? a.harmonyType
+                        : a.name === "Tempo" ? a.tempo : a.name === "PlayTechAnnotation" ? a.playTechType : 0
                     lines.push("A " + seg.tick + " " + a.track + " " + a.name + " " + sub + " " + escapeText(a.text))
                 }
             }

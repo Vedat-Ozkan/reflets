@@ -3,6 +3,10 @@
 Needs the bridge plugin running and a score open: N1x with its extensions stripped must equal the engine's N1 of
 the same score. With tests/data/bar-fields.mscz open, the bar fields must also be the expected ones; its markers,
 jump and dashed bar line were added by hand, as MuseScore imports them from bar-fields.musicxml as staff text.
+With tests/data/marks.mscz open, the marks must be the expected ones; its expression, system text, playing
+technique, "Dm7" and "sempre" were added by hand to the import of marks.musicxml. With
+tests/data/system-marks.mscz open, tempo, rehearsal mark, system text, segno and D.C. must appear once although
+the violin also shows system markings; those, the system text, segno and D.C. were added by hand.
 
     REFLETS_TOKEN_FILE=... uv run python tests/live_read.py
 """
@@ -29,6 +33,28 @@ EXPECTED_BARS = [
     "m9 len=3 mark=coda",
     "m10 len=3 bar=final mark=fine",
 ]
+MARKS_TITLE = "Reflets marks"
+EXPECTED_MARKS = """m1 len=8
+1.1: "C" !mf R"A" q120"Allegro" 8 C5 "G7"@4
+2.1: 4 C3 G2
+m2 len=8
+1.1: x"dolce" 2 E5 s"legato" "Dm7" D5 !p C5 D5
+2.1: 4 C3 clef=treble E4
+m3 len=8
+1.1: S"Tutti" 1 C5 D5 E5 F5 s"pizz." 4 G5
+2.1: fb"6/4" 8 C4
+m4 len=8
+1.1: !f 4 r s"tacet"@2 q60 pt"arco" 2 C5 !pp@6
+2.1: clef=bass s"sempre" 8 C3"""
+SYSTEM_MARKS_TITLE = "Reflets system marks"
+EXPECTED_SYSTEM_MARKS = """m1 len=4
+1.1: R"A" q120"Allegro" 4 C5
+2.1: 4 G4
+3.1: 4 C3
+m2 len=4 jump=dc mark=segno
+1.1: S"Tutti" 4 C5
+2.1: 4 G4
+3.1: 4 C3"""
 failures = []
 
 
@@ -47,6 +73,10 @@ def strip(text: str) -> str:
         if re.match(r"m\d+ ", line):
             words = line.split()
             line = " ".join([words[0], *(word for word in words[1:] if word.split("=")[0] in ("len", "ts"))])
+        else:
+            line = re.sub(r' (!|x|s|S|R|fb|pt|q[\d.]+)?"(?:[^"\\]|\\.)*"(@\d+)?| (![a-z]+|q[\d.]+|clef=\S+)(@\d+)?', "", line)
+            if line.endswith(":"):
+                continue
         kept.append(line)
     return "\n".join(kept)
 
@@ -69,6 +99,12 @@ async def main() -> None:
             print("  " + line)
     if info.title == BAR_FIELDS_TITLE:
         check("bar fields", bars == EXPECTED_BARS, "\n".join(f"  got {g!r}, want {w!r}" for g, w in zip(bars, EXPECTED_BARS) if g != w))
+    if info.title == MARKS_TITLE:
+        got = text[text.index("\nm1 ") + 1 :]
+        check("marks", got == EXPECTED_MARKS, f"\n{got}")
+    if info.title == SYSTEM_MARKS_TITLE:
+        got = text[text.index("\nm1 ") + 1 :]
+        check("system objects once, in staff 1", got == EXPECTED_SYSTEM_MARKS, f"\n{got}")
     if failures:
         sys.exit(f"{len(failures)} failed")
 

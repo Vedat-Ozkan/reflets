@@ -9,6 +9,7 @@ from engine.score import Event, Measure, ScoreIndex, beat_length
 
 FIFTHS = "FCGDAEB"
 SEMITONES = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+SYSTEM_MARKS = {"Tempo", "RehearsalMark", "SystemText"}
 
 
 def spell(pitch: int, tpc: int) -> str:
@@ -38,6 +39,15 @@ class Marker:
 
 
 @dataclass
+class Mark:
+    track: int
+    onset: Fraction
+    kind: str
+    value: str
+    text: str
+
+
+@dataclass
 class Bar:
     repeat_start: bool = False
     repeat_end: bool = False
@@ -47,6 +57,7 @@ class Bar:
     jumps: list[Jump] = field(default_factory=list)
     markers: list[Marker] = field(default_factory=list)
     volta_endings: list[int] = field(default_factory=list)
+    marks: list[Mark] = field(default_factory=list)
 
 
 @dataclass
@@ -103,9 +114,13 @@ def parse_info(lines: list[str]) -> ScoreInfo:
         elif kind == "L":
             bars[-1].layout_break_types.append(int(words[1]))
         elif kind == "J":
-            bars[-1].jumps.append(Jump(*(unword(w) for w in words[1:4]), unescape(" ".join(words[4:]))))
+            jump = Jump(*(unword(w) for w in words[1:4]), unescape(" ".join(words[4:])))
+            if jump not in bars[-1].jumps:
+                bars[-1].jumps.append(jump)
         elif kind == "Q":
-            bars[-1].markers.append(Marker(int(words[1]), unword(words[2]), unescape(" ".join(words[3:]))))
+            marker = Marker(int(words[1]), unword(words[2]), unescape(" ".join(words[3:])))
+            if marker not in bars[-1].markers:
+                bars[-1].markers.append(marker)
         elif kind == "V":
             text = unescape(" ".join(words[3:]))
             endings = [int(n) for n in (words[2].split(",") if words[2] != "-" else re.findall(r"\d+", text))]
@@ -120,10 +135,23 @@ def parse_info(lines: list[str]) -> ScoreInfo:
 
 
 def build_index(info: ScoreInfo, lines: list[str], division: int) -> ScoreIndex:
-    for measure in info.measures:
+    for measure, bar in zip(info.measures, info.bars):
         measure.events = []
+        bar.marks = []
     for number, line in enumerate(lines):
         words = line.split(" ")
+        if words[0] in ("A", "F"):
+            tick, track = int(words[1]), int(words[2])
+            position = bisect.bisect_right(info.ticks, tick) - 1
+            onset = Fraction(tick - info.ticks[position], division)
+            if words[0] == "F":
+                info.bars[position].marks.append(Mark(track, onset, "Clef", words[3], ""))
+            else:
+                system = words[3] in SYSTEM_MARKS
+                mark = Mark(0 if system else track, onset, words[3], words[4], unescape(" ".join(words[5:])))
+                if not system or mark not in info.bars[position].marks:
+                    info.bars[position].marks.append(mark)
+            continue
         if words[0] not in ("C", "R"):
             continue
         tick, track, written = int(words[1]), int(words[2]), Fraction(words[3])

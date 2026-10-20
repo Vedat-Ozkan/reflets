@@ -28,6 +28,10 @@ mcp = MCPServer(
         "Then one 'staff.voice:' line per voice per bar, a bare number "
         "sets the duration in div units per quarter note, '+' joins a chord, 'r' is a rest, a leading 'g' marks "
         "a grace note, a trailing '~' a tie. Pitches are sounding pitches with their spelling (Eb4, not D#4). "
+        "Marks stand before the note or rest they fall on, or after one with @ and their offset from the bar start "
+        "in div units when they fall inside it: !mf dynamic, \"G7\" chord symbol, x\"…\" expression, s\"…\" staff "
+        "text, S\"…\" system text, q60 or q60\"Andante\" tempo in quarter notes per minute, R\"A\" rehearsal mark, "
+        "fb\"6/4\" figured bass, pt\"pizz.\" playing technique, clef=bass. "
         "To try an idea, write it in the same form with propose; it lands in the score in colour as one undo step. "
         "The user listens in MuseScore, then you call keep or discard as they decide. Before you say which note "
         "sounds where, find the bar and count through its voice line from the start of the bar; answers given "
@@ -163,9 +167,10 @@ def writes(title: str, destructive: bool) -> ToolAnnotations:
         "bar fields other than len and ts cannot be written yet) "
         "and one 'staff.voice:' line per voice to write. Each voice line replaces that voice in that bar; voices "
         "and bars you leave out are untouched; a line of rests only (e.g. '1.2: 288 r') empties a voice. "
-        "Silence at the end of a voice line is filled with rests. Not yet: tuplets, grace chords, dynamics, chord "
-        "symbols. replace=True is needed when a voice you write already has notes there. The idea is written in "
-        "colour as one undo step and read back; the result gives a proposal id for keep or discard."
+        "Silence at the end of a voice line is filled with rests. Not yet: tuplets, grace chords, marks (dynamics, "
+        "chord symbols, texts, tempo, clefs). replace=True is needed when a voice you write already has notes there. "
+        "The idea is written in colour as one undo step and read back; the result gives a proposal id for keep or "
+        "discard."
     ),
     annotations=writes("Propose an idea", destructive=True),
     meta={"anthropic/alwaysLoad": True},
