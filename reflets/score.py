@@ -46,6 +46,7 @@ class Mark:
     kind: str
     value: str
     text: str
+    span: int = field(default=-1, compare=False)
 
 
 @dataclass
@@ -231,15 +232,18 @@ def line_marks(info: ScoreInfo, spanners: list[list[str]], division: int) -> Non
         text = unescape(" ".join(words[6:]))
         lines.append((tick, end, words[1].endswith("g"), 0 if system else track, 0 if system else track2, system, f"{words[4]}:{words[5]}", text))
     marks = []
+    spans: dict[tuple, int] = {}
     opening = sorted(lines, key=lambda line: (line[0], -line[1], line[6], line[3]))
-    for tick, _, _, track, _, system, value, text in opening:
-        marks.append(("Open", tick, track, bisect.bisect_right, system, value, text))
-    for tick, end, grace, _, track2, system, value, text in sorted(reversed(opening), key=lambda line: (line[1], -line[0])):
+    for line in opening:
+        tick, _, _, track, _, system, value, text = line
+        marks.append(("Open", tick, track, bisect.bisect_right, system, value, text, spans.setdefault(line, len(spans))))
+    for line in sorted(reversed(opening), key=lambda line: (line[1], -line[0])):
+        tick, end, grace, _, track2, system, value, text = line
         side = bisect.bisect_right if grace else bisect.bisect_left
-        marks.append(("CloseGrace" if grace else "Close", end, track2, side, system, value, text))
-    for kind, at, track, side, system, value, text in marks:
+        marks.append(("CloseGrace" if grace else "Close", end, track2, side, system, value, text, spans[line]))
+    for kind, at, track, side, system, value, text, span in marks:
         position = side(info.ticks, at) - 1
-        mark = Mark(track, Fraction(at - info.ticks[position], division), kind, value, text)
+        mark = Mark(track, Fraction(at - info.ticks[position], division), kind, value, text, span)
         if not system or mark not in info.bars[position].marks:
             info.bars[position].marks.append(mark)
 

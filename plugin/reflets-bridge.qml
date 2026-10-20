@@ -5,10 +5,10 @@ import FileIO 3.0
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.11.0"
+    version: "0.12.0"
     requiresScore: false
 
-    readonly property int proto: 11
+    readonly property int proto: 12
     readonly property int port: 8731
     readonly property string ideaColor: "#1565c0"
     property string token: ""
@@ -186,19 +186,42 @@ MuseScore {
         return lines
     }
 
-    function spannerLines(startTick, endTick) {
-        var lines = []
+    function graceEnd(v) {
+        var e = v.endElement
+        return (v.name === "Slur" || v.name === "HammerOnPullOff") && e && e.noteType > 0 && e.noteType < 32 ? true : false
+    }
+
+    function spannerEnd(v) {
+        var e = v.endElement
+        if ((v.name === "Slur" || v.name === "HammerOnPullOff") && e && e.actualDuration)
+            return e.fraction.ticks + (graceEnd(v) ? 0 : e.actualDuration.ticks)
+        return v.spannerTick.ticks + v.spannerTicks.ticks
+    }
+
+    function spannerList() {
+        var list = []
         var sp = curScore.spanners
         for (var i = 0; sp && i < sp.length; i++) {
+            if (sp[i].name !== "Volta")
+                list.push(sp[i])
+        }
+        return list
+    }
+
+    function spannerIn(v, tracks, startTick, endTick) {
+        var tick = v.spannerTick.ticks, end = spannerEnd(v)
+        var ends = graceEnd(v) ? end >= startTick && end < endTick : end > startTick && end <= endTick
+        return tracks.indexOf(v.track) >= 0 && tick >= startTick && tick < endTick || tracks.indexOf(v.spannerTrack2) >= 0 && ends
+    }
+
+    function spannerLines(startTick, endTick) {
+        var lines = []
+        var sp = spannerList()
+        for (var i = 0; i < sp.length; i++) {
             var v = sp[i]
-            if (v.name === "Volta")
-                continue
             var tick = v.spannerTick.ticks
-            var end = tick + v.spannerTicks.ticks
-            var e = v.endElement
-            var grace = (v.name === "Slur" || v.name === "HammerOnPullOff") && e && e.noteType > 0 && e.noteType < 32
-            if ((v.name === "Slur" || v.name === "HammerOnPullOff") && e && e.actualDuration)
-                end = e.fraction.ticks + (grace ? 0 : e.actualDuration.ticks)
+            var end = spannerEnd(v)
+            var grace = graceEnd(v)
             if (!(tick >= startTick && tick < endTick || end > startTick && end <= endTick))
                 continue
             var sub = v.name === "HairPin" ? v.hairpinType : v.name === "Ottava" ? v.ottavaType
@@ -357,6 +380,11 @@ MuseScore {
 
     function clearVoice(track, startTick, endTick, notes) {
         var doomed = []
+        var sp = spannerList()
+        for (var i = 0; i < sp.length; i++) {
+            if (!(sp[i].systemFlag && track !== 0) && spannerIn(sp[i], [track], startTick, endTick))
+                doomed.push(sp[i])
+        }
         for (var m = curScore.firstMeasure; m; m = m.nextMeasure) {
             var mt = m.firstSegment.tick
             if (mt >= endTick)
@@ -436,6 +464,95 @@ MuseScore {
             el.dynamicType = value
         if (kind === "TEMPO_TEXT")
             el.tempo = value
+        el.color = ideaColor
+    }
+
+    function measureStart(tick) {
+        var start = 0
+        for (var m = curScore.firstMeasure; m && m.firstSegment.tick <= tick; m = m.nextMeasure)
+            start = m.firstSegment.tick
+        return start
+    }
+
+    function chordEnding(track, end) {
+        var c = curScore.newCursor()
+        c.track = track - track % 4
+        c.rewindToTick(measureStart(end - 1))
+        c.track = track
+        var found = null
+        for (; c.segment && c.tick < end; c.next()) {
+            var e = c.element
+            if (e && e.type === Element.CHORD && c.tick + e.actualDuration.ticks === end)
+                found = e
+        }
+        if (!found)
+            throw "no note in track " + track + " ends at tick " + end
+        return found
+    }
+
+    function lastGrace(track, tick) {
+        var gs = elementAt(track, tick).graceNotes
+        for (var g = gs ? gs.length - 1 : -1; g >= 0; g--) {
+            if (gs[g].noteType < 32)
+                return gs[g]
+        }
+        throw "no grace note in track " + track + " at tick " + tick
+    }
+
+    function addSlur(track, tick, track2, end, grace) {
+        var first = elementAt(track, tick)
+        if (first.type !== Element.CHORD)
+            throw "a slur starts on a note; track " + track + " has a rest at tick " + tick
+        var last = grace ? lastGrace(track2, end) : chordEnding(track2, end)
+        var start = first.notes[0]
+        if (track2 === track && (grace ? end === tick : last.fraction.ticks === tick)) {
+            if (!first.graceNotes || !first.graceNotes.length || grace && first.graceNotes.length < 2)
+                throw "a slur needs two notes; track " + track + " has one at tick " + tick
+            start = first.graceNotes[0].notes[0]
+        }
+        curScore.selection.select(start)
+        curScore.selection.select(last.notes[0], true)
+        cmd("add-slur")
+        cmd("escape")
+        var sp = spannerList()
+        for (var i = 0; i < sp.length; i++) {
+            if (sp[i].name === "Slur" && sp[i].track === track && sp[i].spannerTick.ticks === tick)
+                sp[i].color = ideaColor
+        }
+    }
+
+    function addLine(w) {
+        var track = parseInt(w[1]), tick = parseInt(w[2]), track2 = parseInt(w[3]), end = parseInt(w[4])
+        var kind = w[6], sub = parseInt(w[7]), text = unescapeText(w.slice(8).join(" "))
+        if (kind === "SLUR") {
+            addSlur(track, tick, track2, end, w[5] === "1")
+            return
+        }
+        var el = newElement(Element[kind])
+        if (kind === "HAIRPIN") {
+            el.hairpinType = sub
+            if (sub >= 2) {
+                el.beginText = sub === 2 ? "cresc." : "dim."
+                el.continueText = sub === 2 ? "(cresc.)" : "(dim.)"
+            }
+        } else if (kind === "OTTAVA") {
+            el.ottavaType = sub
+        } else if (kind === "TRILL") {
+            el.trillType = sub
+        } else if (kind === "VIBRATO") {
+            el.vibratoType = sub
+        } else if (text) {
+            el.beginText = text
+        }
+        el.spannerTick = fraction(tick, division * 4)
+        el.spannerTicks = fraction(end - tick, division * 4)
+        if (track2 !== track)
+            el.spannerTrack2 = track2
+        var c = curScore.newCursor()
+        c.track = track - track % 4
+        c.rewindToTick(measureStart(tick))
+        c.track = track
+        c.add(el)
         el.color = ideaColor
     }
 
@@ -524,6 +641,8 @@ MuseScore {
                 } else if (w[0] === "t") {
                     var ratio = w[1].split(":"), total = w[2].split("/")
                     c.addTuplet(fraction(parseInt(ratio[0]), parseInt(ratio[1])), fraction(parseInt(total[0]), parseInt(total[1])))
+                } else if (w[0] === "l" && w[6] === "OTTAVA") {
+                    addLine(w)
                 } else {
                     break
                 }
@@ -569,6 +688,8 @@ MuseScore {
                     addMark(otrack, otick, o[3], parseFloat(o[4]), unescapeText(o.slice(5).join(" ")))
                 } else if (o[0] === "e") {
                     decorate(otrack, otick, o[3], o[4], o.slice(5).join(" "))
+                } else if (o[0] === "l") {
+                    addLine(o)
                 } else if (o[0] === "~") {
                     if (o[4] && !noteAt(otrack, parseInt(o[4]), parseInt(o[3])))
                         throw "no note to tie to"
@@ -594,6 +715,11 @@ MuseScore {
 
     function recolor(startTick, endTick, tracks, color, label) {
         curScore.startCmd("Reflets: " + label)
+        var sp = spannerList()
+        for (var i = 0; i < sp.length; i++) {
+            if (!(sp[i].systemFlag && tracks.indexOf(0) < 0) && spannerIn(sp[i], tracks, startTick, endTick))
+                sp[i].color = color
+        }
         for (var m = curScore.firstMeasure; m; m = m.nextMeasure) {
             var mt = m.firstSegment.tick
             if (mt < startTick)

@@ -11,7 +11,7 @@ from reflets import server
 REFERENCE = (Path(__file__).parent.parent / "research/encoding-tokens/chopin.n1.txt").read_text().strip()
 IDEA = """N1 div=4 ts=12/8 ks=3f
 m5 len=24
-1.1: 6 G5~ 6 G5 gAb5 4 Bb5 2 Ab5 6 G5
+1.1: 6 G5~ ) 6 G5 gAb5 4 Bb5 2 Ab5 6 G5
 m6 len=24
 1.1: 2 F5 Eb5 D5 gC5 gD5 10 Eb5 8 r
 1.2: 12 r 12 Bb4"""
@@ -99,6 +99,10 @@ async def main() -> None:
     await unchanged("after the tuplets, grace chords and references")
     error = await refused(server.propose("N1x div=48\nm11 len=288\n1.2 = m10", "bad"))
     check("a reference to a bar outside the idea is refused", "written out earlier" in error, error)
+    error = await refused(server.propose("N1x div=48\nm10 len=288\n1.2: <( 288 r", "unclosed"))
+    check("a line with no closer in the idea is refused", "has no closer in the idea" in error, error)
+    error = await refused(server.propose("N1x div=48\nm10 len=288\n1.2: 288 r <)@96", "stray"))
+    check("a closer with no line to close is refused", "closes no line" in error, error)
 
     notes_before = strip(await server.read_score("10"))
     for name, (idea, bar, tokens) in MARKS.items():

@@ -7,7 +7,7 @@ from dataclasses import dataclass, field, replace
 from fractions import Fraction
 
 from reflets import n1x
-from reflets.score import FIFTHS, SEMITONES, SYSTEM_MARKS, ScoreInfo, build_index
+from reflets.score import FIFTHS, SEMITONES, SYSTEM_LINES, SYSTEM_MARKS, ScoreInfo, build_index, unescape
 
 VALUES = sorted({Fraction(1, 2**k) * dots for k in range(8) for dots in (1, Fraction(3, 2), Fraction(7, 4))}, reverse=True)
 GRACE_TYPES = {"acciaccatura": 1, "grace16": 8}
@@ -15,6 +15,17 @@ GRACE_TYPES = {"acciaccatura": 1, "grace16": 8}
 
 class IdeaError(Exception):
     pass
+
+
+@dataclass(frozen=True, order=True)
+class Line:
+    tick: int
+    track: int
+    end: int
+    track2: int
+    grace: bool
+    name: str
+    text: str
 
 
 @dataclass
@@ -26,6 +37,9 @@ class Plan:
     idea: n1x.Idea
     timed: set[tuple[int, int]] = field(default_factory=set)
     counts: dict[str, int] = field(default_factory=dict)
+    lines: list[Line] = field(default_factory=list)
+    strays: list[tuple[int, int, bool, str, str]] = field(default_factory=list)
+    cleared: int = 0
 
 
 def midi_tpc(name: str) -> tuple[int, int]:
@@ -60,9 +74,6 @@ NOTE_ONLY = ("lv", "paren", "head")
 
 
 def unwritable(voice: n1x.Voice, where: str) -> None:
-    later = [token for _, token in voice.marks if n1x.is_line(token)]
-    if later:
-        raise IdeaError(f"{where}: lines cannot be written yet ({' '.join(later)}); leave them out")
     if voice.lyrics:
         raise IdeaError(f"{where}: lyrics cannot be written yet; leave the lyric lines out")
     for chord in voice.chords:
@@ -120,6 +131,63 @@ def decoration_ops(track: int, first: int, last: int, end: int, chord: n1x.Chord
             ops.append(f"e {track} {last if what == 'lv' else first} {pitch} {what} {value}")
         ops += [f"e {track} {first} {pitch} finger {text}" for text in note.fingering]
     return ops
+
+
+LINE_KINDS = {"": ("SLUR", 0), "ped": ("PEDAL", 0), "lr": ("LET_RING", 0), "pm": ("PALM_MUTE", 0), "line": ("TEXTLINE", 0),
+              "tempo": ("GRADUAL_TEMPO_CHANGE", 0), "whammy": ("WHAMMY_BAR", 0)}
+for kind, family in (("HAIRPIN", "HairPin"), ("OTTAVA", "Ottava"), ("TRILL", "Trill"), ("VIBRATO", "Vibrato")):
+    for sub, name in enumerate(n1x.LINES[family]):
+        LINE_KINDS[name] = (kind, sub)
+
+
+def line_ops(plan: Plan) -> tuple[list[str], list[str]]:
+    octaves, others = [], []
+    for line in plan.lines:
+        kind, sub = LINE_KINDS[line.name]
+        escaped = line.text.replace("\\", "\\\\").replace("\n", "\\n")
+        op = f"l {line.track} {line.tick} {line.track2} {line.end} {int(line.grace)} {kind} {sub} {escaped}"
+        (octaves if kind == "OTTAVA" else others).append(op)
+    return octaves, others
+
+
+def spans(lines: list[str]) -> list[Line]:
+    result = set()
+    for line in lines:
+        words = line.split(" ")
+        if words[0] != "N" or words[5] == "PartialLyricsLine":
+            continue
+        value = f"{words[5]}:{words[6]}"
+        system = words[5] in SYSTEM_LINES or words[5] == "TextLine" and words[6] == "1"
+        track, track2 = (0, 0) if system else (int(words[3]), int(words[4]))
+        text = n1x.line_text(value, unescape(" ".join(words[7:])))
+        result.add(Line(int(words[1]), track, int(words[2].rstrip("g")), track2, words[2].endswith("g"), n1x.line_name(value), text))
+    return sorted(result)
+
+
+def touches(line: Line, cells: set[tuple[int, int]], info: ScoreInfo) -> bool:
+    start = (bisect.bisect_right(info.ticks, line.tick) - 1, line.track)
+    side = bisect.bisect_right if line.grace else bisect.bisect_left
+    return start in cells or (side(info.ticks, line.end) - 1, line.track2) in cells
+
+
+def add_lines(plan: Plan, pre: list[str], info: ScoreInfo) -> None:
+    numbers = [measure.number for measure in info.measures]
+    old = [line for line in spans(pre) if touches(line, plan.cells, info)]
+    for track2, end, grace, name, where in plan.strays:
+        found = [line for line in old if line.name == name and line.track2 == track2 and line.tick < end
+                 and (bisect.bisect_right(info.ticks, line.tick) - 1, line.track) not in plan.cells]
+        if not found:
+            raise IdeaError(
+                f"{where}: {name}) closes no line: the idea has no {name}( before it, and no such line from before the idea "
+                f"ends in this voice in bar(s) {', '.join(str(numbers[p]) for p in sorted({p for p, _ in plan.cells}))}"
+            )
+        line = max(found)
+        old.remove(line)
+        plan.lines.append(replace(line, end=end, grace=grace))
+    octaves, others = line_ops(plan)
+    plan.ops[plan.cleared:plan.cleared] = octaves
+    plan.ops += others
+    plan.counts["lines"] = len(plan.lines)
 
 
 TEXT_KINDS = {"x": "EXPRESSION", "s": "STAFF_TEXT", "S": "SYSTEM_TEXT", "R": "REHEARSAL_MARK", "pt": "PLAYTECH_ANNOTATION", "fb": "FIGURED_BASS"}
@@ -181,8 +249,10 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int) -> Plan
     ops, graces, ties, clears, marks, decorations = [], [], [], [], [], []
     plan = Plan(0, 0, ops, set(), idea)
     voices: dict[int, list[tuple[int, Fraction, list[tuple[int, int, bool]], tuple[int, int]]]] = {}
+    events: list[tuple[int, int, str, bool]] = []
+    details: list[tuple[str, str, str, bool]] = []
     rests = grace_notes = 0
-    for bar in idea.bars:
+    for bar in sorted(idea.bars, key=lambda bar: numbers.index(bar.number) if bar.number in numbers else -1):
         if bar.number not in numbers:
             raise IdeaError(f"Bar {bar.number} does not exist; the score has bars {numbers[0]} to {numbers[-1]}")
         position = numbers.index(bar.number)
@@ -205,7 +275,18 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int) -> Plan
             plan.cells.add(cell)
             end_tick = info.ticks[position + 1] if position + 1 < len(info.ticks) else 2**31 - 1
             clears.append(f"x {track} {bar_tick} {end_tick} {int(voice.timed)}")
-            for onset, token in voice.marks:
+            for number, (onset, token) in enumerate(voice.marks):
+                if line := n1x.LINE_TOKEN.fullmatch(token):
+                    name, text, paren, label = line.groups()
+                    if name not in LINE_KINDS:
+                        raise IdeaError(f"{where}: {token} cannot be written; write ( ), <( <), >( >), cresc( cresc), dim( dim), ped( ped), 8va( 8va), tr( tr), line\"…\"( line) or tempo\"rit.\"( tempo)")
+                    if onset > length or onset == length and paren == "(":
+                        raise IdeaError(f"{where}: {token} falls after the end of the bar")
+                    if name == "tempo" and track != 0:
+                        raise IdeaError(f"{where}: {token} is a system line; write it in 1.1")
+                    events.append((track, bar_tick + round(onset * division), name + label, paren == "("))
+                    details.append((where, name, n1x.unquoted(text) if text else "", name == "" and number in voice.after_graces))
+                    continue
                 if onset >= length:
                     raise IdeaError(f"{where}: {token} falls at or after the end of the bar")
                 if token.startswith("["):
@@ -236,7 +317,7 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int) -> Plan
                            + [(onset, duration, None, names) for onset, duration, names in voice.rests], key=lambda item: item[0])
             if voice.end < length:
                 items.append((voice.end, length - voice.end, None, ()))
-            cuts = sorted({onset for onset, _ in voice.marks})
+            cuts = sorted({onset for onset, token in voice.marks if not n1x.is_line(token)})
             items = [piece for item in items for piece in split_rest(item, cuts)]
             tuplets = sorted(voice.tuplets, key=lambda span: (span[0], -span[1]))
             for start, stop, _ in tuplets:
@@ -288,6 +369,19 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int) -> Plan
                 decorations += decoration_ops(track, first, tick, bar_tick + round(stop * division), chord, rest_names, where)
     if not plan.cells:
         raise IdeaError("The idea has no voice lines; write at least one 'staff.voice:' line under a bar line")
+    pairs = n1x.pair_lines(events)
+    for number, (track, tick, key, opens) in enumerate(events):
+        where, name, text, grace = details[number]
+        if opens and number not in pairs.values():
+            raise IdeaError(
+                f"{where}: {name}({key[len(name):]} has no closer in the idea; close it with {name}){key[len(name):]} after the note it ends with, "
+                f"or with @, in this bar or a later bar of the idea (a later bar may have a voice line of marks only, which replaces that voice's marks there)"
+            )
+        if not opens and number not in pairs:
+            plan.strays.append((track, tick, grace, name, where))
+        elif not opens:
+            start, opener = events[pairs[number]], details[pairs[number]]
+            plan.lines.append(Line(start[1], start[0], tick, track, grace, name, opener[2]))
 
     for track, chords in voices.items():
         for number, (tick, chunk, pitches, cell) in enumerate(chords):
@@ -306,6 +400,7 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int) -> Plan
                         "right after it on the same pitch, in the idea or in the bar after it"
                     )
     plan.ops = clears + ops + graces + marks + decorations + ties
+    plan.cleared = len(clears)
     positions = sorted({position for position, _ in plan.cells})
     plan.start_tick = info.ticks[positions[0]]
     plan.end_tick = info.ticks[positions[-1] + 1] if positions[-1] + 1 < len(info.ticks) else 2**31 - 1
@@ -414,6 +509,15 @@ def mark_lines(lines: list[str], info: ScoreInfo, skip: set[tuple[int, int]]) ->
     return sorted(kept)
 
 
+def described(lines: list[Line], info: ScoreInfo, div: int, division: int) -> str:
+    def at(tick: int, track: int, starts: bool) -> str:
+        position = (bisect.bisect_right if starts else bisect.bisect_left)(info.ticks, tick) - 1 if tick > info.ticks[0] else 0
+        return f"m{info.measures[position].number} {track // 4 + 1}.{track % 4 + 1} @{(tick - info.ticks[position]) * div // division}"
+
+    texts = [f"{line.name}{n1x.quote(line.text) if line.text else ''}( {at(line.tick, line.track, True)} to {line.name}) {at(line.end, line.track2, line.grace)}" for line in lines]
+    return "[" + "; ".join(texts) + "]"
+
+
 def line_of(idea: n1x.Idea, number: int, label: str) -> str:
     bar = None
     for line in idea.lines[1:]:
@@ -444,6 +548,13 @@ def verify(plan: Plan, pre: list[str], post: list[str], info: ScoreInfo, divisio
     annotations = (mark_lines(pre, info, plan.cells), mark_lines(post, info, plan.cells))
     if annotations[0] != annotations[1]:
         return f"marks outside the idea changed: {annotations[0]} -> {annotations[1]}", []
+    found = (spans(pre), spans(post))
+    outside = [[line for line in lines if not touches(line, plan.cells, info)] for lines in found]
+    if outside[0] != outside[1]:
+        return f"lines outside the idea changed: {described(outside[0], info, plan.idea.div, division)} -> {described(outside[1], info, plan.idea.div, division)}", []
+    got = [line for line in found[1] if touches(line, plan.cells, info)]
+    if got != sorted(set(plan.lines)):
+        return f"the lines were written as {described(sorted(set(plan.lines)), info, plan.idea.div, division)} and read back as {described(got, info, plan.idea.div, division)}", []
     positions = sorted({position for position, _ in plan.cells})
     text = n1x.encode(info, build_index(info, post, division), numbers[positions[0]], numbers[positions[-1]])
     back = n1x.decode(text)

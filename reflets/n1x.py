@@ -105,6 +105,12 @@ def encode(info: ScoreInfo, index: ScoreIndex, first: int, last: int) -> str:
     meter = index.meter
     key_ticks = sorted(info.keys)
     bars: list[tuple[str, list[str]]] = []
+    numbers = line_numbers([
+        (int(measure.id[1:]) - 1, mark)
+        for measure in measures[start : end + 1]
+        for mark in sorted(info.bars[int(measure.id[1:]) - 1].marks, key=mark_order)
+        if mark.kind in LINE_PHASES
+    ])
     for measure in measures[start : end + 1]:
         position = int(measure.id[1:]) - 1
         header = f"m{measure.number} len={units(measure.length, div)}"
@@ -130,7 +136,9 @@ def encode(info: ScoreInfo, index: ScoreIndex, first: int, last: int) -> str:
             if mark.kind in ("Fermata", "Breath"):
                 attached.setdefault(where, []).append(mark)
             elif mark.kind in ("Close", "CloseGrace"):
-                closers.setdefault(where, []).append((mark.onset, line_token(mark), mark.kind == "CloseGrace"))
+                closers.setdefault(where, []).append((mark.onset, line_token(mark, numbers.get(mark.span, 0)), mark.kind == "CloseGrace"))
+            elif mark.kind == "Open" and mark.onset < measure.length:
+                marks.setdefault(where, []).append((mark.onset, line_token(mark, numbers.get(mark.span, 0))))
             elif (token := mark_token(mark)) and mark.onset < measure.length:
                 marks.setdefault(where, []).append((mark.onset, token))
         for staff, layer in sorted(voices.keys() | marks.keys() | attached.keys() | closers.keys()):
@@ -214,18 +222,67 @@ def bar_fields(bar: Bar) -> list[str]:
     return fields
 
 
-def line_token(mark: Mark) -> str:
-    name, sub = mark.value.split(":")
+def line_name(value: str) -> str:
+    name, sub = value.split(":")
     names = LINES.get(name, [name.lower()])
-    token = names[int(sub)] if int(sub) < len(names) else f"{names[0]}{sub}"
+    return names[int(sub)] if int(sub) < len(names) else f"{names[0]}{sub}"
+
+
+def line_text(value: str, text: str) -> str:
+    return plain(text) if value.split(":")[0] in ("TextLine", "GradualTempoChange") else ""
+
+
+def line_token(mark: Mark, number: int = 0) -> str:
+    suffix = str(number) if number else ""
     if mark.kind in ("Close", "CloseGrace"):
-        return token + ")"
-    return token + (quote(plain(mark.text)) if name in ("TextLine", "GradualTempoChange") else "") + "("
+        return line_name(mark.value) + ")" + suffix
+    text = line_text(mark.value, mark.text)
+    return line_name(mark.value) + (quote(text) if text else "") + "(" + suffix
+
+
+LINE_PHASES = {"Close": 0, "Open": 1, "CloseGrace": 2}
+
+
+def pair_lines(events: list[tuple[int, int | Fraction | tuple, str, bool]]) -> dict[int, int]:
+    pairs: dict[int, int] = {}
+    stacks: dict[tuple[int, str], list[int]] = {}
+    strays = []
+    for number, (track, _, key, opens) in enumerate(events):
+        stack = stacks.setdefault((track, key), [])
+        if opens:
+            stack.append(number)
+        elif stack:
+            pairs[number] = stack.pop()
+        else:
+            strays.append(number)
+    left = [number for stack in stacks.values() for number in stack]
+    for number in strays:
+        track, at, key, _ = events[number]
+        found = [o for o in left if events[o][2] == key and events[o][0] != track and events[o][1] <= at]
+        if found:
+            opener = max(found, key=lambda o: events[o][1])
+            pairs[number] = opener
+            left.remove(opener)
+    return pairs
+
+
+def line_numbers(marks: list[tuple[int, Mark]]) -> dict[int, int]:
+    events = sorted(
+        ((position, mark.onset, LINE_PHASES[mark.kind], order, mark) for order, (position, mark) in enumerate(marks)),
+        key=lambda event: event[:4],
+    )
+    numbers: dict[int, int] = {}
+    while True:
+        stream = [(mark.track, (position, onset), line_name(mark.value) + str(numbers.get(mark.span, "")), mark.kind == "Open")
+                  for position, onset, _, _, mark in events]
+        wrong = next((events[closer][4].span for closer, opener in sorted(pair_lines(stream).items())
+                      if events[closer][4].span != events[opener][4].span), None)
+        if wrong is None:
+            return numbers
+        numbers[wrong] = max(numbers.values(), default=1) + 1
 
 
 def mark_token(mark: Mark) -> str | None:
-    if mark.kind == "Open":
-        return line_token(mark)
     if mark.kind == "Clef":
         number = int(mark.value)
         return "clef=" + CLEFS.get(number, CLEF_NAMES[number] if 0 <= number < len(CLEF_NAMES) else mark.value)
@@ -465,6 +522,7 @@ class Voice:
     lyrics: dict[int, list[str]] = dataclasses.field(default_factory=dict)
     end: Fraction = Fraction(0)
     timed: bool = False
+    after_graces: set[int] = dataclasses.field(default_factory=set)
 
 
 @dataclass
@@ -487,7 +545,8 @@ PITCH = r"[A-G](?:#{1,2}|b{1,2})?-?\d+"
 NOTE = re.compile(rf"({PITCH})((?:'[^':~]*)*)((?::[^:~]+)*)(~?)")
 CHORD = re.compile(r"([^\[]+?)(\[[^\]]*\])?(~?)")
 GROUP = re.compile(r"(?:(\d+):(\d+))?(\[[^\]]*\])?\{")
-MARK = re.compile(rf'(?:!\S+|{QUOTED}|(?:x|s|S|R|fb|pt){QUOTED}|q[\d.]+(?:{QUOTED})?|clef=\S+|\[[^\]]*\]|[a-z0-9<>-]*(?:{QUOTED})?[()])')
+MARK = re.compile(rf'(?:!\S+|{QUOTED}|(?:x|s|S|R|fb|pt){QUOTED}|q[\d.]+(?:{QUOTED})?|clef=\S+|\[[^\]]*\]|[a-z0-9<>-]*(?:{QUOTED})?[()]\d*)')
+LINE_TOKEN = re.compile(rf'([a-z0-9<>-]*)({QUOTED})?([()])(\d*)')
 
 
 def expand(text: str) -> str:
@@ -541,7 +600,7 @@ def parse_chord(token: str, onset: Fraction, duration: Fraction, grace: bool, sh
 
 def decode_voice(text: str, div: int, where: str) -> Voice:
     voice = Voice()
-    time, current = Fraction(0), None
+    time, current, grace_at = Fraction(0), None, None
     stack: list[tuple[Fraction, str, tuple[str, ...]]] = []
     for token in TOKEN.findall(text):
         shared = tuple(name for _, _, group in stack for name in group)
@@ -563,20 +622,22 @@ def decode_voice(text: str, div: int, where: str) -> Voice:
                     raise DecodeError("a rest needs a duration before it")
                 voice.rests.append((time, current, names(token[1:] or None)))
                 time += current
-                voice.timed = True
+                voice.timed, grace_at = True, None
             elif re.match(r"g[A-G]", token):
                 voice.chords.append(parse_chord(token[1:], time, Fraction(0), True, ()))
-                voice.timed = True
+                voice.timed, grace_at = True, time
             elif re.match(r"[A-G]", token):
                 if current is None:
                     raise DecodeError("a note needs a duration before it")
                 voice.chords.append(parse_chord(token, time, current, False, shared))
                 time += current
-                voice.timed = True
+                voice.timed, grace_at = True, None
             else:
                 body, _, offset = token.rpartition("@") if re.search(r"@\d+$", token) else (token, "", "")
                 if not MARK.fullmatch(body):
                     raise DecodeError(f"{token!r} is not a duration, note, rest, mark, line or group")
+                if not offset and grace_at == time:
+                    voice.after_graces.add(len(voice.marks))
                 voice.marks.append((Fraction(int(offset), div) if offset else time, body))
         except DecodeError as error:
             raise DecodeError(f"{where}: {error}") from None
@@ -630,4 +691,4 @@ def decode(text: str) -> Idea:
 
 
 def is_line(token: str) -> bool:
-    return token.endswith(("(", ")"))
+    return bool(LINE_TOKEN.fullmatch(token))

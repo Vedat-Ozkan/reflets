@@ -12,7 +12,7 @@ from mcp.types import ToolAnnotations
 from reflets import n1x
 from reflets.bridge import Bridge, BridgeError
 from reflets.score import ScoreInfo, build_index, parse_info
-from reflets.write import IdeaError, cells, compile_idea, occupied, verify
+from reflets.write import IdeaError, add_lines, cells, compile_idea, occupied, verify
 
 WHOLE_SCORE_TOKENS = 6000
 FIRST_BARS = 16
@@ -183,9 +183,11 @@ def writes(title: str, destructive: bool) -> ToolAnnotations:
         "voice; tempo, rehearsal marks and system text go in 1.1, clefs in voice 1 of their staff. Tuplets, grace "
         "chords, decorations, decoration groups, fingering and references to bars written out earlier in the idea "
         "('m9 = m1', '2.1 = m1') can be written; glissandos cannot. A tie may run into the bar after the idea when "
-        "that bar's voice starts with the same pitch. Not yet: lines and lyrics; the lines in a voice stay, except "
-        "those that start or end on its grace notes or tuplets, and its lyrics go with its notes. replace=True is "
-        "needed when a voice you write already has "
+        "that bar's voice starts with the same pitch. Lines are marks too: a voice line replaces the lines that "
+        "start or end in it. A line opened in the idea must close in the idea, in a later bar's marks-only line if "
+        "needed ('1.1: )@96'); a closer with no opener in the idea ends the line from before the idea that read_score "
+        "showed ending there, keeping its start. Lyrics cannot be written yet and go with the notes they were on. "
+        "replace=True is needed when a voice you write already has "
         "notes there. The idea is written in colour as one undo step and read back; the result gives a proposal id "
         "for keep or discard."
     ),
@@ -202,6 +204,10 @@ async def propose(idea: str, label: str = "idea", replace: bool = False) -> str:
         raise ToolError(str(error)) from None
     numbers = [measure.number for measure in info.measures]
     pre = await request(f"read {plan.start_tick} {plan.end_tick}")
+    try:
+        add_lines(plan, pre, info)
+    except IdeaError as error:
+        raise ToolError(str(error)) from None
     taken = occupied(plan, cells(pre, info))
     if taken and not replace:
         where = ", ".join(f"bar {numbers[p]} {t // 4 + 1}.{t % 4 + 1}" for p, t in taken)
