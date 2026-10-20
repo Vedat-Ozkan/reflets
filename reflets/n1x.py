@@ -5,6 +5,8 @@ from __future__ import annotations
 import bisect
 import html
 import re
+import dataclasses
+from dataclasses import dataclass
 from fractions import Fraction
 from urllib.parse import unquote
 
@@ -418,3 +420,192 @@ def voice(
     tokens.extend(token for time in sorted(ending) for token in ending[time])
     place(Fraction(10**9), True)
     return " ".join(tokens)
+
+
+class DecodeError(ValueError):
+    pass
+
+
+@dataclass(frozen=True)
+class Note:
+    pitch: str
+    tied: bool
+    fingering: tuple[str, ...]
+    decorations: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class Chord:
+    onset: Fraction
+    duration: Fraction
+    grace: bool
+    notes: tuple[Note, ...]
+    decorations: tuple[str, ...]
+
+
+@dataclass
+class Voice:
+    chords: list[Chord] = dataclasses.field(default_factory=list)
+    rests: list[tuple[Fraction, Fraction, tuple[str, ...]]] = dataclasses.field(default_factory=list)
+    tuplets: list[tuple[Fraction, Fraction, str]] = dataclasses.field(default_factory=list)
+    marks: list[tuple[Fraction, str]] = dataclasses.field(default_factory=list)
+    lyrics: dict[int, list[str]] = dataclasses.field(default_factory=dict)
+    end: Fraction = Fraction(0)
+
+
+@dataclass
+class IdeaBar:
+    number: int
+    fields: dict[str, str]
+    voices: dict[tuple[int, int], Voice]
+
+
+@dataclass
+class Idea:
+    div: int
+    lines: list[str]
+    bars: list[IdeaBar]
+
+
+TOKEN = re.compile(r'(?:[^\s"]|"(?:[^"\\]|\\.)*")+')
+QUOTED = r'"(?:[^"\\]|\\.)*"'
+PITCH = r"[A-G](?:#{1,2}|b{1,2})?-?\d+"
+NOTE = re.compile(rf"({PITCH})((?:'[^':~]*)*)((?::[^:~]+)*)(~?)")
+CHORD = re.compile(r"([^\[]+?)(\[[^\]]*\])?(~?)")
+GROUP = re.compile(r"(?:(\d+):(\d+))?(\[[^\]]*\])?\{")
+MARK = re.compile(rf'(?:!\S+|{QUOTED}|(?:x|s|S|R|fb|pt){QUOTED}|q[\d.]+(?:{QUOTED})?|clef=\S+|\[[^\]]*\]|[a-z0-9<>-]*(?:{QUOTED})?[()])')
+
+
+def expand(text: str) -> str:
+    bars: dict[str, list[str]] = {}
+    lines: list[str] = []
+    current = None
+    for line in text.splitlines():
+        line = line.strip()
+        if match := re.fullmatch(r"(m\d+) = (m\d+)", line):
+            if match[2] not in bars:
+                raise DecodeError(f"{line}: bar {match[2][1:]} must be written out earlier in the same text")
+            header, *body = bars[match[2]]
+            current = bars[match[1]] = [f"{match[1]} {header.partition(' ')[2]}", *body]
+            lines += current
+            continue
+        if match := re.fullmatch(r"(\d+\.\d+) = (m\d+)", line):
+            written = [w for w in bars.get(match[2], []) if w.startswith(match[1] + ": ")]
+            if not written:
+                raise DecodeError(f"{line}: bar {match[2][1:]} must be written out earlier in the same text, with a {match[1]} line")
+            line = written[0]
+        if re.match(r"m\d+\b", line):
+            current = bars[line.split()[0]] = []
+        if current is not None:
+            current.append(line)
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def names(bracketed: str | None) -> tuple[str, ...]:
+    return tuple(name for name in (bracketed or "[]")[1:-1].split(",") if name)
+
+
+def parse_chord(token: str, onset: Fraction, duration: Fraction, grace: bool, shared: tuple[str, ...]) -> Chord:
+    match = CHORD.fullmatch(token)
+    if not match:
+        raise DecodeError(f"{token!r} is not a note, chord or rest")
+    body, bracketed, tie = match.groups()
+    parts = body.split("+")
+    notes = []
+    for part in parts:
+        note = NOTE.fullmatch(part)
+        if not note:
+            raise DecodeError(f"{token!r}: {part!r} is not a pitch like C4, F#3 or Bb5")
+        pitch, fingering, own, tied = note.groups()
+        notes.append(Note(pitch, bool(tied) or (bool(tie) and len(parts) == 1),
+                          tuple(f for f in fingering.split("'")[1:]), tuple(sorted(d for d in own.split(":")[1:]))))
+    if tie and len(parts) > 1:
+        raise DecodeError(f"{token!r}: in a chord, a tie goes on its note, as in C4~+E4")
+    return Chord(onset, duration, grace, tuple(notes), tuple(sorted(set(names(bracketed)) | (set() if grace else set(shared)))))
+
+
+def decode_voice(text: str, div: int, where: str) -> Voice:
+    voice = Voice()
+    time, current = Fraction(0), None
+    stack: list[tuple[Fraction, str, tuple[str, ...]]] = []
+    for token in TOKEN.findall(text):
+        shared = tuple(name for _, _, group in stack for name in group)
+        try:
+            if token == "}":
+                if not stack:
+                    raise DecodeError("'}' closes no group")
+                start, ratio, _ = stack.pop()
+                if ratio:
+                    voice.tuplets.append((start, time, ratio))
+            elif group := GROUP.fullmatch(token):
+                actual, normal, bracketed = group.groups()
+                stack.append((time, f"{actual}:{normal}" if actual else "", names(bracketed)))
+            elif token.isdigit():
+                current = Fraction(int(token), div)
+            elif re.fullmatch(r"r(\[[^\]]*\])?", token):
+                if current is None:
+                    raise DecodeError("a rest needs a duration before it")
+                voice.rests.append((time, current, names(token[1:] or None)))
+                time += current
+            elif re.match(r"g[A-G]", token):
+                voice.chords.append(parse_chord(token[1:], time, Fraction(0), True, ()))
+            elif re.match(r"[A-G]", token):
+                if current is None:
+                    raise DecodeError("a note needs a duration before it")
+                voice.chords.append(parse_chord(token, time, current, False, shared))
+                time += current
+            else:
+                body, _, offset = token.rpartition("@") if re.search(r"@\d+$", token) else (token, "", "")
+                if not MARK.fullmatch(body):
+                    raise DecodeError(f"{token!r} is not a duration, note, rest, mark, line or group")
+                voice.marks.append((Fraction(int(offset), div) if offset else time, body))
+        except DecodeError as error:
+            raise DecodeError(f"{where}: {error}") from None
+    if stack:
+        raise DecodeError(f"{where}: a group opened with '{{' is not closed")
+    voice.end = time
+    return voice
+
+
+def decode(text: str) -> Idea:
+    lines = expand(text.strip()).splitlines()
+    if not lines or not re.match(r"N1x? ", lines[0]):
+        raise DecodeError("The first line must be the header, e.g. 'N1x div=48 ts=4/4 ks=0'")
+    header = dict(word.split("=", 1) for word in lines[0].split()[1:] if "=" in word)
+    if not header.get("div", "").isdigit() or int(header["div"]) < 1:
+        raise DecodeError("The header needs div=<units per quarter note>")
+    div = int(header["div"])
+    idea = Idea(div, lines, [])
+    bar = None
+    for line in lines[1:]:
+        if not line or re.match(r"(title|composer)=|P\d+ ", line):
+            continue
+        if re.match(r"m\d+\b", line):
+            words = line.split()
+            fields = {}
+            for word in words[1:]:
+                name, equals, value = word.partition("=")
+                if not equals:
+                    raise DecodeError(f"{words[0]}: {word!r} is not a field like len=192")
+                fields[name] = value
+            bar = IdeaBar(int(words[0][1:]), fields, {})
+            idea.bars.append(bar)
+            continue
+        match = re.fullmatch(r"(\d+)\.(\d+)( L(\d+))?:(.*)", line)
+        if not match or bar is None:
+            raise DecodeError(f"{line!r} is not a bar line 'mN len=…' or a voice line 'staff.voice: …' under one")
+        cell = (int(match[1]), int(match[2]))
+        where = f"m{bar.number} {match[1]}.{match[2]}"
+        if match[3]:
+            if cell not in bar.voices:
+                raise DecodeError(f"{where} L{match[4]}: a lyric line goes under its voice line")
+            tokens = TOKEN.findall(match[5])
+            while tokens and tokens[-1] == "*":
+                tokens.pop()
+            bar.voices[cell].lyrics[int(match[4])] = tokens
+        elif cell in bar.voices:
+            raise DecodeError(f"{where}: the bar has two {match[1]}.{match[2]} lines")
+        else:
+            bar.voices[cell] = decode_voice(match[5], div, where)
+    return idea

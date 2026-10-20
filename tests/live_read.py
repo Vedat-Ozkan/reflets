@@ -165,28 +165,28 @@ def normal(text: str) -> str:
     return notes.encode(notes.decode(text))
 
 
-def expand(text: str) -> str:
-    bars: dict[str, list[str]] = {}
-    lines: list[str] = []
-    current = None
-    for line in text.splitlines():
-        if match := re.fullmatch(r"(m\d+) = (m\d+)", line):
-            header, *body = bars[match[2]]
-            current = bars[match[1]] = [f"{match[1]} {header.partition(' ')[2]}", *body]
-            lines += current
-            continue
-        if match := re.fullmatch(r"(\d+\.\d+) = (m\d+)", line):
-            line = next(written for written in bars[match[2]] if written.startswith(match[1] + ": "))
-        if re.match(r"m\d+ ", line):
-            current = bars[line.split()[0]] = []
-        if current is not None:
-            current.append(line)
-        lines.append(line)
-    return "\n".join(lines)
+def decoded_notes(text: str) -> dict[tuple[int, int, int], list[tuple]]:
+    result: dict[tuple[int, int, int], list[tuple]] = {}
+    for bar in n1x.decode(text).bars:
+        for (staff, layer), voice in bar.voices.items():
+            for chord in voice.chords:
+                for note in chord.notes:
+                    result.setdefault((bar.number, staff, layer), []).append((chord.onset, chord.grace, chord.duration, note.pitch, note.tied))
+    return {key: sorted(value) for key, value in result.items()}
+
+
+def index_notes(index, first: int, last: int) -> dict[tuple[int, int, int], list[tuple]]:
+    result: dict[tuple[int, int, int], list[tuple]] = {}
+    for measure in index.measures:
+        if first <= measure.number <= last:
+            for event in measure.events:
+                if event.pitch:
+                    result.setdefault((measure.number, event.staff, event.layer), []).append((event.onset, event.grace, event.duration, event.pitch, event.tied))
+    return {key: sorted(value) for key, value in result.items()}
 
 
 def strip(text: str) -> str:
-    lines = expand(text).splitlines()
+    lines = n1x.expand(text).splitlines()
     kept = [re.sub(r"^N1x ", "N1 ", lines[0])]
     for line in lines[1:]:
         if re.match(r'(title|composer)=|P\d+ "|\d+\.\d+ L\d+:', line):
@@ -216,6 +216,7 @@ async def main() -> None:
     for a, b in [(first, last), (1, min(4, last)), (middle, last)]:
         text = n1x.encode(info, index, a, b)
         check(f"bars {a}-{b}, stripped N1x equals N1", normal(strip(text)) == normal(notes.encode(index, a, b)))
+        check(f"bars {a}-{b}, N1x decodes to the score's notes", decoded_notes(text) == index_notes(index, first if a == 1 else a, b))
     text = n1x.encode(info, index, first, last)
     print(text.split("\nm")[0])
     bars = [line for line in text.splitlines() if re.match(r"m\d+ ", line)]

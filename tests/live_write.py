@@ -18,6 +18,12 @@ m6 len=24
 LATER = """N1 div=4 ts=12/8 ks=3f
 m10 len=24
 1.2: 24 Eb4"""
+GROUPS = {
+    "tuplets with a rest inside": ("N1x div=48\nm10 len=288\n1.2: 3:2{ 16 r D4 E4 } 48 F4 3:2{ 32 G4 16 r } 144 r", "1.2: 3:2{ 8 r D4 E4 } 24 F4 3:2{ 16 G4 8 r }"),
+    "nested tuplets": ("N1x div=144\nm10 len=864\n1.2: 3:2{ 96 C4 D4 3:2{ 32 E4 F4 G4 } }", "1.2: 3:2{ 48 C4 D4 3:2{ 16 E4 F4 G4 } }"),
+    "grace chords": ("N1x div=48\nm10 len=288\n1.2: gC4+E4 48 G4 gD4 gF4+A4 B4", "1.2: gC4+E4 8 G4 gD4 gF4+A4 B4"),
+    "references": ("N1x div=48\nm10 len=288\n1.2: 48 C4 D4 E4 F4 G4 A4\nm11 len=288\n1.2 = m10", "1.2 = m10"),
+}
 failures = []
 
 
@@ -71,6 +77,15 @@ async def main() -> None:
     await server.request("undo")
     await server.request("undo")
     await unchanged("after undoing keep and the idea")
+
+    for name, (idea, expected) in GROUPS.items():
+        written = proposal(await server.propose(idea, name))
+        bars = await server.read_score("10-11")
+        check(f"{name} read back as written", expected in bars, bars)
+        await server.discard(written)
+    await unchanged("after the tuplets, grace chords and references")
+    error = await refused(server.propose("N1x div=48\nm11 len=288\n1.2 = m10", "bad"))
+    check("a reference to a bar outside the idea is refused", "written out earlier" in error, error)
 
     tick = (await server.load_info()).ticks[5]
     error = await refused(server.request(f"write {tick} {tick + 2880} rollback\nv 0 {tick}\nd 3/2\nn {tick} 67:15\n~ 0 {tick} 99"))

@@ -5,10 +5,10 @@ import FileIO 3.0
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.8.0"
+    version: "0.9.0"
     requiresScore: false
 
-    readonly property int proto: 8
+    readonly property int proto: 9
     readonly property int port: 8731
     readonly property string ideaColor: "#1565c0"
     property string token: ""
@@ -364,6 +364,9 @@ MuseScore {
                 } else if (w[0] === "r") {
                     c.addRest()
                     rests.push([track, parseInt(w[1])])
+                } else if (w[0] === "t") {
+                    var ratio = w[1].split(":"), total = w[2].split("/")
+                    c.addTuplet(fraction(parseInt(ratio[0]), parseInt(ratio[1])), fraction(parseInt(total[0]), parseInt(total[1])))
                 } else {
                     break
                 }
@@ -384,7 +387,7 @@ MuseScore {
                     var main = chord.notes[0]
                     curScore.selection.select(main)
                     cmd(o[3])
-                    var gp = o[4].split(":")
+                    var gp = o[4].split(",")[0].split(":")
                     var gs = chord.graceNotes
                     var added = null
                     for (var g = 0; gs && g < gs.length && !added; g++) {
@@ -393,8 +396,16 @@ MuseScore {
                     }
                     if (!added)
                         throw o[3] + " added no grace note"
+                    var gns = o[4].split(",")
                     added.pitch = parseInt(gp[0]) - offsetAt(otrack, otick)
                     respell(added, parseInt(gp[1]), ideaColor)
+                    for (var q = 1; q < gns.length; q++) {
+                        var more = newElement(Element.NOTE)
+                        var mp = gns[q].split(":")
+                        more.pitch = parseInt(mp[0]) - offsetAt(otrack, otick)
+                        added.parent.add(more)
+                        respell(more, parseInt(mp[1]), ideaColor)
+                    }
                 } else if (o[0] === "~") {
                     var n = noteAt(otrack, otick, parseInt(o[3]))
                     if (!n.tieForward) {

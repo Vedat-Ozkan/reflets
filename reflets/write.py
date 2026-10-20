@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import bisect
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from fractions import Fraction
 
-from engine import notes
-
-from reflets.score import FIFTHS, SEMITONES, ScoreInfo
+from reflets import n1x
+from reflets.score import FIFTHS, SEMITONES, ScoreInfo, build_index
 
 VALUES = sorted({Fraction(1, 2**k) * dots for k in range(8) for dots in (1, Fraction(3, 2), Fraction(7, 4))}, reverse=True)
 GRACE_TYPES = {"acciaccatura": 1, "grace16": 8}
@@ -23,7 +22,7 @@ class Plan:
     end_tick: int
     ops: list[str]
     cells: set[tuple[int, int]]
-    expected: dict[tuple[int, int], list[tuple]] = field(default_factory=dict)
+    idea: n1x.Idea
     counts: dict[str, int] = field(default_factory=dict)
 
 
@@ -39,7 +38,7 @@ def midi_tpc(name: str) -> tuple[int, int]:
 def pieces(quarters: Fraction, where: str) -> list[Fraction]:
     whole = quarters / 4
     if whole.denominator & (whole.denominator - 1):
-        raise IdeaError(f"{where}: a duration of {quarters} quarter notes needs a tuplet; tuplets cannot be written yet")
+        raise IdeaError(f"{where}: a duration of {quarters} quarter notes needs a tuplet; write it in braces, as in 3:2{{ 16 C5 D5 E5 }}")
     result = []
     while whole:
         value = next(value for value in VALUES if value <= whole)
@@ -48,151 +47,144 @@ def pieces(quarters: Fraction, where: str) -> list[Fraction]:
     return result
 
 
-def voice_lines(idea: str) -> dict[int, set[tuple[int, int]]]:
-    targets: dict[int, set[tuple[int, int]]] = {}
-    bar = None
-    for line in idea.splitlines():
-        line = line.strip()
-        if re.match(r"m\d+\b", line):
-            bar = int(line.split()[0][1:])
-            targets.setdefault(bar, set())
-        elif bar is not None and re.match(r"\d+\.\d+:", line):
-            staff, voice = (int(x) for x in line.split(":")[0].split("."))
-            targets[bar].add((staff, voice))
-    return targets
+def unwritable(voice: n1x.Voice, where: str) -> None:
+    if voice.marks:
+        raise IdeaError(f"{where}: marks and lines cannot be written yet ({' '.join(token for _, token in voice.marks)}); leave them out")
+    if voice.lyrics:
+        raise IdeaError(f"{where}: lyrics cannot be written yet; leave the lyric lines out")
+    for chord in voice.chords:
+        if chord.decorations or any(note.decorations or note.fingering for note in chord.notes):
+            raise IdeaError(f"{where}: decorations and fingering cannot be written yet; leave out the brackets and colons")
+        if chord.grace and any(note.tied for note in chord.notes):
+            raise IdeaError(f"{where}: a tie on a grace note cannot be written")
+    if any(names for _, _, names in voice.rests):
+        raise IdeaError(f"{where}: decorations on rests cannot be written yet")
 
 
-def as_n1(idea: str) -> str:
-    lines = []
-    for line in idea.strip().splitlines():
-        line = line.strip()
-        if not lines:
-            lines.append(re.sub(r"^N1x ", "N1 ", line))
-        elif re.match(r'(title|composer)=|P\d+ "', line):
-            continue
-        elif re.fullmatch(r"(m|\d+\.)\d+ = m\d+", line):
-            raise IdeaError(f"{line}: references to other bars cannot be written yet; write the bar out")
-        elif re.match(r"m\d+\b", line):
-            words = line.split()
-            unwritable = [word for word in words[1:] if word.split("=")[0] not in ("len", "ts")]
-            if unwritable:
-                raise IdeaError(f"{words[0]}: bar fields cannot be written yet ({' '.join(unwritable)}); leave them out")
-            lines.append(line)
-        elif re.match(r"\d+\.\d+ L\d+:", line):
-            raise IdeaError(f"{line.split(':')[0]}: lyrics cannot be written yet; leave the lyric lines out")
-        else:
-            lines.append(line)
-    return "\n".join(lines)
+def current_fields(info: ScoreInfo, position: int) -> dict[str, str]:
+    fields = dict(field.split("=", 1) for field in n1x.bar_fields(info.bars[position]))
+    key_ticks = sorted(info.keys)
+    tick = info.ticks[position]
+    fields["ks"] = info.keys[key_ticks[bisect.bisect_right(key_ticks, tick) - 1]] if key_ticks else info.key
+    fields["ts"] = info.measures[position].meter
+    return fields
 
 
-def compile_idea(idea: str, info: ScoreInfo, division: int, staves: int) -> Plan:
-    idea = as_n1(idea)
+def compile_idea(text: str, info: ScoreInfo, division: int, staves: int) -> Plan:
     try:
-        index = notes.decode(idea)
-    except notes.NotesError as error:
+        idea = n1x.decode(text)
+    except n1x.DecodeError as error:
         raise IdeaError(str(error)) from None
-    targets = voice_lines(idea)
+    for line in idea.lines[1:]:
+        for name, value in (("title", info.title), ("composer", info.composer)):
+            if line.startswith(name + "=") and line != f"{name}={n1x.quote(value)}":
+                raise IdeaError(f"The {name} cannot be changed by an idea; leave the {name}= line out")
     numbers = [measure.number for measure in info.measures]
     ops, graces, ties = [], [], []
-    plan = Plan(0, 0, ops, set())
-    voices: dict[int, list[tuple[int, Fraction, list[tuple[int, int, bool]]]]] = {}
-    for measure in index.measures:
-        bar = measure.number
-        if bar not in numbers:
-            raise IdeaError(f"Bar {bar} does not exist; the score has bars {numbers[0]} to {numbers[-1]}")
-        position = numbers.index(bar)
+    plan = Plan(0, 0, ops, set(), idea)
+    voices: dict[int, list[tuple[int, Fraction, list[tuple[int, int, bool]], tuple[int, int]]]] = {}
+    rests = grace_notes = 0
+    for bar in idea.bars:
+        if bar.number not in numbers:
+            raise IdeaError(f"Bar {bar.number} does not exist; the score has bars {numbers[0]} to {numbers[-1]}")
+        position = numbers.index(bar.number)
         length, bar_tick = info.lengths[position], info.ticks[position]
-        if measure.declared_length != length:
-            raise IdeaError(f"m{bar}: len= must match the score's bar, which is {length} quarter notes long")
-        for staff, layer in sorted(targets.get(bar, ())):
+        if not bar.fields.get("len", "").isdigit() or Fraction(int(bar.fields["len"]), idea.div) != length:
+            raise IdeaError(f"m{bar.number}: len= must match the score's bar, which is {length * idea.div} long")
+        current = current_fields(info, position)
+        changed = [f"{name}={value}" for name, value in bar.fields.items() if name != "len" and current.get(name) != value]
+        if changed:
+            raise IdeaError(f"m{bar.number}: bar fields cannot be changed yet ({' '.join(changed)}); leave them out or as the score has them")
+        for (staff, layer), voice in sorted(bar.voices.items()):
+            where = f"m{bar.number} {staff}.{layer}"
             if not 1 <= staff <= staves or not 1 <= layer <= 4:
-                raise IdeaError(f"m{bar}: there is no {staff}.{layer}; the score has staves 1 to {staves}, voices 1 to 4")
+                raise IdeaError(f"m{bar.number}: there is no {staff}.{layer}; the score has staves 1 to {staves}, voices 1 to 4")
+            unwritable(voice, where)
+            if voice.end > length:
+                raise IdeaError(f"{where}: the notes last {voice.end} quarter notes; the bar has {length}")
             track = (staff - 1) * 4 + layer - 1
             cell = (position, track)
             plan.cells.add(cell)
-            expected = plan.expected.setdefault(cell, [])
-            events = [event for event in measure.events if event.staff == staff and event.layer == layer]
-            mains: dict[Fraction, list] = {}
-            before: dict[Fraction, dict[str, list]] = {}
-            for event in events:
-                if event.grace:
-                    before.setdefault(event.onset, {}).setdefault(event.attack, []).append(event)
-                else:
-                    mains.setdefault(event.onset, []).append(event)
+            mains = {chord.onset: chord for chord in voice.chords if not chord.grace}
+            before: dict[Fraction, list[n1x.Chord]] = {}
+            for chord in voice.chords:
+                if chord.grace:
+                    before.setdefault(chord.onset, []).append(chord)
+            if any(onset not in mains for onset in before):
+                raise IdeaError(f"{where}: a grace note must come before a note, not a rest or the bar end")
+            items = sorted([(chord.onset, chord.duration, chord) for chord in mains.values()]
+                           + [(onset, duration, None) for onset, duration, _ in voice.rests], key=lambda item: item[0])
+            if voice.end < length:
+                items.append((voice.end, length - voice.end, None))
+            tuplets = sorted(voice.tuplets, key=lambda span: (span[0], -span[1]))
+            for start, stop, _ in tuplets:
+                if stop > length:
+                    raise IdeaError(f"{where}: a tuplet cannot cross the bar line")
+            opened: set[int] = set()
             ops.append(f"v {track} {bar_tick}")
-            state = {"cursor": Fraction(0), "duration": None}
-
-            def enter(kind: str, quarters: Fraction, pitches: list[tuple[int, int, bool]]) -> None:
-                where = f"m{bar} {staff}.{layer}"
-                chunks = pieces(quarters, where)
+            duration = None
+            for onset, quarters, chord in items:
+                stop = onset + quarters
+                if any(onset < edge < stop for start, end, _ in tuplets for edge in (start, end)):
+                    raise IdeaError(f"{where}: the note or rest at {onset * idea.div} crosses the start or end of a tuplet")
+                scale = Fraction(1)
+                for number, (start, end, ratio) in enumerate(tuplets):
+                    if not (start <= onset and stop <= end):
+                        continue
+                    actual, normal = (int(x) for x in ratio.split(":"))
+                    if number not in opened:
+                        total = (end - start) * scale / 4
+                        ops.append(f"t {actual}:{normal} {total.numerator}/{total.denominator}")
+                        opened.add(number)
+                        duration = None
+                    scale *= Fraction(actual, normal)
+                cursor = onset
+                chunks = pieces(quarters * scale, where)
                 for number, chunk in enumerate(chunks):
-                    tick = bar_tick + int(state["cursor"] * division)
-                    if chunk != state["duration"]:
+                    tick = bar_tick + round(cursor * division)
+                    if chunk != duration:
                         ops.append(f"d {chunk.numerator}/{chunk.denominator}")
-                        state["duration"] = chunk
-                    if kind == "r":
+                        duration = chunk
+                    if chord is None:
                         ops.append(f"r {tick}")
-                        expected.append((tick, "R", chunk, 0, 0, ()))
+                        rests += 1
                     else:
+                        pitches = [(*midi_tpc(note.pitch), note.tied) for note in chord.notes]
+                        if number == 0:
+                            group = before.get(onset, [])
+                            kind = "acciaccatura" if len(group) == 1 else "grace16"
+                            for grace in reversed(group):
+                                notes = ",".join("%d:%d" % midi_tpc(note.pitch) for note in grace.notes)
+                                graces.append(f"g {track} {tick} {kind} {notes}")
+                                grace_notes += len(grace.notes)
                         ops.append(f"n {tick} " + ",".join(f"{pitch}:{tpc}" for pitch, tpc, _ in pitches))
                         last = number == len(chunks) - 1
-                        tied = [(pitch, tpc, tie if last else True) for pitch, tpc, tie in pitches]
-                        voices.setdefault(track, []).append((tick, chunk, tied, cell))
-                    state["cursor"] += chunk * 4
-
-            for onset in sorted(mains):
-                where = f"m{bar} {staff}.{layer}"
-                if onset > state["cursor"]:
-                    enter("r", onset - state["cursor"], [])
-                tick = bar_tick + int(onset * division)
-                group = before.pop(onset, {})
-                kind = "acciaccatura" if len(group) == 1 else "grace16"
-                for sequence, attack in reversed(list(enumerate(sorted(group, key=int)))):
-                    if len(group[attack]) > 1:
-                        raise IdeaError(f"{where}: grace chords cannot be written yet")
-                    pitch, tpc = midi_tpc(group[attack][0].pitch)
-                    graces.append(f"g {track} {tick} {kind} {pitch}:{tpc}")
-                    expected.append((tick, "G", None, GRACE_TYPES[kind], sequence, ((pitch, tpc, False, False),)))
-                enter("n", mains[onset][0].duration, [(*midi_tpc(event.pitch), event.tied) for event in mains[onset]])
-            if before:
-                raise IdeaError(f"m{bar} {staff}.{layer}: a grace note must come before a note, not a rest or the bar end")
-            if state["cursor"] > length:
-                raise IdeaError(f"m{bar} {staff}.{layer}: the notes last {state['cursor']} quarter notes; the bar has {length}")
-            if state["cursor"] < length:
-                enter("r", length - state["cursor"], [])
+                        voices.setdefault(track, []).append((tick, chunk / scale, [(p, t, tie if last else True) for p, t, tie in pitches], cell))
+                    cursor += chunk * 4 / scale
     if not plan.cells:
         raise IdeaError("The idea has no voice lines; write at least one 'staff.voice:' line under a bar line")
 
     for track, chords in voices.items():
-        backs: set[int] = set()
         for number, (tick, chunk, pitches, cell) in enumerate(chords):
             following = chords[number + 1] if number + 1 < len(chords) else None
-            forwards = set()
             for pitch, tpc, tie in pitches:
                 if not tie:
                     continue
-                if not following or following[0] != tick + int(chunk * 4 * division) or pitch not in {p for p, _, _ in following[2]}:
+                if not following or following[0] != tick + round(chunk * 4 * division) or pitch not in {p for p, _, _ in following[2]}:
                     raise IdeaError(
                         f"The tie on the note at tick {tick} (track {track}) needs the next note of that voice, "
                         "in the idea, to start right after it on the same pitch"
                     )
                 ties.append(f"~ {track} {tick} {pitch}")
-                forwards.add(pitch)
-            plan.expected[cell].append(
-                (tick, "C", chunk, 0, 0, tuple(sorted((p, t, p in backs, p in forwards) for p, t, _ in pitches)))
-            )
-            backs = forwards
-    for expected in plan.expected.values():
-        expected.sort(key=_order)
     plan.ops = ops + graces + ties
     positions = sorted({position for position, _ in plan.cells})
     plan.start_tick = info.ticks[positions[0]]
     plan.end_tick = info.ticks[positions[-1] + 1] if positions[-1] + 1 < len(info.ticks) else 2**31 - 1
     plan.counts = {
-        "notes": sum(len(c[5]) for e in plan.expected.values() for c in e if c[1] == "C"),
-        "rests": sum(1 for e in plan.expected.values() for c in e if c[1] == "R"),
+        "notes": sum(len(entry[2]) for entries in voices.values() for entry in entries),
+        "rests": rests,
         "ties": len(ties),
-        "grace notes": len(graces),
+        "grace notes": grace_notes,
     }
     return plan
 
@@ -245,31 +237,64 @@ def _untied(keys: list[tuple], first: bool) -> list[tuple]:
     return keys
 
 
-def verify(plan: Plan, pre: list[str], post: list[str], info: ScoreInfo) -> tuple[str | None, list[int]]:
+def merged(chords: list[n1x.Chord]) -> list[n1x.Chord]:
+    result: list[n1x.Chord] = []
+    for chord in chords:
+        last = result[-1] if result else None
+        if (
+            last and not chord.grace and not last.grace and not chord.decorations and last.onset + last.duration == chord.onset
+            and all(note.tied for note in last.notes)
+            and [n.pitch for n in last.notes] == [n.pitch for n in chord.notes]
+            and all(not n.decorations and not n.fingering for n in chord.notes)
+        ):
+            notes = tuple(replace(note, tied=new.tied) for note, new in zip(last.notes, chord.notes))
+            result[-1] = replace(last, duration=last.duration + chord.duration, notes=notes)
+        else:
+            result.append(chord)
+    return result
+
+
+def written(voice: n1x.Voice) -> tuple:
+    return (merged(voice.chords), sorted(voice.tuplets), voice.lyrics, [rest for rest in voice.rests if rest[2]])
+
+
+def line_of(idea: n1x.Idea, number: int, label: str) -> str:
+    bar = None
+    for line in idea.lines[1:]:
+        if re.match(r"m\d+\b", line):
+            bar = int(line.split()[0][1:])
+        elif bar == number and line.startswith(label + ":"):
+            return line
+    return f"{label}: (nothing)"
+
+
+def verify(plan: Plan, pre: list[str], post: list[str], info: ScoreInfo, division: int) -> tuple[str | None, list[int]]:
     before, after = cells(pre, info), cells(post, info)
     numbers = [measure.number for measure in info.measures]
     cut = set()
-    for cell in sorted(set(before) | set(after) | plan.cells):
+    for cell in sorted(set(before) | set(after)):
         position, track = cell
-        want = plan.expected[cell] if cell in plan.cells else before.get(cell, [])
-        got = after.get(cell, [])
-        boundary = []
         if cell in plan.cells:
-            if (position - 1, track) not in plan.cells:
-                boundary.append(True)
-        else:
-            if (position + 1, track) in plan.cells:
-                boundary.append(False)
-            if (position - 1, track) in plan.cells:
-                boundary.append(True)
+            continue
+        want, got = before.get(cell, []), after.get(cell, [])
         loose_want, loose_got = want, got
-        for first in boundary:
-            loose_want, loose_got = _untied(loose_want, first), _untied(loose_got, first)
+        for first, neighbour in ((False, position + 1), (True, position - 1)):
+            if (neighbour, track) in plan.cells:
+                loose_want, loose_got = _untied(loose_want, first), _untied(loose_got, first)
         if loose_want != loose_got:
-            return f"bar {numbers[position]}, staff {track // 4 + 1} voice {track % 4 + 1}: expected {want}, read back {got}", []
-        if cell not in plan.cells and want != got:
+            return f"bar {numbers[position]}, staff {track // 4 + 1} voice {track % 4 + 1}, outside the idea, changed", []
+        if want != got:
             cut.add(numbers[position])
     annotations = ([line for line in pre if line.startswith("A ")], [line for line in post if line.startswith("A ")])
     if annotations[0] != annotations[1]:
         return f"the dynamics, chord symbols or texts in the range changed: {annotations[0]} -> {annotations[1]}", []
+    positions = sorted({position for position, _ in plan.cells})
+    text = n1x.encode(info, build_index(info, post, division), numbers[positions[0]], numbers[positions[-1]])
+    back = n1x.decode(text)
+    got_voices = {(bar.number, cell): voice for bar in back.bars for cell, voice in bar.voices.items()}
+    for bar in plan.idea.bars:
+        for cell, voice in sorted(bar.voices.items()):
+            if written(voice) != written(got_voices.get((bar.number, cell), n1x.Voice())):
+                label = f"{cell[0]}.{cell[1]}"
+                return f"bar {bar.number} {label} was written as '{line_of(plan.idea, bar.number, label)}' and reads back as '{line_of(back, bar.number, label)}'", []
     return None, sorted(cut)

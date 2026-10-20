@@ -174,11 +174,13 @@ def writes(title: str, destructive: bool) -> ToolAnnotations:
     description=(
         "Use this to write an idea into the open score so the user can hear it. idea is N1x in the form "
         "read_score returns: the header line, then for each bar to write its 'mN len=' line (len as in the score; "
-        "bar fields other than len and ts cannot be written yet) "
-        "and one 'staff.voice:' line per voice to write. Each voice line replaces that voice in that bar; voices "
+        "other bar fields only as the score has them, they cannot be changed yet) "
+        "and one 'staff.voice:' line per voice to write. Each voice line replaces that voice's notes and rests in that bar; voices "
         "and bars you leave out are untouched; a line of rests only (e.g. '1.2: 288 r') empties a voice. "
-        "Silence at the end of a voice line is filled with rests. Not yet: tuplets, grace chords, marks (dynamics, "
-        "chord symbols, texts, tempo, clefs), lines, decorations, groups, lyrics, references to other bars. replace=True is needed when a voice you write already has "
+        "Silence at the end of a voice line is filled with rests. Tuplets, grace chords and references to bars "
+        "written out earlier in the idea ('m9 = m1', '2.1 = m1') can be written. Not yet: marks (dynamics, "
+        "chord symbols, texts, tempo, clefs), lines, decorations and decoration groups, lyrics; the marks and lines "
+        "already in a voice stay. replace=True is needed when a voice you write already has "
         "notes there. The idea is written in colour as one undo step and read back; the result gives a proposal id "
         "for keep or discard."
     ),
@@ -201,7 +203,7 @@ async def propose(idea: str, label: str = "idea", replace: bool = False) -> str:
         raise ToolError(f"These voices already have notes: {where}. Ask the user, then call again with replace=True.")
     label = " ".join(label.split()) or "idea"
     reply = await request(f"write {plan.start_tick} {plan.end_tick} {label}\n" + "\n".join(plan.ops))
-    mismatch, cut = verify(plan, pre, reply, info)
+    mismatch, cut = verify(plan, pre, reply, info, int(bridge.hello["division"]))
     if mismatch:
         await request("undo")
         after = await request(f"read {plan.start_tick} {plan.end_tick}")
