@@ -20,7 +20,7 @@ EXPECTED = [
     "m3 len=12",
     "1.1: <( 1 D5 E5 G4 A4 B4 C5 D5 E5 G4 <) [stacc]{ A4 B4 C5 }",
     "m4 len=8 ts=4/4",
-    '1.1: q120"Allegro" 2 C5 B4 A4 G4',
+    '1.1: q120"Allegro" !mf 2 C5 B4 A4 G4',
     "1.1 L1: la la la la",
 ]
 SHORTER = "N1x div=3 ts=4/4 ks=0\nm2 len=9 ts=3/4\n1.1: 3:2{ 1 B4 C5 D5 } 3:2{ E5 G4 A4 } 3:2{ B4 C5 D5 }"
@@ -45,12 +45,16 @@ async def main() -> None:
     start = await server.read_score("all")
     error = await refused(server.propose(IDEA, "no flag", replace=True))
     check("a meter of another length over notes without recast=True is refused", "recast=True" in error, error)
+    marked = re.search(r"proposal id: (p\d+)", await server.propose("N1x div=1 ts=4/4 ks=0\nm4 len=4\n1.1: !mf", "mark"))[1]
+    await server.keep(marked)
     result = await server.propose(IDEA, "recast", replace=True, recast=True)
     check("the recast reads back as written", "Read-back matched" in result, result)
     text = await server.read_score("2-4")
     lines = [line for line in text.splitlines() if re.match(r"m\d|1\.1", line)]
     check("marks, lines and lyrics keep their place in the beat", lines == EXPECTED, "\n".join(lines))
     await server.discard(re.search(r"proposal id: (p\d+)", result)[1])
+    await server.request("undo")
+    await server.request("undo")
     check("discard restores the score", await server.read_score("all") == start)
     error = await refused(server.propose(SHORTER, "shorter", replace=True, recast=True))
     check("a recast into a shorter meter is refused", "only lengthen" in error, error)

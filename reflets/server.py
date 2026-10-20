@@ -243,7 +243,7 @@ async def propose(idea: str, label: str = "idea", replace: bool = False, recast:
         else:
             span = meter_span(idea, info)
         later = await request(f"read {span[0]} {span[1]}") if span else []
-        plan = compile_idea(idea, info, division, staves, pre, later, recast)
+        plan = compile_idea(idea, info, division, staves, pre, later, view.positions if view else range(0))
         add_lines(plan, pre, info)
     except IdeaError as error:
         raise ToolError(str(error)) from None

@@ -474,7 +474,7 @@ def current_fields(info: ScoreInfo, position: int) -> dict[str, str]:
     return fields
 
 
-def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: list[str], later: list[str] = (), recast: bool = False) -> Plan:
+def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: list[str], later: list[str] = (), recast: range = range(0)) -> Plan:
     try:
         idea = n1x.decode(text)
     except n1x.DecodeError as error:
@@ -490,7 +490,7 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
     old_notes = old_chords([line for line in pre if line[0] in "CR"] if recast else pre, info, division, numbers[written_bars[0]], numbers[written_bars[-1]]) if written_bars else {}
     ops, graces, ties, clears, marks, decorations, removals, field_ops, meter_ops = [], [], [], [], [], [], [], [], []
     voltas: dict[int, str] = {}
-    plan = Plan(0, 0, ops, set(), idea, recast=recast)
+    plan = Plan(0, 0, ops, set(), idea, recast=bool(recast))
     voices: dict[int, list[tuple[int, Fraction, list[tuple[int, int, bool]], tuple[int, int]]]] = {}
     rests = grace_notes = 0
     for bar in sorted(idea.bars, key=lambda bar: numbers.index(bar.number) if bar.number in numbers else -1):
@@ -568,7 +568,7 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
                     at = onset + (duration if kind == "breath" else 0)
                     entries.append((at, f"[{n1x.decoration(classify(name.removeprefix('-'), where)[1])}]", name.startswith("-")))
             gone, added, kept = match_marks(olds.get(cell, []), entries, where)
-            if recast:
+            if position in recast:
                 added += [(onset, token, False) for onset, token, _ in kept if token]
                 kept = []
             else:
