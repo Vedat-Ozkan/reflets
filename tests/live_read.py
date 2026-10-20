@@ -6,12 +6,14 @@ With tests/data/bar-fields.mscz open, the bar fields must also be the expected o
 jump and dashed bar line were added by hand, as MuseScore imports them from bar-fields.musicxml as staff text.
 With tests/data/marks.mscz open, the marks must be the expected ones; its expression, system text, playing
 technique, "Dm7" and "sempre" were added by hand to the import of marks.musicxml. With
-tests/data/system-marks.mscz open, tempo, rehearsal mark, system text, segno and D.C. must appear once although
-the violin also shows system markings; those, the system text, segno and D.C. were added by hand. With
+tests/data/system-marks.mscz open, tempo, rehearsal mark, system text, segno, D.C. and the rit. line must appear once
+although the violin also shows system markings; those, the system text, segno, D.C. and rit. were added by hand. With
 tests/data/decorations.mscz open, the decorations must be the expected ones; it is the import of
 decorations.musicxml. With tests/data/groups.mscz open, the tuplets and decoration groups must be the expected
 ones; it is the import of groups.musicxml with the triplet inside bar 5's triplet added by hand (Ctrl+3 on E5), as
-MuseScore imports nested tuplets wrongly.
+MuseScore imports nested tuplets wrongly. With tests/data/lines.mscz open, the lines must be the expected ones; it
+is the import of lines.musicxml with the rit. line on bar 4 and the cresc. line on bar 3 added by hand; the
+wavy glissando of the import reads straight once saved and reopened.
 
     REFLETS_TOKEN_FILE=... uv run python tests/live_read.py
 """
@@ -57,7 +59,7 @@ EXPECTED_SYSTEM_MARKS = """m1 len=4
 2.1: 4 G4
 3.1: 4 C3
 m2 len=4 jump=dc mark=segno
-1.1: S"Tutti" 4 C5
+1.1: S"Tutti" tempo"rit."( 4 C5 tempo)
 2.1: 4 G4
 3.1: 4 C3"""
 DECORATIONS_TITLE = "Reflets decorations"
@@ -95,6 +97,22 @@ m5 len=360
 1.1: 3:2{ 60 C5 D5 3:2{ 20 E5 40 r } } 180 C6
 m6 len=360
 1.1: 3:2{ 30 r D5 E5 } 90 F5 G5 3:2{ 30 C5 60 r }"""
+LINES_TITLE = "Reflets lines"
+EXPECTED_LINES = """m1 len=4
+1.1: ( <( 1 C5 D5 E5 <) F5 )
+2.1: ped( 4 C3
+m2 len=4
+1.1: 8va( >( 1 G5 A5 >) ( B5 C6 8va)
+2.1: 4 C3 ped)
+m3 len=4
+1.1: line"sempre legato"( 1 C6 D6 ) tr( 2 E5 line)
+2.1: cresc( 4 C3 cresc)
+m4 len=4
+1.1: tempo"rit."( 2 C5[gliss] tr) G5 tempo)
+2.1: 4 C3
+m5 len=4
+1.1: line"rit."( 4 C5 line)
+2.1: ped( 4 C3 ped)@2"""
 failures = []
 
 
@@ -118,6 +136,7 @@ def strip(text: str) -> str:
             words = line.split()
             line = " ".join([words[0], *(word for word in words[1:] if word.split("=")[0] in ("len", "ts"))])
         else:
+            line = re.sub(r' [a-z0-9<>-]*("(?:[^"\\]|\\.)*")?[()](@\d+)?(?= |$)', "", line)
             line = re.sub(r' (!|x|s|S|R|fb|pt|q[\d.]+)?"(?:[^"\\]|\\.)*"(@\d+)?| (![a-z]+|q[\d.]+|clef=\S+)(@\d+)?', "", line)
             line = re.sub(r"\[[^\]]*\](@\d+)?|(?<=\d)('[^\s+\[~:']*)*(:[A-Za-z][\w=-]*)*", "", line)
             line = re.sub(r"(?<= )(\d+:\d+)?\{ | \}(?= |$)", "", line + " ")
@@ -158,6 +177,9 @@ async def main() -> None:
     if info.title == GROUPS_TITLE:
         got = text[text.index("\nm1 ") + 1 :]
         check("groups and tuplets", got == EXPECTED_GROUPS, f"\n{got}")
+    if info.title == LINES_TITLE:
+        got = text[text.index("\nm1 ") + 1 :]
+        check("lines", got == EXPECTED_LINES, f"\n{got}")
     if failures:
         sys.exit(f"{len(failures)} failed")
 

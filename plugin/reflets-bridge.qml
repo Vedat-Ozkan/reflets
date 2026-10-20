@@ -5,10 +5,10 @@ import FileIO 3.0
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.6.0"
+    version: "0.7.0"
     requiresScore: false
 
-    readonly property int proto: 6
+    readonly property int proto: 7
     readonly property int port: 8731
     readonly property string ideaColor: "#1565c0"
     property string token: ""
@@ -63,6 +63,10 @@ MuseScore {
         for (var i = 0; n.elements && i < n.elements.length; i++) {
             if (n.elements[i].name === "Fingering")
                 t += ":F" + encodeURIComponent(n.elements[i].text)
+        }
+        for (var j = 0; n.spannerForward && j < n.spannerForward.length; j++) {
+            if (n.spannerForward[j].name === "Glissando")
+                t += ":g" + n.spannerForward[j].glissType
         }
         return t
     }
@@ -178,6 +182,30 @@ MuseScore {
         return lines
     }
 
+    function spannerLines(startTick, endTick) {
+        var lines = []
+        var sp = curScore.spanners
+        for (var i = 0; sp && i < sp.length; i++) {
+            var v = sp[i]
+            if (v.name === "Volta")
+                continue
+            var tick = v.spannerTick.ticks
+            var end = tick + v.spannerTicks.ticks
+            var e = v.endElement
+            var grace = (v.name === "Slur" || v.name === "HammerOnPullOff") && e && e.noteType > 0 && e.noteType < 32
+            if ((v.name === "Slur" || v.name === "HammerOnPullOff") && e && e.actualDuration)
+                end = e.fraction.ticks + (grace ? 0 : e.actualDuration.ticks)
+            if (!(tick >= startTick && tick < endTick || end > startTick && end <= endTick))
+                continue
+            var sub = v.name === "HairPin" ? v.hairpinType : v.name === "Ottava" ? v.ottavaType
+                : v.name === "Trill" ? v.trillType : v.name === "Vibrato" ? v.vibratoType
+                : v.name === "TextLine" ? (v.systemFlag ? 1 : 0) : 0
+            lines.push("N " + tick + " " + end + (grace ? "g" : "") + " " + v.track + " " + v.spannerTrack2 + " " + v.name + " " + sub
+                + " " + escapeText(v.beginText || ""))
+        }
+        return lines
+    }
+
     function read(startTick, endTick) {
         var lines = []
         var ntracks = curScore.ntracks
@@ -221,7 +249,7 @@ MuseScore {
                 }
             }
         }
-        return lines
+        return lines.concat(spannerLines(startTick, endTick))
     }
 
     function offsetAt(track, tick) {

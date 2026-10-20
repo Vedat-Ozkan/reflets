@@ -10,6 +10,7 @@ from engine.score import Event, Measure, ScoreIndex, beat_length
 FIFTHS = "FCGDAEB"
 SEMITONES = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
 SYSTEM_MARKS = {"Tempo", "RehearsalMark", "SystemText"}
+SYSTEM_LINES = {"GradualTempoChange"}
 
 
 def spell(pitch: int, tpc: int) -> str:
@@ -143,8 +144,12 @@ def build_index(info: ScoreInfo, lines: list[str], division: int) -> ScoreIndex:
     info.details, info.tuplets = {}, {}
     open_tuplets: dict[tuple[int, int], list[tuple[Fraction, Fraction, str]]] = {}
     cursors: dict[tuple[int, int], Fraction] = {}
+    spanners: list[list[str]] = []
     for number, line in enumerate(lines):
         words = line.split(" ")
+        if words[0] == "N" and words[5] != "PartialLyricsLine":
+            spanners.append(words[1:])
+            continue
         if words[0] in ("A", "F"):
             tick, track = int(words[1]), int(words[2])
             position = bisect.bisect_right(info.ticks, tick) - 1
@@ -199,10 +204,32 @@ def build_index(info: ScoreInfo, lines: list[str], division: int) -> ScoreIndex:
                     attack=f"g{number}" if grace else "",
                 )
             )
+    line_marks(info, spanners, division)
     for measure in info.measures:
         measure.events.sort(key=lambda event: (event.onset, event.staff))
     meter = info.measures[0].meter if info.measures else ""
     return ScoreIndex.from_measures(info.measures, meter, info.key)
+
+
+def line_marks(info: ScoreInfo, spanners: list[list[str]], division: int) -> None:
+    lines = []
+    for words in spanners:
+        tick, end, track, track2 = (int(word.rstrip("g")) for word in words[:4])
+        system = words[4] in SYSTEM_LINES or words[4] == "TextLine" and words[5] == "1"
+        text = unescape(" ".join(words[6:]))
+        lines.append((tick, end, words[1].endswith("g"), 0 if system else track, 0 if system else track2, system, f"{words[4]}:{words[5]}", text))
+    marks = []
+    opening = sorted(lines, key=lambda line: (line[0], -line[1], line[6], line[3]))
+    for tick, _, _, track, _, system, value, text in opening:
+        marks.append(("Open", tick, track, bisect.bisect_right, system, value, text))
+    for tick, end, grace, _, track2, system, value, text in sorted(reversed(opening), key=lambda line: (line[1], -line[0])):
+        side = bisect.bisect_right if grace else bisect.bisect_left
+        marks.append(("CloseGrace" if grace else "Close", end, track2, side, system, value, text))
+    for kind, at, track, side, system, value, text in marks:
+        position = side(info.ticks, at) - 1
+        mark = Mark(track, Fraction(at - info.ticks[position], division), kind, value, text)
+        if not system or mark not in info.bars[position].marks:
+            info.bars[position].marks.append(mark)
 
 
 def track_tuplets(stack: list, spans: list, onset: Fraction, flags: list[str]) -> None:

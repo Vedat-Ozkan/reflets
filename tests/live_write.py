@@ -51,7 +51,7 @@ async def main() -> None:
     first = await server.propose(IDEA, "test", replace=True)
     check("propose writes and reads back", "Read-back matched" in first and "3 grace notes" in first, first)
     bars = await server.read_score("5-6")
-    check("bars 5-6 hold the idea", "1.1: !p 3 G5~ G5 gAb5 2 Bb5 1 Ab5 3 G5" in bars and "1.2: 6 r Bb4" in bars, bars)
+    check("bars 5-6 hold the idea", "1.1: !p 3 G5~ ) G5 gAb5 2 Bb5 1 Ab5 3 G5" in bars and "1.2: 6 r Bb4" in bars, bars)
     check("discard", "Discarded" in await server.discard(proposal(first)))
     await unchanged("after discard")
 

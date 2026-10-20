@@ -36,6 +36,9 @@ mcp = MCPServer(
         "in a chord takes a colon, C4:head=x+E4; fingering follows the pitch, C4'1. Braces group notes: "
         "3:2{ 8 C5 D5 E5 } is a tuplet, durations inside in div units of the time they take; [stacc]{ … } gives "
         "every note inside the decoration; a duration number carries across braces. "
+        "Lines open just before the note they start on and close just after the note they end with, or with @, "
+        "possibly in a later bar: ( ) slur, <( <) and >( >) hairpins, cresc( and dim( lines, ped( pedal, 8va( 8vb( "
+        "15ma( octave lines (pitches stay sounding), tr( trill line, line\"…\"( text line, tempo\"rit.\"( tempo change. "
         "To try an idea, write it in the same form with propose; it lands in the score in colour as one undo step. "
         "The user listens in MuseScore, then you call keep or discard as they decide. Before you say which note "
         "sounds where, find the bar and count through its voice line from the start of the bar; answers given "
@@ -172,7 +175,7 @@ def writes(title: str, destructive: bool) -> ToolAnnotations:
         "and one 'staff.voice:' line per voice to write. Each voice line replaces that voice in that bar; voices "
         "and bars you leave out are untouched; a line of rests only (e.g. '1.2: 288 r') empties a voice. "
         "Silence at the end of a voice line is filled with rests. Not yet: tuplets, grace chords, marks (dynamics, "
-        "chord symbols, texts, tempo, clefs), decorations, groups. replace=True is needed when a voice you write already has "
+        "chord symbols, texts, tempo, clefs), lines, decorations, groups. replace=True is needed when a voice you write already has "
         "notes there. The idea is written in colour as one undo step and read back; the result gives a proposal id "
         "for keep or discard."
     ),
