@@ -1,14 +1,17 @@
 """End-to-end check of reading N1x against a live MuseScore (docs/spec-core.md 4.2).
 
 Needs the bridge plugin running and a score open: N1x with its extensions stripped must equal the engine's N1 of
-the same score. With tests/data/bar-fields.mscz open, the bar fields must also be the expected ones; its markers,
+the same score, both decoded and re-encoded by the engine, which merges the rests N1x splits at tuplet edges.
+With tests/data/bar-fields.mscz open, the bar fields must also be the expected ones; its markers,
 jump and dashed bar line were added by hand, as MuseScore imports them from bar-fields.musicxml as staff text.
 With tests/data/marks.mscz open, the marks must be the expected ones; its expression, system text, playing
 technique, "Dm7" and "sempre" were added by hand to the import of marks.musicxml. With
 tests/data/system-marks.mscz open, tempo, rehearsal mark, system text, segno and D.C. must appear once although
 the violin also shows system markings; those, the system text, segno and D.C. were added by hand. With
 tests/data/decorations.mscz open, the decorations must be the expected ones; it is the import of
-decorations.musicxml.
+decorations.musicxml. With tests/data/groups.mscz open, the tuplets and decoration groups must be the expected
+ones; it is the import of groups.musicxml with the triplet inside bar 5's triplet added by hand (Ctrl+3 on E5), as
+MuseScore imports nested tuplets wrongly.
 
     REFLETS_TOKEN_FILE=... uv run python tests/live_read.py
 """
@@ -79,6 +82,19 @@ m6 len=8
 m7 len=8
 1.1: 1 C5 D5 B3[staff+1] A3[staff+1] 2 C5+E5:head=diamond E5'2
 2.1: 8 C3"""
+GROUPS_TITLE = "Reflets groups"
+EXPECTED_GROUPS = """m1 len=360
+1.1: 3:2{ 30 C5 D5 E5 } [stacc]{ 45 F5 G5 A5 B5 } 90 C6
+m2 len=360
+1.1: 3:2{ 30 C5 30 r E5 } 45 F5[stacc] G5[stacc] 90 r A5
+m3 len=360
+1.1: 3:2{ 15 C5 D5 E5 } 3:2{ F5 G5 A5 } 3:2{ C5 D5 E5 F5 G5 A5 } 5:4{ 18 C5 D5 E5 F5 G5 } 90 C6
+m4 len=360
+1.1: 3:2[acc]{ 60 C5 D5 E5 } 3:2{ 30 C5 60 r } 45 r D5
+m5 len=360
+1.1: 3:2{ 60 C5 D5 3:2{ 20 E5 40 r } } 180 C6
+m6 len=360
+1.1: 3:2{ 30 r D5 E5 } 90 F5 G5 3:2{ 30 C5 60 r }"""
 failures = []
 
 
@@ -86,6 +102,10 @@ def check(name: str, ok: bool, detail: str = "") -> None:
     print(("PASS " if ok else "FAIL ") + name + (f": {detail}" if detail and not ok else ""))
     if not ok:
         failures.append(name)
+
+
+def normal(text: str) -> str:
+    return notes.encode(notes.decode(text))
 
 
 def strip(text: str) -> str:
@@ -100,6 +120,7 @@ def strip(text: str) -> str:
         else:
             line = re.sub(r' (!|x|s|S|R|fb|pt|q[\d.]+)?"(?:[^"\\]|\\.)*"(@\d+)?| (![a-z]+|q[\d.]+|clef=\S+)(@\d+)?', "", line)
             line = re.sub(r"\[[^\]]*\](@\d+)?|(?<=\d)('[^\s+\[~:']*)*(:[A-Za-z][\w=-]*)*", "", line)
+            line = re.sub(r"(?<= )(\d+:\d+)?\{ | \}(?= |$)", "", line + " ")
             line = re.sub(r" +", " ", line).rstrip()
             if line.endswith(":"):
                 continue
@@ -116,7 +137,7 @@ async def main() -> None:
     middle = numbers[len(numbers) // 2]
     for a, b in [(first, last), (1, min(4, last)), (middle, last)]:
         text = n1x.encode(info, index, a, b)
-        check(f"bars {a}-{b}, stripped N1x equals N1", strip(text) == notes.encode(index, a, b))
+        check(f"bars {a}-{b}, stripped N1x equals N1", normal(strip(text)) == normal(notes.encode(index, a, b)))
     text = n1x.encode(info, index, first, last)
     print(text.split("\nm")[0])
     bars = [line for line in text.splitlines() if re.match(r"m\d+ ", line)]
@@ -134,6 +155,9 @@ async def main() -> None:
     if info.title == DECORATIONS_TITLE:
         got = text[text.index("\nm1 ") + 1 :]
         check("decorations", got == EXPECTED_DECORATIONS, f"\n{got}")
+    if info.title == GROUPS_TITLE:
+        got = text[text.index("\nm1 ") + 1 :]
+        check("groups and tuplets", got == EXPECTED_GROUPS, f"\n{got}")
     if failures:
         sys.exit(f"{len(failures)} failed")
 

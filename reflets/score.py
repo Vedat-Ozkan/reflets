@@ -73,6 +73,7 @@ class ScoreInfo:
     instrument_ids: list[str] = field(default_factory=list)
     bars: list[Bar] = field(default_factory=list)
     details: dict[str, tuple[list[str], list[str]]] = field(default_factory=dict)
+    tuplets: dict[tuple[int, int, int], list[tuple[Fraction, Fraction, str]]] = field(default_factory=dict)
 
 
 def parse_info(lines: list[str]) -> ScoreInfo:
@@ -139,7 +140,9 @@ def build_index(info: ScoreInfo, lines: list[str], division: int) -> ScoreIndex:
     for measure, bar in zip(info.measures, info.bars):
         measure.events = []
         bar.marks = []
-    info.details = {}
+    info.details, info.tuplets = {}, {}
+    open_tuplets: dict[tuple[int, int], list[tuple[Fraction, Fraction, str]]] = {}
+    cursors: dict[tuple[int, int], Fraction] = {}
     for number, line in enumerate(lines):
         words = line.split(" ")
         if words[0] in ("A", "F"):
@@ -161,13 +164,20 @@ def build_index(info: ScoreInfo, lines: list[str], division: int) -> ScoreIndex:
         duration = 4 * written
         for flag in flags:
             if flag[0] == "T":
-                actual, normal = (int(x) for x in flag[1:].split(":"))
+                actual, normal = (int(x) for x in flag[1:].split(":")[:2])
                 duration = duration * normal / actual
         grace = any(flag[0] == "G" for flag in flags)
         position = bisect.bisect_right(info.ticks, tick) - 1
         measure = info.measures[position]
         onset = Fraction(tick - info.ticks[position], division)
+        cursor = cursors.get((position, track))
+        if cursor is not None and abs(onset - cursor) < Fraction(1, division):
+            onset = cursor
         staff, layer = track // 4 + 1, track % 4 + 1
+        if not grace:
+            cursors[(position, track)] = onset + duration
+            spans = info.tuplets.setdefault((position, staff, layer), [])
+            track_tuplets(open_tuplets.setdefault((position, track), []), spans, onset, flags)
         if words[0] == "R":
             measure.events.append(Event(f"e{number}", measure.number, staff, onset, duration, layer=layer, segment=measure.id))
             continue
@@ -193,6 +203,19 @@ def build_index(info: ScoreInfo, lines: list[str], division: int) -> ScoreIndex:
         measure.events.sort(key=lambda event: (event.onset, event.staff))
     meter = info.measures[0].meter if info.measures else ""
     return ScoreIndex.from_measures(info.measures, meter, info.key)
+
+
+def track_tuplets(stack: list, spans: list, onset: Fraction, flags: list[str]) -> None:
+    levels = [flag[1:].split(":") for flag in flags if flag[0] == "T"]
+    scale = Fraction(1)
+    for depth, (actual, normal, total) in enumerate(levels):
+        ratio = f"{actual}:{normal}"
+        if depth >= len(stack) or onset >= stack[depth][1] or stack[depth][2] != ratio:
+            del stack[depth:]
+            stack.append((onset, onset + 4 * Fraction(total) * scale, ratio))
+            spans.append(stack[-1])
+        scale = scale * int(normal) / int(actual)
+    del stack[len(levels):]
 
 
 def unescape(text: str) -> str:

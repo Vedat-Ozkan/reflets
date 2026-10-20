@@ -1,4 +1,4 @@
-"""N1x (docs/spec-core.md 4.2): N1 with the header lines, bar fields, marks and decorations Reflets reads from the score."""
+"""N1x (docs/spec-core.md 4.2): N1 with the header lines, bar fields, marks, decorations and groups Reflets reads from the score."""
 
 from __future__ import annotations
 
@@ -115,7 +115,8 @@ def encode(info: ScoreInfo, index: ScoreIndex, first: int, last: int) -> str:
                 marks.setdefault(where, []).append((mark.onset, token))
         for staff, layer in sorted(voices.keys() | marks.keys() | attached.keys()):
             events, voice_marks = voices.get((staff, layer), []), marks.get((staff, layer), [])
-            lines.append(f"{staff}.{layer}: " + voice(events, div, voice_marks, info.details, attached.get((staff, layer), [])))
+            tuplets = info.tuplets.get((position, staff, layer), []) if events else []
+            lines.append(f"{staff}.{layer}: " + voice(events, div, voice_marks, info.details, attached.get((staff, layer), []), tuplets))
     return "\n".join(lines)
 
 
@@ -188,20 +189,27 @@ def note_decorations(fields: list[str]) -> list[str]:
     return names
 
 
+def bracket(names: list[str]) -> str:
+    return f"[{','.join(names)}]" if names else ""
+
+
 def note_token(event: Event, fields: list[str], decorations: list[str], in_chord: bool) -> str:
     name = event.pitch + "".join("'" + unquote(field[1:]) for field in fields if field[0] == "F")
     if in_chord:
         return name + "".join(f":{decoration}" for decoration in decorations) + ("~" if event.tied else "")
-    return name + (f"[{','.join(decorations)}]" if decorations else "") + ("~" if event.tied else "")
+    return name + bracket(decorations) + ("~" if event.tied else "")
 
 
-def chord_token(group: list[Event], details: dict[str, tuple[list[str], list[str]]], extra: list[str], graces: int) -> str:
+def chord_names(group: list[Event], details: dict[str, tuple[list[str], list[str]]], extra: list[str], graces: int) -> list[str]:
     chord = chord_decorations(details[group[0].id][0], graces) + extra
-    fields = [details[event.id][1] for event in group]
+    return note_decorations(details[group[0].id][1]) + chord if len(group) == 1 else chord
+
+
+def chord_token(group: list[Event], details: dict[str, tuple[list[str], list[str]]], names: list[str]) -> str:
     if len(group) == 1:
-        return note_token(group[0], fields[0], note_decorations(fields[0]) + chord, False)
-    notes = "+".join(note_token(event, own, note_decorations(own), True) for event, own in zip(group, fields))
-    return notes + (f"[{','.join(chord)}]" if chord else "")
+        return note_token(group[0], details[group[0].id][1], names, False)
+    own = [details[event.id][1] for event in group]
+    return "+".join(note_token(event, fields, note_decorations(fields), True) for event, fields in zip(group, own)) + bracket(names)
 
 
 def plain(text: str) -> str:
@@ -225,60 +233,96 @@ def voice(
     marks: list[tuple[Fraction, str]],
     details: dict[str, tuple[list[str], list[str]]],
     attached: list[Mark],
+    tuplets: list[tuple[Fraction, Fraction, str]],
 ) -> str:
-    tokens: list[str] = []
-    cursor, current = Fraction(0), None
     onsets: dict[tuple[Fraction, bool, str], list[Event]] = {}
     for event in events:
         onsets.setdefault((event.onset, event.grace, event.attack if event.grace else ""), []).append(event)
-    spans, end = [], Fraction(0)
-    for onset, grace, _ in sorted(onsets):
-        if not grace:
-            if onset > end:
-                spans.append(("r", end, onset))
-            end = onset + onsets[(onset, grace, "")][0].duration
-            spans.append(("n", onset, end))
+    graces: dict[Fraction, int] = {}
+    for onset, grace, _ in onsets:
+        if grace:
+            graces[onset] = graces.get(onset, 0) + 1
+    boundaries = {time for start, stop, _ in tuplets for time in (start, stop)}
+
+    def rests(start: Fraction, until: Fraction) -> list[tuple[str, Fraction, Fraction]]:
+        cuts = sorted(time for time in boundaries if start < time < until)
+        return [("r", a, b) for a, b in zip([start, *cuts], [*cuts, until])] if until > start else []
+
+    pieces, end = [], Fraction(0)
+    for onset in sorted(onset for onset, grace, _ in onsets if not grace):
+        pieces += rests(end, onset)
+        end = onset + onsets[(onset, False, "")][0].duration
+        pieces.append(("n", onset, end))
+    pieces += rests(end, max([end, *(stop for _, stop, _ in tuplets)]))
     extra: dict[tuple[str, Fraction], list[str]] = {}
     marks = list(marks)
     for mark in attached:
         name = decoration(mark.value)
         side = 1 if mark.kind == "Fermata" else 2
-        span = next((span for span in spans if span[side] == mark.onset), None)
-        if span:
-            extra.setdefault(span[:2], []).append(name)
+        piece = next((piece for piece in pieces if piece[side] == mark.onset), None)
+        if piece:
+            extra.setdefault(piece[:2], []).append(name)
         else:
             marks.append((mark.onset, f"[{name}]"))
+    names = {start: chord_names(onsets[(start, False, "")], details, extra.get(("n", start), []), graces.get(start, 0))
+             for kind, start, _ in pieces if kind == "n"}
+    groups = list(tuplets)
+    shared: set[Fraction] = set()
+    run: list[tuple[str, Fraction, Fraction]] = []
+
+    def close_run() -> None:
+        if len(run) >= 3:
+            start, stop, label = run[0][1], run[-1][2], bracket(names[run[0][1]])
+            same = next((number for number, group in enumerate(groups) if group[:2] == (start, stop) and "[" not in group[2]), None)
+            if same is None:
+                groups.append((start, stop, label))
+            else:
+                groups[same] = (start, stop, groups[same][2] + label)
+            shared.update(piece[1] for piece in run)
+        run.clear()
+
+    for piece in pieces:
+        own = names.get(piece[1]) if piece[0] == "n" and not graces.get(piece[1]) else None
+        if not (own and run and own == names[run[-1][1]] and piece[1] not in boundaries):
+            close_run()
+        if own:
+            run.append(piece)
+    close_run()
+    opening = sorted(groups, key=lambda group: (group[0], -group[1]))
     pending = sorted(marks, key=lambda mark: mark[0])
+    tokens: list[str] = []
+    stack: list[Fraction] = []
 
     def place(until: Fraction, at: bool) -> None:
         while pending and (pending[0][0] < until or not at and pending[0][0] == until):
             onset, token = pending.pop(0)
             tokens.append(f"{token}@{units(onset, div)}" if at else token)
 
-    graces = {}
-    for onset, grace, _ in onsets:
-        if grace:
-            graces[onset] = graces.get(onset, 0) + 1
-    for onset, grace, attack in sorted(onsets, key=lambda key: (key[0], not key[1])):
-        group = onsets[(onset, grace, attack)]
-        names = chord_token(group, details, [] if grace else extra.get(("n", onset), []), graces.get(onset, 0))
-        if onset > cursor:
-            place(cursor, False)
-            gap = units(onset - cursor, div)
-            rest = extra.get(("r", cursor))
-            tokens += [str(gap), f"r[{','.join(rest)}]" if rest else "r"]
-            place(onset, True)
-            current, cursor = gap, onset
-        place(onset, False)
-        if grace:
-            tokens.append("g" + names)
-            continue
-        duration = units(group[0].duration, div)
-        if duration != current:
-            tokens.append(str(duration))
-            current = duration
-        tokens.append(names)
-        cursor = onset + group[0].duration
-        place(cursor, True)
+    def edge(time: Fraction) -> None:
+        while stack and stack[-1] <= time:
+            stack.pop()
+            tokens.append("}")
+        place(time, False)
+        while opening and opening[0][0] == time:
+            start, stop, prefix = opening.pop(0)
+            tokens.append(prefix + "{")
+            stack.append(stop)
+
+    current = None
+    for kind, start, stop in pieces:
+        edge(start)
+        if kind == "r":
+            current = units(stop - start, div)
+            tokens += [str(current), "r" + bracket(extra.get(("r", start), []))]
+        else:
+            for key in [key for key in onsets if key[1] and key[0] == start]:
+                tokens.append("g" + chord_token(onsets[key], details, chord_names(onsets[key], details, [], graces[start])))
+            duration = units(stop - start, div)
+            if duration != current:
+                tokens.append(str(duration))
+                current = duration
+            tokens.append(chord_token(onsets[(start, False, "")], details, [] if start in shared else names[start]))
+        place(stop, True)
+    tokens += ["}"] * len(stack)
     place(Fraction(10**9), True)
     return " ".join(tokens)

@@ -5,10 +5,10 @@ import FileIO 3.0
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.5.0"
+    version: "0.6.0"
     requiresScore: false
 
-    readonly property int proto: 5
+    readonly property int proto: 6
     readonly property int port: 8731
     readonly property string ideaColor: "#1565c0"
     property string token: ""
@@ -67,6 +67,13 @@ MuseScore {
         return t
     }
 
+    function tupletFlags(el) {
+        var flags = ""
+        for (var t = el.tuplet; t; t = t.tuplet)
+            flags = " T" + t.actualNotes + ":" + t.normalNotes + ":" + frac(t.duration) + flags
+        return flags
+    }
+
     function chordLine(tick, track, el, grace) {
         var offset = curScore.staves[Math.floor(track / 4)].pitchOffset(fraction(tick, division * 4))
         var ns = []
@@ -76,7 +83,7 @@ MuseScore {
         for (var j = 0; el.articulations && j < el.articulations.length; j++)
             arts.push(symName(el.articulations[j].symbol))
         return "C " + tick + " " + track + " " + frac(el.duration)
-            + (el.tuplet ? " T" + el.tuplet.actualNotes + ":" + el.tuplet.normalNotes : "")
+            + tupletFlags(el)
             + (grace ? " G" + el.noteType : "") + (arts.length ? " !" + arts.join(",") : "")
             + (el.arpeggio ? " A" + el.arpeggio.arpeggioType : "")
             + (el.tremoloSingleChord ? " M" + el.tremoloSingleChord.tremoloType : "")
@@ -201,7 +208,7 @@ MuseScore {
                         lines.push("A " + seg.tick + " " + track + " Breath " + symName(el.symbol) + " ")
                     } else if (el.type === Element.REST) {
                         lines.push("R " + seg.tick + " " + track + " " + frac(el.duration)
-                            + (el.tuplet ? " T" + el.tuplet.actualNotes + ":" + el.tuplet.normalNotes : ""))
+                            + tupletFlags(el))
                     }
                 }
                 var ann = seg.annotations
