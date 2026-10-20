@@ -1,4 +1,4 @@
-"""N1x (docs/spec-core.md 4.2): N1 with the header lines, bar fields and marks Reflets reads from the score."""
+"""N1x (docs/spec-core.md 4.2): N1 with the header lines, bar fields, marks and decorations Reflets reads from the score."""
 
 from __future__ import annotations
 
@@ -40,6 +40,22 @@ CLEF_NAMES = (
     "F F15mb F8vb F8va F15ma F3 F5 F_F18C F_19C PERC PERC2 TAB TAB4 TAB2 TAB4_SERIF C4_8VB G8vbc"
 ).split()
 TEXT_MARKS = {"Expression": "x", "StaffText": "s", "SystemText": "S", "RehearsalMark": "R", "PlayTechAnnotation": "pt"}
+SHORT_DECORATIONS = {
+    **{f"artic{name}{side}": short for name, short in [("Staccato", "stacc"), ("Staccatissimo", "staccis"), ("Tenuto", "ten"),
+       ("Accent", "acc"), ("Marcato", "marc"), ("TenutoStaccato", "port")] for side in ("Above", "Below")},
+    "fermataAbove": "fermata",
+    "fermataBelow": "fermata",
+    "breathMarkComma": "breath",
+    "caesura": "caesura",
+    "ornamentTrill": "tr",
+    "ornamentMordent": "mord",
+    "ornamentShortTrill": "prall",
+    "ornamentTurn": "turn",
+}
+ARPEGGIOS = ["arp", "arp-up", "arp-down", "arp-bracket", "arp-up-straight", "arp-down-straight"]
+TREMOLOS = ["trem8", "trem16", "trem32", "trem64", "buzz"]
+GRACES = {1: "acciacc", 2: "appog", 4: "grace4", 8: "grace16", 16: "grace32", 32: "after", 64: "after16", 128: "after32"}
+NOTE_DECORATIONS = {"l": "lv", "p": "paren"}
 MARKERS = ["segno", "varsegno", "coda", "varcoda", "codetta", "fine", "tocoda", "tocodasym", "dacoda", "dadblcoda", "user"]
 
 
@@ -78,12 +94,18 @@ def encode(info: ScoreInfo, index: ScoreIndex, first: int, last: int) -> str:
             if event.pitch:
                 voices.setdefault((event.staff, event.layer), []).append(event)
         marks: dict[tuple[int, int], list[tuple[Fraction, str]]] = {}
+        attached: dict[tuple[int, int], list[Mark]] = {}
         for mark in info.bars[position].marks:
+            where = (mark.track // 4 + 1, mark.track % 4 + 1)
+            if mark.kind in ("Fermata", "Breath"):
+                attached.setdefault(where, []).append(mark)
+                continue
             token = mark_token(mark)
             if token and mark.onset < measure.length:
-                marks.setdefault((mark.track // 4 + 1, mark.track % 4 + 1), []).append((mark.onset, token))
-        for staff, layer in sorted(voices.keys() | marks.keys()):
-            lines.append(f"{staff}.{layer}: " + voice(voices.get((staff, layer), []), div, marks.get((staff, layer), [])))
+                marks.setdefault(where, []).append((mark.onset, token))
+        for staff, layer in sorted(voices.keys() | marks.keys() | attached.keys()):
+            events, voice_marks = voices.get((staff, layer), []), marks.get((staff, layer), [])
+            lines.append(f"{staff}.{layer}: " + voice(events, div, voice_marks, info.details, attached.get((staff, layer), [])))
     return "\n".join(lines)
 
 
@@ -126,6 +148,38 @@ def mark_token(mark: Mark) -> str | None:
     return None
 
 
+def decoration(name: str) -> str:
+    return SHORT_DECORATIONS.get(name, name)
+
+
+def chord_decorations(fields: list[str], graces: int) -> list[str]:
+    names = []
+    for word in fields:
+        if word[0] == "!":
+            names += [decoration(name) for name in word[1:].split(",")]
+        elif word[0] == "A":
+            names.append(ARPEGGIOS[int(word[1:])] if int(word[1:]) < len(ARPEGGIOS) else f"arp{word[1:]}")
+        elif word[0] == "M":
+            names.append(TREMOLOS[int(word[1:])] if int(word[1:]) < len(TREMOLOS) else f"trem{word[1:]}")
+        elif word[0] == "G" and int(word[1:]) != (1 if graces == 1 else 8):
+            names.insert(0, GRACES.get(int(word[1:]), word[1:]))
+    return names
+
+
+def note_token(event: Event, decorations: list[str], in_chord: bool) -> str:
+    if in_chord:
+        return event.pitch + "".join(f":{name}" for name in decorations) + ("~" if event.tied else "")
+    return event.pitch + (f"[{','.join(decorations)}]" if decorations else "") + ("~" if event.tied else "")
+
+
+def chord_token(group: list[Event], details: dict[str, tuple[list[str], list[str]]], extra: list[str], graces: int) -> str:
+    chord = chord_decorations(details[group[0].id][0], graces) + extra
+    notes = [[NOTE_DECORATIONS[f] for f in details[event.id][1] if f in NOTE_DECORATIONS] for event in group]
+    if len(group) == 1:
+        return note_token(group[0], notes[0] + chord, False)
+    return "+".join(note_token(event, own, True) for event, own in zip(group, notes)) + (f"[{','.join(chord)}]" if chord else "")
+
+
 def plain(text: str) -> str:
     return html.unescape(re.sub(r"<[^>]*>", "", text)).strip()
 
@@ -141,9 +195,35 @@ def units(value: Fraction, div: int) -> int:
     return int(count)
 
 
-def voice(events: list[Event], div: int, marks: list[tuple[Fraction, str]] = ()) -> str:
+def voice(
+    events: list[Event],
+    div: int,
+    marks: list[tuple[Fraction, str]],
+    details: dict[str, tuple[list[str], list[str]]],
+    attached: list[Mark],
+) -> str:
     tokens: list[str] = []
     cursor, current = Fraction(0), None
+    onsets: dict[tuple[Fraction, bool, str], list[Event]] = {}
+    for event in events:
+        onsets.setdefault((event.onset, event.grace, event.attack if event.grace else ""), []).append(event)
+    spans, end = [], Fraction(0)
+    for onset, grace, _ in sorted(onsets):
+        if not grace:
+            if onset > end:
+                spans.append(("r", end, onset))
+            end = onset + onsets[(onset, grace, "")][0].duration
+            spans.append(("n", onset, end))
+    extra: dict[tuple[str, Fraction], list[str]] = {}
+    marks = list(marks)
+    for mark in attached:
+        name = decoration(mark.value)
+        side = 1 if mark.kind == "Fermata" else 2
+        span = next((span for span in spans if span[side] == mark.onset), None)
+        if span:
+            extra.setdefault(span[:2], []).append(name)
+        else:
+            marks.append((mark.onset, f"[{name}]"))
     pending = sorted(marks, key=lambda mark: mark[0])
 
     def place(until: Fraction, at: bool) -> None:
@@ -151,16 +231,18 @@ def voice(events: list[Event], div: int, marks: list[tuple[Fraction, str]] = ())
             onset, token = pending.pop(0)
             tokens.append(f"{token}@{units(onset, div)}" if at else token)
 
-    onsets: dict[tuple[Fraction, bool, str], list[Event]] = {}
-    for event in events:
-        onsets.setdefault((event.onset, event.grace, event.attack if event.grace else ""), []).append(event)
+    graces = {}
+    for onset, grace, _ in onsets:
+        if grace:
+            graces[onset] = graces.get(onset, 0) + 1
     for onset, grace, attack in sorted(onsets, key=lambda key: (key[0], not key[1])):
         group = onsets[(onset, grace, attack)]
-        names = "+".join(event.pitch + ("~" if event.tied else "") for event in group)
+        names = chord_token(group, details, [] if grace else extra.get(("n", onset), []), graces.get(onset, 0))
         if onset > cursor:
             place(cursor, False)
             gap = units(onset - cursor, div)
-            tokens += [str(gap), "r"]
+            rest = extra.get(("r", cursor))
+            tokens += [str(gap), f"r[{','.join(rest)}]" if rest else "r"]
             place(onset, True)
             current, cursor = gap, onset
         place(onset, False)

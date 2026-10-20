@@ -72,6 +72,7 @@ class ScoreInfo:
     composer: str = ""
     instrument_ids: list[str] = field(default_factory=list)
     bars: list[Bar] = field(default_factory=list)
+    details: dict[str, tuple[list[str], list[str]]] = field(default_factory=dict)
 
 
 def parse_info(lines: list[str]) -> ScoreInfo:
@@ -138,6 +139,7 @@ def build_index(info: ScoreInfo, lines: list[str], division: int) -> ScoreIndex:
     for measure, bar in zip(info.measures, info.bars):
         measure.events = []
         bar.marks = []
+    info.details = {}
     for number, line in enumerate(lines):
         words = line.split(" ")
         if words[0] in ("A", "F"):
@@ -169,8 +171,9 @@ def build_index(info: ScoreInfo, lines: list[str], division: int) -> ScoreIndex:
         if words[0] == "R":
             measure.events.append(Event(f"e{number}", measure.number, staff, onset, duration, layer=layer, segment=measure.id))
             continue
-        for note in words[4 + len(flags) :][0].split(","):
+        for note in words[-1].split(","):
             parts = note.split(":")
+            info.details[f"e{number}-{parts[0]}"] = (words[4:-1], [part for part in parts[3:] if part not in ("b", "f")])
             measure.events.append(
                 Event(
                     f"e{number}-{parts[0]}",

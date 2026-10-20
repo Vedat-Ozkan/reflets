@@ -212,7 +212,7 @@ def cells(lines: list[str], info: ScoreInfo) -> dict[tuple[int, int], list[tuple
             key = (tick, "R", written, 0, 0, ())
         else:
             members = []
-            for note in words[4 + len(flags)].split(","):
+            for note in words[-1].split(","):
                 parts = note.split(":")
                 members.append((int(parts[0]), int(parts[1]), "b" in parts[3:], "f" in parts[3:]))
             if grace:

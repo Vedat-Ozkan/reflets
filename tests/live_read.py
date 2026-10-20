@@ -6,7 +6,9 @@ jump and dashed bar line were added by hand, as MuseScore imports them from bar-
 With tests/data/marks.mscz open, the marks must be the expected ones; its expression, system text, playing
 technique, "Dm7" and "sempre" were added by hand to the import of marks.musicxml. With
 tests/data/system-marks.mscz open, tempo, rehearsal mark, system text, segno and D.C. must appear once although
-the violin also shows system markings; those, the system text, segno and D.C. were added by hand.
+the violin also shows system markings; those, the system text, segno and D.C. were added by hand. With
+tests/data/decorations.mscz open, the decorations must be the expected ones; it is the import of
+decorations.musicxml.
 
     REFLETS_TOKEN_FILE=... uv run python tests/live_read.py
 """
@@ -55,6 +57,25 @@ m2 len=4 jump=dc mark=segno
 1.1: S"Tutti" 4 C5
 2.1: 4 G4
 3.1: 4 C3"""
+DECORATIONS_TITLE = "Reflets decorations"
+EXPECTED_DECORATIONS = """m1 len=4
+1.1: 1 C5[stacc] D5[ten] E5[acc] F5[marc]
+2.1: 4 C3
+m2 len=4
+1.1: 1 G5[staccis] C5+E5+G5[arp] A5[mord] B5[tr]
+2.1: 4 C3
+m3 len=4
+1.1: 2 C6[fermata,breath] 1 D5[turn] E5[trem32]
+2.1: 4 C3
+m4 len=4
+1.1: gD5[appog] 1 C5 C4+E4+G4 F5 A4
+2.1: 4 C3
+m5 len=4
+1.1: 2 G4[caesura] E5[lv]
+2.1: 4 C3
+m6 len=4
+1.1: gD5 gE5 1 C5 1 r[fermata] C4:lv+E4:paren[arp]
+2.1: 4 C3"""
 failures = []
 
 
@@ -75,6 +96,8 @@ def strip(text: str) -> str:
             line = " ".join([words[0], *(word for word in words[1:] if word.split("=")[0] in ("len", "ts"))])
         else:
             line = re.sub(r' (!|x|s|S|R|fb|pt|q[\d.]+)?"(?:[^"\\]|\\.)*"(@\d+)?| (![a-z]+|q[\d.]+|clef=\S+)(@\d+)?', "", line)
+            line = re.sub(r"\[[^\]]*\](@\d+)?|(?<=\d):[A-Za-z][\w-]*", "", line)
+            line = re.sub(r" +", " ", line).rstrip()
             if line.endswith(":"):
                 continue
         kept.append(line)
@@ -105,6 +128,9 @@ async def main() -> None:
     if info.title == SYSTEM_MARKS_TITLE:
         got = text[text.index("\nm1 ") + 1 :]
         check("system objects once, in staff 1", got == EXPECTED_SYSTEM_MARKS, f"\n{got}")
+    if info.title == DECORATIONS_TITLE:
+        got = text[text.index("\nm1 ") + 1 :]
+        check("decorations", got == EXPECTED_DECORATIONS, f"\n{got}")
     if failures:
         sys.exit(f"{len(failures)} failed")
 

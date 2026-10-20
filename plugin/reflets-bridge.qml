@@ -5,14 +5,15 @@ import FileIO 3.0
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.4.0"
+    version: "0.5.0"
     requiresScore: false
 
-    readonly property int proto: 4
+    readonly property int proto: 5
     readonly property int port: 8731
     readonly property string ideaColor: "#1565c0"
     property string token: ""
     property var authed: ({})
+    property var symNames: null
 
     FileIO { id: tokenFile }
 
@@ -43,8 +44,27 @@ MuseScore {
         return list
     }
 
+    function symName(id) {
+        if (!symNames) {
+            symNames = {}
+            for (var k in SymId) {
+                if (typeof SymId[k] === "number")
+                    symNames[SymId[k]] = k
+            }
+        }
+        return symNames[id] || String(id)
+    }
+
     function noteText(n, offset) {
-        return (n.pitch + offset) + ":" + n.tpc1 + ":" + n.tpc2 + (n.tieBack ? ":b" : "") + (n.tieForward ? ":f" : "")
+        var t = (n.pitch + offset) + ":" + n.tpc1 + ":" + n.tpc2 + (n.tieBack ? ":b" : "")
+        if (n.tieForward)
+            t += n.tieForward.name === "LaissezVib" ? ":l" : ":f"
+        t += (n.hasParentheses ? ":p" : "") + (n.headGroup ? ":h" + n.headGroup : "")
+        for (var i = 0; n.elements && i < n.elements.length; i++) {
+            if (n.elements[i].name === "Fingering")
+                t += ":F" + encodeURIComponent(n.elements[i].text)
+        }
+        return t
     }
 
     function chordLine(tick, track, el, grace) {
@@ -52,9 +72,16 @@ MuseScore {
         var ns = []
         for (var i = 0; i < el.notes.length; i++)
             ns.push(noteText(el.notes[i], offset))
+        var arts = []
+        for (var j = 0; el.articulations && j < el.articulations.length; j++)
+            arts.push(symName(el.articulations[j].symbol))
         return "C " + tick + " " + track + " " + frac(el.duration)
             + (el.tuplet ? " T" + el.tuplet.actualNotes + ":" + el.tuplet.normalNotes : "")
-            + (grace ? " G" + el.noteType : "") + " " + ns.join(",")
+            + (grace ? " G" + el.noteType : "") + (arts.length ? " !" + arts.join(",") : "")
+            + (el.arpeggio ? " A" + el.arpeggio.arpeggioType : "")
+            + (el.tremoloSingleChord ? " M" + el.tremoloSingleChord.tremoloType : "")
+            + (el.stemDirection ? " S" + el.stemDirection : "") + (el.beamMode ? " B" + el.beamMode : "")
+            + (el.staffMove ? " X" + el.staffMove : "") + " " + ns.join(",")
     }
 
     function word(s) {
@@ -170,6 +197,8 @@ MuseScore {
                         for (var g = 0; gs && g < gs.length; g++)
                             lines.push(chordLine(seg.tick, track, gs[g], true))
                         lines.push(chordLine(seg.tick, track, el, false))
+                    } else if (el.type === Element.BREATH) {
+                        lines.push("A " + seg.tick + " " + track + " Breath " + symName(el.symbol) + " ")
                     } else if (el.type === Element.REST) {
                         lines.push("R " + seg.tick + " " + track + " " + frac(el.duration)
                             + (el.tuplet ? " T" + el.tuplet.actualNotes + ":" + el.tuplet.normalNotes : ""))
@@ -179,8 +208,9 @@ MuseScore {
                 for (var j = 0; ann && j < ann.length; j++) {
                     var a = ann[j]
                     var sub = a.name === "Dynamic" ? a.dynamicType : a.name === "Harmony" ? a.harmonyType
-                        : a.name === "Tempo" ? a.tempo : a.name === "PlayTechAnnotation" ? a.playTechType : 0
-                    lines.push("A " + seg.tick + " " + a.track + " " + a.name + " " + sub + " " + escapeText(a.text))
+                        : a.name === "Tempo" ? a.tempo : a.name === "PlayTechAnnotation" ? a.playTechType
+                        : a.name === "Fermata" ? symName(a.symbol) : 0
+                    lines.push("A " + seg.tick + " " + a.track + " " + a.name + " " + sub + " " + escapeText(a.text || ""))
                 }
             }
         }
