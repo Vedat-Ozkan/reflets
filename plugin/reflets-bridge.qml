@@ -5,10 +5,10 @@ import FileIO 3.0
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.18.0"
+    version: "0.19.0"
     requiresScore: false
 
-    readonly property int proto: 18
+    readonly property int proto: 19
     readonly property int port: 8731
     readonly property string ideaColor: "#1565c0"
     property string token: ""
@@ -157,6 +157,11 @@ MuseScore {
             }
         }
         var keys = []
+        var shifts = []
+        for (var ks = 0; ks < curScore.nstaves; ks++) {
+            var first = keySigAt(ks, 0, false)
+            shifts.push(first ? first.actualKey - first.concertKey : 0)
+        }
         var ms = measureList()
         for (var i = 0; i < ms.length; i++) {
             var m = ms[i]
@@ -166,7 +171,8 @@ MuseScore {
                 + " " + m.repeatCount)
             lines = lines.concat(barLines(m, tick))
             for (var k = 0; k < curScore.nstaves; k++) {
-                var key = curScore.staves[k].key(fraction(tick, division * 4))
+                var key = curScore.staves[k].key(fraction(tick, division * 4)) - shifts[k]
+                key += key > 7 ? -12 : key < -7 ? 12 : 0
                 if (keys[k] !== key) {
                     lines.push("K " + tick + " " + k + " " + key)
                     keys[k] = key
@@ -723,6 +729,17 @@ MuseScore {
         }
     }
 
+    function keySigAt(staff, tick, exact) {
+        var found = null
+        for (var km = curScore.firstMeasure; km && km.firstSegment.tick <= tick; km = km.nextMeasure) {
+            for (var seg = km.firstSegment; seg; seg = seg.nextInMeasure) {
+                if (seg.segmentType === Segment.KeySig && seg.elementAt(staff * 4) && (exact ? seg.tick === tick : seg.tick <= tick))
+                    found = seg.elementAt(staff * 4)
+            }
+        }
+        return found
+    }
+
     function barChange(tick, w) {
         var m = measureAt(tick)
         var what = w[0]
@@ -767,6 +784,31 @@ MuseScore {
             var back = measureAt(tick)
             annotationTexts(back.prevMeasure || back, texts)
             rehang(slurs, spannerLines(tick, 2147483647))
+            return
+        }
+        if (what === "key" || what === "key-") {
+            for (var st = 0; st < curScore.nstaves; st++) {
+                if (what === "key-") {
+                    var gone = keySigAt(st, tick, true)
+                    if (!gone)
+                        throw "no key signature at tick " + tick + " on staff " + st
+                    removeElement(gone)
+                    continue
+                }
+                var last = keySigAt(st, tick, false)
+                var concert = parseInt(w[1])
+                var written = concert + (last ? last.actualKey - last.concertKey : 0)
+                written += written > 7 ? -12 : written < -7 ? 12 : 0
+                if (last && last.parent.tick === tick)
+                    removeElement(last)
+                var ks = newElement(Element.KEYSIG)
+                ks.concertKey = concert
+                ks.actualKey = written
+                var kc = curScore.newCursor()
+                kc.track = st * 4
+                kc.rewindToTick(tick)
+                kc.add(ks)
+            }
             return
         }
         if (what === "volta-") {

@@ -16,7 +16,8 @@ is the import of lines.musicxml with the rit. line on bar 4 and the cresc. line 
 wavy glissando of the import reads straight once saved and reopened. With tests/data/lyrics.mscz open, the import of
 lyrics.musicxml, the lyrics must be the expected ones. With tests/data/repeats.mscz open, the import of
 repeats.musicxml, bars and voices that repeat an earlier one must be written as references, and the stripped N1x is
-compared after the references are expanded.
+compared after the references are expanded. With tests/data/keys.musicxml open, a B-flat clarinet over a piano in C,
+the key must be read as concert C, not the clarinet's written D.
 
     REFLETS_TOKEN_FILE=... uv run python tests/live_read.py
 """
@@ -135,6 +136,7 @@ m5 len=4
 1.1 L1: high up
 1.2: 4 A4
 1.2 L1: Oo"""
+KEYS_TITLE = "Reflets keys"
 REPEATS_TITLE = "Reflets repeats"
 EXPECTED_REPEATS = """m1 len=4
 1.1: 1 C5 D5 E5 F5
@@ -251,6 +253,8 @@ async def main() -> None:
         check("repeated bars", got == EXPECTED_REPEATS, f"\n{got}")
         got = n1x.encode(info, index, 4, 6)
         check("a range writes out the bars it refers to", got.endswith("\nm4 len=4\n1.1: 1 C5 D5 E5 F5\n2.1: 4 G2\nm5 len=4\n1.1: !p 1 C5 D5 E5 F5\n2.1: 4 C3\nm6 len=4 rep=end\n1.1 = m4\n2.1 = m5"), f"\n{got}")
+    if info.title == KEYS_TITLE:
+        check("the concert key, not a transposing staff's written key", text.startswith("N1x div=1 ts=4/4 ks=0\n"), text.splitlines()[0])
     if failures:
         sys.exit(f"{len(failures)} failed")
 

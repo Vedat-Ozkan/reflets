@@ -185,7 +185,7 @@ def writes(title: str, destructive: bool) -> ToolAnnotations:
     description=(
         "Use this to write an idea into the open score so the user can hear it. idea is N1x in the form "
         "read_score returns: the header line, then for each bar to write its 'mN len=' line (len as in the score; "
-        "ks= only as the score has it; ts= changes the meter from that bar on, and when it changes the bar's length "
+        "ks= changes the concert key from that bar on, on every staff (notes keep their pitches); ts= changes the meter from that bar on, and when it changes the bar's length "
         "(3/4 to 4/4, but not 4/4 to 2/2 or 3/4 to 6/8) only alone on a bar line, over bars with no notes; other bar fields as marks: one the bar has stays when left out, "
         "one written is set, e.g. 'm8 len=4 rep=end x=3 jump=dc-al-fine', and a minus removes one, e.g. '-break=line'; "
         "-volta= removes the whole volta) and one 'staff.voice:' line per voice to write; a bar line alone changes only its fields. Each voice line replaces that voice's notes and rests in that bar; voices "

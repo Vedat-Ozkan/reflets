@@ -65,6 +65,7 @@ class Plan:
     dropped: list[str] = field(default_factory=list)
     expected_bars: dict[int, Bar] = field(default_factory=dict)
     meters: dict[int, str] = field(default_factory=dict)
+    keys: dict[int, str] = field(default_factory=dict)
     rebar: bool = False
 
 
@@ -491,6 +492,10 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
             if new_length != length:
                 plan.rebar = True
                 length = new_length
+        key_op = key_change(bar, position, info)
+        if key_op:
+            meter_ops.append(f"b {bar_tick} {key_op}")
+            plan.keys[position] = bar.fields.get("ks") or key_at(info, bar_tick - 1)
         if not bar.fields.get("len", "").isdigit() or Fraction(int(bar.fields["len"]), idea.div) != length:
             raise IdeaError(f"m{bar.number}: len= must match the score's bar, which is {length * idea.div} long")
         expected_bar, changes, volta = bar_changes(bar, position, info)
@@ -720,8 +725,6 @@ def bar_changes(bar: n1x.IdeaBar, position: int, info: ScoreInfo) -> tuple[Bar, 
         if key == "ts":
             continue
         if key == "ks":
-            if removal or current.get(key) != value:
-                raise IdeaError(f"{where}: ks= cannot be changed yet; leave it out or as the score has it")
             continue
         if key in LISTED:
             values = value.split(",")
@@ -787,6 +790,32 @@ def bar_changes(bar: n1x.IdeaBar, position: int, info: ScoreInfo) -> tuple[Bar, 
     if (new.repeat_start, new.repeat_end, new.repeat_count) != (old.repeat_start, old.repeat_end, old.repeat_count):
         changes.insert(0, f"rep {int(new.repeat_start)} {int(new.repeat_end)} {new.repeat_count}")
     return new, changes, volta
+
+
+def key_at(info: ScoreInfo, tick: int) -> str:
+    key_ticks = sorted(info.keys)
+    at = bisect.bisect_right(key_ticks, tick) - 1
+    return info.keys[key_ticks[at]] if at >= 0 else info.key
+
+
+def key_change(bar: n1x.IdeaBar, position: int, info: ScoreInfo) -> str | None:
+    where = f"m{bar.number}"
+    tick = info.ticks[position]
+    current, previous = key_at(info, tick), key_at(info, tick - 1)
+    changes_here = position > 0 and tick in info.keys and previous != current
+    if "-ks" in bar.fields:
+        if bar.fields["-ks"] != current or not changes_here:
+            raise IdeaError(f"{where}: -ks={bar.fields['-ks']} removes nothing; the key does not change to it in this bar")
+        return "key-"
+    target = bar.fields.get("ks")
+    if target is None or target == current:
+        return None
+    match = re.fullmatch(r"0|([1-7])([sf])", target)
+    if not match:
+        raise IdeaError(f"{where}: ks={target} is not a key like 0, 2s or 3f (sharps or flats)")
+    if changes_here and target == previous:
+        return "key-"
+    return f"key {int(match[1]) * (1 if match[2] == 's' else -1) if match[1] else 0}"
 
 
 def meter_reach(info: ScoreInfo, position: int) -> int:
@@ -1183,6 +1212,9 @@ def verify_bars(plan: Plan, info: ScoreInfo, after: ScoreInfo) -> str | None:
     for position, meter in sorted(plan.meters.items()):
         if after.measures[position].meter != meter:
             return f"bar {after.measures[position].number} should be in {meter} and reads back in {after.measures[position].meter}"
+    for position, key in sorted(plan.keys.items()):
+        if key_at(after, after.ticks[position]) != key:
+            return f"bar {after.measures[position].number} should be in ks={key} and reads back in ks={key_at(after, after.ticks[position])}"
     if plan.rebar:
         return None
     for position, bar in sorted(plan.expected_bars.items()):
