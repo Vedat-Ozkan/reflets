@@ -102,6 +102,7 @@ def encode(info: ScoreInfo, index: ScoreIndex, first: int, last: int) -> str:
         lines.append(f"P{number} {quote(name)} staves={span} instr={instrument}")
     meter = index.meter
     key_ticks = sorted(info.keys)
+    bars: list[tuple[str, list[str]]] = []
     for measure in measures[start : end + 1]:
         position = int(measure.id[1:]) - 1
         header = f"m{measure.number} len={units(measure.length, div)}"
@@ -113,7 +114,8 @@ def encode(info: ScoreInfo, index: ScoreIndex, first: int, last: int) -> str:
         if bar_key != key:
             key = bar_key
             header += f" ks={key}"
-        lines.append(" ".join([header, *bar_fields(info.bars[position])]))
+        body: list[str] = []
+        bars.append((" ".join([header, *bar_fields(info.bars[position])]), body))
         voices: dict[tuple[int, int], list[Event]] = {}
         for event in measure.events:
             if event.pitch:
@@ -133,10 +135,33 @@ def encode(info: ScoreInfo, index: ScoreIndex, first: int, last: int) -> str:
             where = (staff, layer)
             events = voices.get(where, [])
             tuplets = info.tuplets.get((position, staff, layer), []) if events else []
-            body = voice(events, div, marks.get(where, []), info.details, attached.get(where, []), tuplets, closers.get(where, []))
-            lines.append(f"{staff}.{layer}: " + body)
-            lines += lyric_lines(f"{staff}.{layer}", info.lyrics.get((position, staff, layer), {}))
-    return "\n".join(lines)
+            body.append(f"{staff}.{layer}: " + voice(events, div, marks.get(where, []), info.details, attached.get(where, []), tuplets, closers.get(where, [])))
+            body += lyric_lines(f"{staff}.{layer}", info.lyrics.get((position, staff, layer), {}))
+    return "\n".join(lines + references(bars))
+
+
+def references(bars: list[tuple[str, list[str]]]) -> list[str]:
+    whole: dict[tuple[str, ...], str] = {}
+    first: dict[str, str] = {}
+    lines = []
+    for header, body in bars:
+        name, _, fields = header.partition(" ")
+        key = (fields, *body)
+        if key in whole and len(f"{name} = {whole[key]}") < len("\n".join([header, *body])):
+            lines.append(f"{name} = {whole[key]}")
+            continue
+        written = [header]
+        for line in body:
+            label = line.split(":")[0]
+            if " " not in label and line in first and len(f"{label} = {first[line]}") < len(line):
+                written.append(f"{label} = {first[line]}")
+            else:
+                written.append(line)
+                first.setdefault(line, name)
+        if written[1:] == body:
+            whole.setdefault(key, name)
+        lines += written
+    return lines
 
 
 def lyric_lines(where: str, lyrics: dict[Fraction, dict[int, tuple[str, bool] | None]]) -> list[str]:

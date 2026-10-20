@@ -41,6 +41,7 @@ mcp = MCPServer(
         "15ma( octave lines (pitches stay sounding), tr( trill line, line\"…\"( text line, tempo\"rit.\"( tempo change. "
         "A 'staff.voice Ln:' line under a voice line gives verse n's lyrics, one syllable per note, graces and rests "
         "skipped: a trailing '-' continues the word, '_' holds the syllable over the note, '*' marks a note without one. "
+        "'m9 = m1' means bar 9 is bar 1 again, every line and field; '2.1 = m1' means this voice line is bar 1's. "
         "To try an idea, write it in the same form with propose; it lands in the score in colour as one undo step. "
         "The user listens in MuseScore, then you call keep or discard as they decide. Before you say which note "
         "sounds where, find the bar and count through its voice line from the start of the bar; answers given "
@@ -177,7 +178,7 @@ def writes(title: str, destructive: bool) -> ToolAnnotations:
         "and one 'staff.voice:' line per voice to write. Each voice line replaces that voice in that bar; voices "
         "and bars you leave out are untouched; a line of rests only (e.g. '1.2: 288 r') empties a voice. "
         "Silence at the end of a voice line is filled with rests. Not yet: tuplets, grace chords, marks (dynamics, "
-        "chord symbols, texts, tempo, clefs), lines, decorations, groups, lyrics. replace=True is needed when a voice you write already has "
+        "chord symbols, texts, tempo, clefs), lines, decorations, groups, lyrics, references to other bars. replace=True is needed when a voice you write already has "
         "notes there. The idea is written in colour as one undo step and read back; the result gives a proposal id "
         "for keep or discard."
     ),

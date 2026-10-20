@@ -14,7 +14,9 @@ ones; it is the import of groups.musicxml with the triplet inside bar 5's triple
 MuseScore imports nested tuplets wrongly. With tests/data/lines.mscz open, the lines must be the expected ones; it
 is the import of lines.musicxml with the rit. line on bar 4 and the cresc. line on bar 3 added by hand; the
 wavy glissando of the import reads straight once saved and reopened. With tests/data/lyrics.mscz open, the import of
-lyrics.musicxml, the lyrics must be the expected ones.
+lyrics.musicxml, the lyrics must be the expected ones. With tests/data/repeats.mscz open, the import of
+repeats.musicxml, bars and voices that repeat an earlier one must be written as references, and the stripped N1x is
+compared after the references are expanded.
 
     REFLETS_TOKEN_FILE=... uv run python tests/live_read.py
 """
@@ -61,30 +63,30 @@ EXPECTED_SYSTEM_MARKS = """m1 len=4
 3.1: 4 C3
 m2 len=4 jump=dc mark=segno
 1.1: S"Tutti" tempo"rit."( 4 C5 tempo)
-2.1: 4 G4
-3.1: 4 C3"""
+2.1 = m1
+3.1 = m1"""
 DECORATIONS_TITLE = "Reflets decorations"
 EXPECTED_DECORATIONS = """m1 len=8
 1.1: 2 C5[stacc] D5[ten] E5[acc] F5[marc]
 2.1: 8 C3
 m2 len=8
 1.1: 2 G5[staccis] C5+E5+G5[arp] A5[mord] B5[tr]
-2.1: 8 C3
+2.1 = m1
 m3 len=8
 1.1: 4 C6[fermata,breath] 2 D5[turn] E5[trem32]
-2.1: 8 C3
+2.1 = m1
 m4 len=8
 1.1: gD5[appog] 2 C5 C4'1+E4'3+G4'5 F5 A4[head=x]
-2.1: 8 C3
+2.1 = m1
 m5 len=8
 1.1: 4 G4[caesura] E5[lv]
-2.1: 8 C3
+2.1 = m1
 m6 len=8
 1.1: gD5 gE5 2 C5 2 r[fermata] C4:lv+E4:paren[arp]
-2.1: 8 C3
+2.1 = m1
 m7 len=8
 1.1: 1 C5 D5 B3[staff+1] A3[staff+1] 2 C5+E5:head=diamond E5'2
-2.1: 8 C3"""
+2.1 = m1"""
 GROUPS_TITLE = "Reflets groups"
 EXPECTED_GROUPS = """m1 len=360
 1.1: 3:2{ 30 C5 D5 E5 } [stacc]{ 45 F5 G5 A5 B5 } 90 C6
@@ -133,6 +135,23 @@ m5 len=4
 1.1 L1: high up
 1.2: 4 A4
 1.2 L1: Oo"""
+REPEATS_TITLE = "Reflets repeats"
+EXPECTED_REPEATS = """m1 len=4
+1.1: 1 C5 D5 E5 F5
+2.1: 4 C3
+m2 = m1
+m3 len=4
+1.1 = m1
+2.1: 4 G2
+m4 len=4
+1.1 = m1
+2.1 = m3
+m5 len=4
+1.1: !p 1 C5 D5 E5 F5
+2.1 = m1
+m6 len=4 rep=end
+1.1 = m1
+2.1 = m1"""
 failures = []
 
 
@@ -146,8 +165,28 @@ def normal(text: str) -> str:
     return notes.encode(notes.decode(text))
 
 
+def expand(text: str) -> str:
+    bars: dict[str, list[str]] = {}
+    lines: list[str] = []
+    current = None
+    for line in text.splitlines():
+        if match := re.fullmatch(r"(m\d+) = (m\d+)", line):
+            header, *body = bars[match[2]]
+            current = bars[match[1]] = [f"{match[1]} {header.partition(' ')[2]}", *body]
+            lines += current
+            continue
+        if match := re.fullmatch(r"(\d+\.\d+) = (m\d+)", line):
+            line = next(written for written in bars[match[2]] if written.startswith(match[1] + ": "))
+        if re.match(r"m\d+ ", line):
+            current = bars[line.split()[0]] = []
+        if current is not None:
+            current.append(line)
+        lines.append(line)
+    return "\n".join(lines)
+
+
 def strip(text: str) -> str:
-    lines = text.splitlines()
+    lines = expand(text).splitlines()
     kept = [re.sub(r"^N1x ", "N1 ", lines[0])]
     for line in lines[1:]:
         if re.match(r'(title|composer)=|P\d+ "|\d+\.\d+ L\d+:', line):
@@ -206,6 +245,11 @@ async def main() -> None:
         _, lines = await server.bridge.request(f"read {info.ticks[numbers.index(4)]} {2**31 - 1}")
         got = n1x.encode(info, build_index(info, lines, int(server.bridge.hello["division"])), 4, 5)
         check("syllable held from before the range", '\nm4 len=4\n1.1: 2 F5 gA5 1 G5\n1.1 L1: _ "you are"\n' in got, f"\n{got}")
+    if info.title == REPEATS_TITLE:
+        got = text[text.index("\nm1 ") + 1 :]
+        check("repeated bars", got == EXPECTED_REPEATS, f"\n{got}")
+        got = n1x.encode(info, index, 4, 6)
+        check("a range writes out the bars it refers to", got.endswith("\nm4 len=4\n1.1: 1 C5 D5 E5 F5\n2.1: 4 G2\nm5 len=4\n1.1: !p 1 C5 D5 E5 F5\n2.1: 4 C3\nm6 len=4 rep=end\n1.1 = m4\n2.1 = m5"), f"\n{got}")
     if failures:
         sys.exit(f"{len(failures)} failed")
 

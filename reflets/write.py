@@ -70,6 +70,8 @@ def as_n1(idea: str) -> str:
             lines.append(re.sub(r"^N1x ", "N1 ", line))
         elif re.match(r'(title|composer)=|P\d+ "', line):
             continue
+        elif re.fullmatch(r"(m|\d+\.)\d+ = m\d+", line):
+            raise IdeaError(f"{line}: references to other bars cannot be written yet; write the bar out")
         elif re.match(r"m\d+\b", line):
             words = line.split()
             unwritable = [word for word in words[1:] if word.split("=")[0] not in ("len", "ts")]
