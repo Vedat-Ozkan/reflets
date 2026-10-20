@@ -1,4 +1,3 @@
-"""Pivot counts.tsv into tokens and % saved vs N1 per score and variant; the total row sums all scores."""
 from collections import defaultdict
 from pathlib import Path
 

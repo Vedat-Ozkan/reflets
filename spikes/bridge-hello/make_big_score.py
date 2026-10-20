@@ -1,11 +1,3 @@
-"""Throwaway: write a synthetic orchestral-size MusicXML for the read-speed spike (spec 10, item 4).
-
-    python3 make_big_score.py out.musicxml [bars] [parts]
-
-Every part plays eighth notes in every bar (bars x parts x 8 notes). Part 1 carries a chord symbol
-per bar and a dynamic every 8 bars, so the read path also meets annotations.
-"""
-
 import sys
 
 STEPS = ["C", "D", "E", "F", "G", "A", "B"]

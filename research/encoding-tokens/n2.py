@@ -1,29 +1,3 @@
-"""Prototype of an N1 extension (called N2 here) that adds rests, part names, dynamics and chord symbols.
-
-    N2 div=48 ts=12/8 ks=3f
-    parts: 1-2 Piano
-    m1 len=288
-    1.1: 72 [p]G5~ 24 G5 F5 G5 72 F5 48 Eb5 24 Bb4
-    2.1: 24 Eb2 G3+Eb4 ...
-    d1: 0 p 144 < 264 !
-    h: 0 Eb 144 Bb7
-
-New against N1:
-- `parts:` header, one `staves name` pair per part, separated by `;` (names may hold spaces).
-- `r` is now every written rest with its own duration, trailing rests included (N1 only wrote gaps
-  before the next attack). Gaps that are not written rests (spaces, forward) still become `r`.
-- Dynamics, in either of two spellings (measured separately):
-  * line form: `d<staff>: <onset> <mark> ...` after the voices of a measure; onset in div units.
-  * inline form: `[mark]` or `[mark,mark]` prefixed to the note token that starts at that onset on
-    that staff; a mark with no note at its onset falls back to the line form.
-  Marks: the dynamic as printed (p, pp, mf, sf, fp...), `<` crescendo hairpin start, `>` diminuendo
-  hairpin start, `!` hairpin end. With --words, other direction text is included as "quoted text".
-- Chord symbols: `h: <onset> <symbol> ...` per measure, one line for the part (not per staff).
-  Symbol = root, kind as printed (m, 7, m7, dim, +, sus4...), optional /bass.
-
-Usage: python n2.py SCORE.mxl OUT.txt [--inline] [--words] [--chords chords.json]
-chords.json: [[measure, onset_div, "Eb"], ...] for a score that carries no chord symbols of its own.
-"""
 from __future__ import annotations
 
 import argparse
@@ -44,7 +18,7 @@ import verovio  # noqa: E402
 from engine.score import Event, ScoreIndex  # noqa: E402
 
 VERSION = "N2"
-KINDS = {  # MusicXML harmony kinds -> printed chord-symbol suffix
+KINDS = {
     "major": "", "minor": "m", "augmented": "+", "diminished": "dim", "dominant": "7", "major-seventh": "maj7",
     "minor-seventh": "m7", "diminished-seventh": "dim7", "augmented-seventh": "+7", "half-diminished": "m7b5",
     "major-minor": "mMaj7", "major-sixth": "6", "minor-sixth": "m6", "dominant-ninth": "9", "major-ninth": "maj9",
@@ -70,15 +44,7 @@ def index_of(data: bytes, xml: str) -> ScoreIndex:
     return ScoreIndex(tk.getMEI())
 
 
-# ---------------------------------------------------------------- MusicXML side: parts, directions, harmony
-
-
 def read_markup(xml: str, words: bool) -> tuple[list[tuple[str, int, int]], dict, dict]:
-    """Part names with their staff ranges; dynamics per (measure, staff); chord symbols per measure.
-
-    Onsets are in quarter notes from the start of the measure. Staves are numbered across the score as
-    Verovio numbers them (part by part).
-    """
     root = ET.fromstring(xml)
     names = {p.get("id"): (p.findtext("part-name") or p.get("id")).strip() for p in root.iter("score-part")}
     parts: list[tuple[str, int, int]] = []
@@ -143,9 +109,6 @@ def chord_symbol(harmony: ET.Element) -> str:
     return symbol + ("/" + bass if bass else "")
 
 
-# ---------------------------------------------------------------- encoding
-
-
 def units(value: Fraction, div: int) -> int:
     assert (value * div).denominator == 1, value
     return int(value * div)
@@ -166,7 +129,6 @@ def encode(index: ScoreIndex, parts, dynamics, chords, inline: bool) -> str:
         voices: dict[tuple[int, int], list[Event]] = {}
         for event in measure.events:
             voices.setdefault((event.staff, event.layer), []).append(event)
-        # inline marks: the first voice of a staff that has a note at the mark's onset takes it
         pending = {staff: list(marks) for (number, staff), marks in dynamics.items() if number == measure.number}
         for (staff, layer), events in sorted(voices.items()):
             marks = pending.get(staff, []) if inline else []
@@ -195,7 +157,7 @@ def voice(events: list[Event], div: int, attach: dict[Fraction, list[str]]) -> s
         groups.setdefault(key, []).append(event)
     for onset, grace, attack, rest in sorted(groups, key=lambda key: (key[0], not key[1], key[3])):
         group = groups[(onset, grace, attack, rest)]
-        if onset > cursor:  # silence that is not a written rest
+        if onset > cursor:
             gap = units(onset - cursor, div)
             tokens += [str(gap), "r"]
             current, cursor = gap, onset

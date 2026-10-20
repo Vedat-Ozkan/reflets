@@ -1,11 +1,3 @@
-"""Does claude-sonnet-5-5 still read the score under each compression? Eight questions per score, answers computed
-from the N1 text (own parser, cross-checked against the engine index), asked once per score and variant.
-
-Usage: uv run --with anthropic --with verovio python reading.py dry|pilot|run [effort]
-  dry    print questions and answers, estimate cost from token counts, no API calls
-  pilot  one call (nocturne, N1) to measure output tokens
-  run    every score x variant; writes reading/<score>.<variant>.json (reading-high/ at effort high)
-"""
 import json
 import random
 import re
@@ -23,14 +15,12 @@ from engine.reduce import midi
 
 HERE = Path(__file__).resolve().parent
 MODEL = "claude-sonnet-5-5"
-EFFORT = sys.argv[2] if len(sys.argv) > 2 else "medium"  # the second pass used "high"
+EFFORT = sys.argv[2] if len(sys.argv) > 2 else "medium"
 READ_SET = ["chopin-nocturne", "mozart-k545-1", "bach-bwv64-4", "chopin-prelude-4", "brahms-fruehlingstrost", "haydn-104"]
 VARIANTS = ["N1", "N1#2", "R", "P", "O", "RP", "RO", "PO", "RPO", "RT", "V1", "V2"]
 
 
 def events(n1):
-    """{bar: [(label, staff, onset, dur, pitch, grace, chord_index_in_line, tied_from_previous)]} from N1 text.
-    A note tied from the previous note of its voice (across bar lines too) sounds but is not attacked."""
     _, bars = c.parse(n1)
     out, pending = {}, {}
     for _, number, voices in bars:
@@ -80,7 +70,6 @@ def questions(score, n1):
         return rng.choice(sorted(pool))
 
     qs, truth = {}, {}
-    # q1 chord in a compressed line, at an offset after the start
     cand = [(n, l) for (n, l) in lines if n > 0 and any(e[0] == l and e[2] > 0 and not e[5] and sum(1 for f in ev[n] if f[0] == l and f[2] == e[2] and not f[5]) > 1 for e in ev[n])]
     if not cand:
         cand = [(n, l) for (n, l) in lines if n > 0 and any(e[0] == l and e[2] > 0 for e in ev[n])]
@@ -89,16 +78,13 @@ def questions(score, n1):
     o = rng.choice(offs)
     qs["q1"] = f"Which pitches are attacked (grace notes excluded) in voice {l} of bar {n} at offset {o}? A list, low to high."
     truth["q1"] = sorted({e[4] for e in ev[n] if e[0] == l and e[2] == o and not e[5] and not e[7]}, key=midi)
-    # q2 bass at the start of a bar
     sounding = [b for b in numbers if any(e[2] == 0 and not e[5] for e in ev[b])]
     n = pick(ref_bars, sounding)
     qs["q2"] = f"What is the lowest pitch sounding at the very start (offset 0) of bar {n}, in any staff (grace notes excluded)?"
     truth["q2"] = low([e[4] for e in ev[n] if e[2] == 0 and not e[5]])
-    # q3 highest attacked in a bar
     n = pick(ref_bars + [b for b, _ in group_lines], numbers)
     qs["q3"] = f"What is the highest pitch attacked in bar {n}, across all staves (grace notes excluded)?"
     truth["q3"] = high([e[4] for e in ev[n] if not e[5] and not e[7]])
-    # q4 identical bars, or identical voice lines
     key = {nn: (h.split()[1], tuple(v)) for h, nn, v in bars}
     groups = Counter(key.values())
     best, count = groups.most_common(1)[0]
@@ -112,12 +98,10 @@ def questions(score, n1):
         y = min(nn for (nn, lb), bd in lines.items() if (lb, bd) == (lab, body))
         qs["q4"] = f"List every bar (other than bar {y}) in which voice {lab} is identical (same notes and durations) to voice {lab} of bar {y}."
         truth["q4"] = sorted(nn for (nn, lb), bd in lines.items() if (lb, bd) == (lab, body) and nn != y)
-    # q5 attacks in one staff of a bar
     n, l = pick(group_lines, [(b, x) for (b, x) in lines if b > 0])
     s = int(l.split(".")[0])
     qs["q5"] = f"How many notes are attacked in staff {s} of bar {n}, all voices of that staff? Count each note of a chord separately; exclude grace notes."
     truth["q5"] = sum(1 for e in ev[n] if e[1] == s and not e[5] and not e[7])
-    # q6 range of an inner or lower voice over four bars
     labels = Counter(lab for (_, lab) in lines)
     lab = rng.choice(sorted([x for x in labels if x != "1.1"] or ["1.1"]))
     starts = [b for b in numbers if all(b + k in ev for k in range(4))]
@@ -128,14 +112,12 @@ def questions(score, n1):
         ps = [e[4] for k in range(4) for e in ev[x + k] if e[0] == lab and not e[5]]
     qs["q6"] = f"In voice {lab}, across bars {x} to {x + 3}, what are the lowest and the highest pitch (grace notes excluded)? As {{\"low\": …, \"high\": …}}."
     truth["q6"] = {"low": low(ps), "high": high(ps)}
-    # q7 how often one pitch is attacked in a voice over two bars
     pairs = [(b, lb) for (b, lb) in lines if b > 0 and b + 1 in ev]
     b, lb = pick(group_lines, pairs)
     cnt = Counter(e[4] for k in range(2) for e in ev[b + k] if e[0] == lb and not e[5])
     p = sorted(cnt, key=lambda q: (-cnt[q], midi(q)))[0]
     qs["q7"] = f"How many times is the pitch {p} attacked in voice {lb} in bars {b} and {b + 1} together (grace notes excluded)?"
     truth["q7"] = sum(1 for k in range(2) for e in ev[b + k] if e[0] == lb and not e[5] and not e[7] and e[4] == p)
-    # q8 the top voice of one bar in order
     with_top = [b for b in numbers if (b, "1.1") in lines]
     n = pick(ref_bars, with_top)
     seq = []
@@ -150,11 +132,11 @@ def norm(q, v):
     if v is None:
         return None
     if q in ("q4",):
-        return sorted(int(str(x).lstrip("m")) for x in v)  # "m7" is a bar number written the way the text writes it
+        return sorted(int(str(x).lstrip("m")) for x in v)
     if q in ("q5", "q7"):
         return int(v)
     if q in ("q2", "q3") and isinstance(v, list) and len(v) == 1:
-        v = v[0]  # a one-pitch list for a one-pitch question is a format slip, not a misreading
+        v = v[0]
     if q == "q1":
         return sorted(map(str, v))
     if q == "q6":
@@ -191,7 +173,6 @@ def text_of(score, v):
 
 
 def ask(client, prompt):
-    """Returns (answers, last response, retries, error, tokens summed over every attempt, for the cost)."""
     last, spent = None, {"in": 0, "out": 0}
     for attempt in range(3):
         try:
@@ -203,7 +184,7 @@ def ask(client, prompt):
         spent["in"] += resp.usage.input_tokens
         spent["out"] += resp.usage.output_tokens
         text = "".join(b.text for b in resp.content if b.type == "text")
-        try:  # the first JSON object; the model sometimes adds notes after it
+        try:
             parsed, _ = json.JSONDecoder().raw_decode(text[text.index("{"):])
         except (ValueError, json.JSONDecodeError):
             last = f"unparsed, stop={resp.stop_reason}: {text[:200]!r}"
@@ -213,7 +194,6 @@ def ask(client, prompt):
 
 
 def check_against_index(score, n1):
-    """The parser's non-grace note count per bar must match the engine index."""
     index = load(DATA / SCORES[score])
     ev = events(n1)
     for m in index.measures:

@@ -1,8 +1,3 @@
-"""Can claude-sonnet-5-5 WRITE each compression? It gets the legend and bars 1-8 of a score in N1 and rewrites them in the
-compressed form; our decoder expands its text and the result must equal the N1 excerpt exactly.
-
-Usage: uv run --with anthropic python write_test.py   (writes writing/<score>.<variant>.json and writing.tsv)
-"""
 import json
 import re
 from pathlib import Path
@@ -16,7 +11,7 @@ HERE = Path(__file__).resolve().parent
 MODEL, EFFORT = "claude-sonnet-5-5", "medium"
 SCORES = ["chopin-nocturne", "mozart-k545-1", "chopin-prelude-4"]
 VARIANTS = ["R", "P", "O", "RPO"]
-TRIALS = ["", "#2"]  # a second, independent sample of each
+TRIALS = ["", "#2"]
 FEATURE = {
     "R": "Use a bar reference wherever a bar repeats an earlier bar, and a voice reference wherever only a voice line repeats.",
     "P": "Use a repeat group wherever a voice line repeats a figure in a row.",
@@ -70,7 +65,7 @@ if __name__ == "__main__":
                     decoded = c.decode(body, v)
                     wrong = diff_bars(decoded, ref)
                     error = None
-                except Exception as e:  # any malformed text the model wrote counts as a failure, recorded
+                except Exception as e:
                     decoded, wrong, error = None, None, repr(e)
                 st = c.stats(body)
                 d = {"score": s, "variant": v, "model": resp.model, "written": body, "decoded": decoded, "exact": decoded == ref,

@@ -1,7 +1,3 @@
-"""Write every compressed variant of every score, check each decodes to the original N1 exactly, print usage stats.
-
-Usage: uv run python variants.py   (reads n1/, writes variants/<score>.<variant>.txt and lossless.tsv)
-"""
 import json
 from pathlib import Path
 
@@ -18,7 +14,7 @@ if __name__ == "__main__":
         n1 = path.read_text()
         score = path.name.removesuffix(".n1.txt")
         head, bars = c.parse(n1)
-        for _, _, voices in bars:  # the canonical rendering must reproduce every N1 line byte for byte
+        for _, _, voices in bars:
             for label, body in voices:
                 assert c.normalise(body) == body, (score, label, body)
         for v in VARIANTS:

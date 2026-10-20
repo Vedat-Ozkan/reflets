@@ -1,7 +1,3 @@
-"""Claude token counts (count_tokens API, claude-opus-5-5) for N1, every variant and every legend.
-
-Usage: uv run --with anthropic python count.py   (ANTHROPIC_API_KEY in the environment; writes counts.tsv, legend_counts.tsv)
-"""
 import time
 from pathlib import Path
 
@@ -25,7 +21,7 @@ def count(text: str) -> int:
 
 
 if __name__ == "__main__":
-    baseline = count("x")  # fixed per-request overhead, subtracted as count_tokens.py does
+    baseline = count("x")
     rows = [f"# model={MODEL} baseline={baseline}", "score\tvariant\ttokens\tchars"]
     for path in sorted((HERE / "n1").glob("*.n1.txt")):
         score = path.name.removesuffix(".n1.txt")

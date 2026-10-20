@@ -1,4 +1,3 @@
-"""N1 token counts for every MusicXML test score, with the three respellings, for Claude and for GPT (tiktoken)."""
 import base64, os, re, sys
 from importlib.resources import files
 from pathlib import Path

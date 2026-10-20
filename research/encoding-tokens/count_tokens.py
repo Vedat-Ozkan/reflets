@@ -1,15 +1,9 @@
-"""Count Claude tokens for each encoding file with the Anthropic count_tokens API.
-
-Usage: python count_tokens.py FILE [FILE ...]   (needs ANTHROPIC_API_KEY or Anth_Key in the environment)
-Prints one line per file: tokens, characters, chars per token.
-"""
 import os
 import sys
 from pathlib import Path
 import anthropic
 
 MODEL = "claude-fable-5-1"
-# the key is ANTHROPIC_API_KEY, or the environment secret the owner stored as Anth_Key
 client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("Anth_Key"))
 
 
@@ -18,7 +12,7 @@ def count(text: str) -> int:
 
 
 if __name__ == "__main__":
-    baseline = count("x")  # the fixed per-request overhead, subtracted from every file
+    baseline = count("x")
     print(f"model={MODEL} baseline={baseline}")
     print("file\ttokens\tchars\tchars/token")
     for path in sys.argv[1:]:

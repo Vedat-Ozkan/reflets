@@ -1,4 +1,3 @@
-// GPT token counts with OpenAI's o200k_base (GPT-4o / GPT-5 family), via the npm build of tiktoken.
 const { get_encoding } = require("tiktoken");
 const fs = require("fs"), path = require("path");
 const enc = get_encoding("o200k_base");

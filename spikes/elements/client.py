@@ -1,8 +1,3 @@
-"""Send a JavaScript snippet to the spike plugin and print the reply.
-
-    uv run python spikes/elements/client.py FILE.js | -e 'return curScore.title'
-"""
-
 import asyncio
 import json
 import sys

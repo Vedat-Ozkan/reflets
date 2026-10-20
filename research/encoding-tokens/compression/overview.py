@@ -1,12 +1,3 @@
-"""Overview views (idea 4): per bar the top line, plus the bass per beat (V1) or the bass and pitch classes per beat (V2).
-
-Lossy by design. Usage: uv run --with verovio python overview.py   (writes variants/<score>.V1.txt and .V2.txt)
-
-top:   the highest note attacked at each onset, across all staves, skipped while a higher earlier note still
-       sounds; written as an N1 voice (durations clipped at the next top note; gaps as rests).
-bass:  the lowest note sounding at the start of each beat (held notes count), `r` if nothing sounds.
-beats: per beat `|`-separated, the bass with its octave, then the other pitch classes sounding in that beat, low to high.
-"""
 from fractions import Fraction
 from pathlib import Path
 

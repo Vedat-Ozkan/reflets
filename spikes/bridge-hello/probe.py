@@ -1,11 +1,3 @@
-"""Throwaway spike client for reflets-bridge-hello.qml.
-
-    REFLETS_PORT=8732 python3 probe.py ...  # the macro variant
-    python3 probe.py                       # hello + 20 pings
-    python3 probe.py "read 1" multi "read 1" undo "read 1"
-                                           # hello, then each argument as one request, in order
-"""
-
 import asyncio
 import os
 import statistics
@@ -21,7 +13,6 @@ TIMEOUT = 5
 async def request(ws, rid, line):
     await ws.send(f"{rid} {line}")
     reply = await asyncio.wait_for(ws.recv(), TIMEOUT)
-    # The plugin echoes the id; anything else is a stale reply (spec 3.2).
     if reply.split(" ", 1)[0] != str(rid):
         raise RuntimeError(f"id mismatch: sent {rid}, got {reply!r}")
     return reply

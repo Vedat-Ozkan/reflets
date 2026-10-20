@@ -1,4 +1,3 @@
-"""The short legend each variant carries, the kind of text a tool description would hold."""
 import codecs_n1 as c
 
 BASE = (

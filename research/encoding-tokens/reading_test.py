@@ -1,4 +1,3 @@
-"""Does the model read N1 correctly under each spelling? Same questions, ground truth from the index."""
 import base64, json, os, re, sys
 from fractions import Fraction
 from importlib.resources import files
@@ -29,21 +28,14 @@ LEGEND = {
 }
 VARIANTS = {"N1": n1, "dash": body(n1, dash), "key-relative": body(n1, key_rel)}
 
-# ground truth from the index
 def at(bar, beat, staff):
     m = index.measure(bar); off = m.offset_of(beat)
     return sorted({e.pitch for e in m.events if e.pitch and not e.grace and e.staff == staff and e.onset == off})
-def sounding(bar, beat, staff):  # notes sounding (started at or before, not yet over), excluding grace
+def sounding(bar, beat, staff):
     m = index.measure(bar); off = m.offset_of(beat)
     return sorted({e.pitch for e in m.events if e.pitch and not e.grace and e.staff == staff and e.onset <= off < e.onset + e.duration})
 truth = {
- "q1": at(7, 1, 2),                                     # left-hand notes attacked at bar 7 beat 1
- "q2": sorted({m.number for m in index.measures for e in m.events if e.tied and e.staff == 1}),  # bars with a right-hand tie
- "q3": min((e for e in index.measure(12).events if e.pitch and e.staff == 2), key=lambda e: (int(e.pitch[-1]), "CDEFGAB".index(e.pitch[0]))).pitch,  # lowest left-hand note in bar 12
- "q4": sum(1 for e in index.measure(7).events if e.grace),  # grace notes in bar 7
- "q5": sorted({e.pitch for e in index.measure(4).events if e.pitch and e.staff == 1 and e.onset == index.measure(4).length - Fraction(1, 2)}),  # right hand on the last eighth of bar 4
- "q6": sounding(16, 2, 2),                               # left-hand notes sounding at bar 16 beat 2 (dotted-quarter beats)
-}
+ "q1": at(7, 1, 2), "q2": sorted({m.number for m in index.measures for e in m.events if e.tied and e.staff == 1}), "q3": min((e for e in index.measure(12).events if e.pitch and e.staff == 2), key=lambda e: (int(e.pitch[-1]), "CDEFGAB".index(e.pitch[0]))).pitch, "q4": sum(1 for e in index.measure(7).events if e.grace), "q5": sorted({e.pitch for e in index.measure(4).events if e.pitch and e.staff == 1 and e.onset == index.measure(4).length - Fraction(1, 2)}), "q6": sounding(16, 2, 2),}
 QUESTIONS = """The text below is a compact encoding of a piano score. Header: div = units per quarter note, ts = time signature, ks = key signature (3f = three flats). Each `mN len=…` starts bar N (m0 is the pickup). Each `staff.voice:` line is one voice; staff 1 is the right hand, staff 2 the left hand. A bare number sets the duration in div units for the notes after it; `+` joins the notes of a chord; `r` is a rest; a leading `g` marks a grace note; a trailing `~` ties the note to the next. {legend} Beats are dotted-quarter beats of the 12/8 bar: beat 1 starts at 0, beat 2 at 72, beat 3 at 144, beat 4 at 216 div units.
 
 Answer these questions from the text only, as JSON with keys q1..q6 and no other text. Spell every pitch in the answer as letter, b/# accidental, octave, e.g. Bb4, C#5, G5 (sounding pitch, resolved against the key signature where the text is key-relative).

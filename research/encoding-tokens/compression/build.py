@@ -1,7 +1,3 @@
-"""Build N1 for the test scores with the engine (verovio + ScoreIndex + notes.encode), as build_base.py does.
-
-Usage: uv run --with verovio python build.py   (writes n1/<name>.n1.txt next to this file)
-"""
 import base64
 from importlib.resources import files
 from pathlib import Path

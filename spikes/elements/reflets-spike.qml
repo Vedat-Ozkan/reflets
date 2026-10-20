@@ -1,6 +1,3 @@
-// Throwaway spike plugin for the element survey (research/musescore-4.7.5-element-coverage.md, "Needs a
-// live spike"). Runs JavaScript sent over a WebSocket so experiments need no MuseScore restart.
-// Never ship this: it runs any code a client that knows the token sends.
 import QtQuick 2.15
 import MuseScore 3.0
 import FileIO 3.0
@@ -14,7 +11,7 @@ MuseScore {
     readonly property int port: 8732
     property string token: ""
     property var authed: ({})
-    property var lib: ({})  // helpers a snippet stores for later snippets
+    property var lib: ({})
 
     FileIO { id: tokenFile }
 
@@ -24,7 +21,6 @@ MuseScore {
     }
 
     function evaluate(code) {
-        // Snippets see curScore, newElement, cmd, fraction, Element, lib and api through this scope.
         return eval("(function(){" + code + "\n})()")
     }
 

@@ -1,7 +1,4 @@
 #!/bin/sh
-# Throwaway: install the spike plugin into the Windows MuseScore plugin folder as a macro plugin
-# (no pluginType, so no dialog) on 8732. Round 3 showed an open plugin dialog makes MuseScore refuse
-# notation actions, and all plugins share one WebSocket server, so the dialog copy is removed.
 set -e
 here=$(dirname "$0")
 dst=/mnt/c/Users/Vedat/Documents/MuseScore4/Plugins

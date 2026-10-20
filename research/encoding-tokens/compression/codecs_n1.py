@@ -1,21 +1,3 @@
-"""Compressions of N1 note text and their exact inverses. Standard library plus engine.score.transpose.
-
-Every encoder takes N1 text and returns compressed text with the same header; every decoder returns the N1 text.
-Order when combined: encode octaves (O), then patterns (P), then back-references (R);
-decode back-references, then patterns, then octaves, then re-render durations canonically.
-
-R  bar refs `m9 = m1` (same len, no ts= change, every voice line identical) and voice refs `2.1 = m1`
-   (that voice line identical to the same staff.voice line of bar 1). The target is always the first bar
-   where that content appears, which is always written out in full.
-T  (with R) voice refs with a transposition: `2.1 = m1 +M2` means voice 2.1 of bar 1 moved up a major second,
-   spelled by interval (letter steps and semitones), as engine.score.transpose does.
-P  repeats inside one voice line: `(X)*n` is X written n times in a row; a single token may be `X*n`.
-O  relative octaves: in each voice line the first pitch has its octave; a later pitch may drop its octave digit,
-   and then it is the octave that puts it within three letter steps (a fourth) of the reference, accidentals ignored.
-   The reference for a chord's first note (or a single note, grace notes included) is the first note of the
-   previous token in the line; the reference for a later note in a chord is the chord's first note
-   (variant "chain": the previous note in the chord, as LilyPond does). Every voice line starts afresh.
-"""
 from __future__ import annotations
 
 import re
@@ -29,10 +11,7 @@ BAR_REF = re.compile(r"^m(\d+) = m(\d+)$")
 VOICE_REF = re.compile(r"^(\d+\.\d+) = m(\d+)(?: ([+-])([PMmAd]+)(\d+))?$")
 
 
-# ---------- the N1 text as bars ----------
-
 def parse(text: str):
-    """[(header, number, [(label, body)])], header line first."""
     lines = text.rstrip("\n").split("\n")
     bars = []
     for line in lines[1:]:
@@ -54,10 +33,7 @@ def unparse(head: str, bars) -> str:
     return "\n".join(out) + "\n"
 
 
-# ---------- durations: a voice body as items, and its canonical N1 rendering ----------
-
 def items(body: str):
-    """(duration, token) per note/chord/rest; ('g', token) per grace token."""
     out, cur = [], None
     for tok in body.split():
         if tok.isdigit():
@@ -70,7 +46,6 @@ def items(body: str):
 
 
 def render(seq, cur=None):
-    """Canonical N1: a duration only when it changes, except that a rest always has its duration before it."""
     toks = []
     for dur, tok in seq:
         if dur == "g":
@@ -86,8 +61,6 @@ def render(seq, cur=None):
 def normalise(body: str) -> str:
     return " ".join(render(items(body))[0])
 
-
-# ---------- O: relative octaves ----------
 
 def _split(tok):
     grace = tok.startswith("g")
@@ -136,8 +109,6 @@ def octaves_decode(body, chain=False):
     return _walk(body, chain, False)
 
 
-# ---------- P: repeats inside a voice line ----------
-
 def patterns_encode(body: str) -> str:
     seq = items(body)
     segments, i = [], 0
@@ -184,8 +155,6 @@ def patterns_decode(body: str) -> str:
     return " ".join(" ".join([m.group(1)] * int(m.group(2))) if (m := re.fullmatch(r"(\S+)\*(\d+)", t)) else t for t in body.split())
 
 
-# ---------- intervals for T ----------
-
 def interval_name(d: int, s: int) -> str | None:
     sign = "-" if d < 0 or (d == 0 and s < 0) else "+"
     if sign == "-":
@@ -228,7 +197,6 @@ def transpose_body(body, d, s):
 
 
 def _transposition(src, dst):
-    """(d, s) such that src transposed is dst, or None."""
     if re.sub(r"[A-G][#b]*\d", "P", src) != re.sub(r"[A-G][#b]*\d", "P", dst):
         return None
     a, b = _pitches(src), _pitches(dst)
@@ -245,13 +213,11 @@ def _transposition(src, dst):
         return None
 
 
-# ---------- R: back-references ----------
-
 def refs_encode(text: str, transposed=False) -> str:
     head, bars = parse(text)
     first_bar: dict = {}
     first_voice: dict = {}
-    earlier: dict = {}  # label -> [(bar number, body)] written out in full
+    earlier: dict = {}
     out = []
     for header, number, voices in bars:
         length = header.split()[1]
@@ -275,7 +241,7 @@ def refs_encode(text: str, transposed=False) -> str:
                         break
                 if line and len(line) < len(f"{label}: {body}"):
                     new.append((line, None))
-                    continue  # targets of refs are only lines written out in full
+                    continue
             new.append((label, body))
             if ref is None:
                 first_voice[(label, body)] = number
@@ -286,7 +252,7 @@ def refs_encode(text: str, transposed=False) -> str:
 
 def refs_decode(text: str) -> str:
     head, bars = parse(text)
-    full: dict = {}  # bar number -> (header, voices)
+    full: dict = {}
     out = []
     for header, number, voices in bars:
         if m := BAR_REF.match(header):
@@ -309,15 +275,12 @@ def refs_decode(text: str) -> str:
     return unparse(head, out)
 
 
-# ---------- the variants ----------
-
 def _map_bodies(text, f):
     head, bars = parse(text)
     return unparse(head, [(h, n, [(l, f(b) if b is not None else b) for l, b in v]) for h, n, v in bars])
 
 
 def encode(text: str, variant: str) -> str:
-    """variant: any combination of the letters R, P, O (and T with R), or 'Oc' for chained chord octaves."""
     chain = "c" in variant
     if "O" in variant:
         text = _map_bodies(text, lambda b: octaves_encode(b, chain))
@@ -340,7 +303,6 @@ def decode(text: str, variant: str) -> str:
 
 
 def stats(text: str) -> dict:
-    """What a compressed text uses, so a small saving is visibly not a no-op encoder."""
     return {
         "bar_refs": len(re.findall(r"^m\d+ = m\d+$", text, re.M)),
         "voice_refs": len(re.findall(r"^\d+\.\d+ = m\d+$", text, re.M)),

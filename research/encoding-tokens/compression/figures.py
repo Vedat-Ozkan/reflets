@@ -1,6 +1,3 @@
-"""Diagnostic for transposed figures inside a voice line (not encoded): split each voice line into beats and count
-beats that repeat the previous beat exactly, or transposed by a spelled interval. Only beats with at least three
-pitches count, since a one- or two-note beat is trivially a transposition of another. Writes figures.tsv."""
 from pathlib import Path
 
 import codecs_n1 as c
