@@ -5,10 +5,10 @@ import FileIO 3.0
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.12.0"
+    version: "0.13.0"
     requiresScore: false
 
-    readonly property int proto: 12
+    readonly property int proto: 13
     readonly property int port: 8731
     readonly property string ideaColor: "#1565c0"
     property string token: ""
@@ -318,23 +318,55 @@ MuseScore {
                         lines.push(chordLine(seg.tick, track, el, false))
                         lines = lines.concat(lyricLines(seg.tick, track, el))
                     } else if (el.type === Element.BREATH) {
-                        lines.push("A " + seg.tick + " " + track + " Breath " + symName(el.symbol) + " ")
+                        lines.push(breathLine(seg.tick, track, el))
                     } else if (el.type === Element.REST) {
                         lines.push("R " + seg.tick + " " + track + " " + frac(el.duration)
                             + tupletFlags(el))
                     }
                 }
                 var ann = seg.annotations
-                for (var j = 0; ann && j < ann.length; j++) {
-                    var a = ann[j]
-                    var sub = a.name === "Dynamic" ? a.dynamicType : a.name === "Harmony" ? a.harmonyType
-                        : a.name === "Tempo" ? a.tempo : a.name === "PlayTechAnnotation" ? a.playTechType
-                        : a.name === "Fermata" ? symName(a.symbol) : 0
-                    lines.push("A " + seg.tick + " " + a.track + " " + a.name + " " + sub + " " + escapeText(a.text || ""))
-                }
+                for (var j = 0; ann && j < ann.length; j++)
+                    lines.push(annotationLine(seg.tick, ann[j]))
             }
         }
         return lines.concat(spannerLines(startTick, endTick))
+    }
+
+    function annotationLine(tick, a) {
+        var sub = a.name === "Dynamic" ? a.dynamicType : a.name === "Harmony" ? a.harmonyType
+            : a.name === "Tempo" ? a.tempo : a.name === "PlayTechAnnotation" ? a.playTechType
+            : a.name === "Fermata" ? symName(a.symbol) : 0
+        return "A " + tick + " " + a.track + " " + a.name + " " + sub + " " + escapeText(a.text || "")
+    }
+
+    function breathLine(tick, track, el) {
+        return "A " + tick + " " + track + " Breath " + symName(el.symbol) + " "
+    }
+
+    function removeMark(line) {
+        var tick = parseInt(line.split(" ")[1])
+        for (var m = curScore.firstMeasure; m && m.firstSegment.tick <= tick; m = m.nextMeasure) {
+            for (var seg = m.firstSegment; seg; seg = seg.nextInMeasure) {
+                if (seg.tick !== tick)
+                    continue
+                for (var track = 0; track < curScore.ntracks; track++) {
+                    var el = seg.elementAt(track)
+                    if (el && (seg.segmentType === Segment.Clef && "F " + tick + " " + track + " " + el.concertClefType === line
+                               || el.type === Element.BREATH && breathLine(tick, track, el) === line)) {
+                        removeElement(el)
+                        return
+                    }
+                }
+                var ann = seg.annotations
+                for (var j = 0; ann && j < ann.length; j++) {
+                    if (annotationLine(tick, ann[j]) === line) {
+                        removeElement(ann[j])
+                        return
+                    }
+                }
+            }
+        }
+        throw "no mark to remove: " + line
     }
 
     function offsetAt(track, tick) {
@@ -392,26 +424,8 @@ MuseScore {
             if (m.nextMeasure && m.nextMeasure.firstSegment.tick < startTick)
                 continue
             for (var seg = m.firstSegment; seg; seg = seg.nextInMeasure) {
-                if (seg.tick < startTick || seg.tick >= endTick)
+                if (seg.tick < startTick || seg.tick >= endTick || mt < startTick)
                     continue
-                if (seg.segmentType !== Segment.Clef && mt < startTick)
-                    continue
-                if (seg.segmentType === Segment.Clef) {
-                    var clef = track % 4 === 0 ? seg.elementAt(track) : null
-                    if (clef && !clef.generated)
-                        doomed.push(clef)
-                    continue
-                }
-                if (seg.segmentType === Segment.Breath) {
-                    if (seg.elementAt(track))
-                        doomed.push(seg.elementAt(track))
-                    continue
-                }
-                var ann = seg.annotations
-                for (var j = 0; ann && j < ann.length; j++) {
-                    if (ann[j].track === track)
-                        doomed.push(ann[j])
-                }
                 var cr = notes ? seg.elementAt(track) : null
                 for (var g = 0; cr && cr.type === Element.CHORD && cr.graceNotes && g < cr.graceNotes.length; g++)
                     doomed.push(cr.graceNotes[g])
@@ -643,6 +657,8 @@ MuseScore {
                     c.addTuplet(fraction(parseInt(ratio[0]), parseInt(ratio[1])), fraction(parseInt(total[0]), parseInt(total[1])))
                 } else if (w[0] === "l" && w[6] === "OTTAVA") {
                     addLine(w)
+                } else if (w[0] === "y") {
+                    removeMark(w.slice(1).join(" "))
                 } else {
                     break
                 }

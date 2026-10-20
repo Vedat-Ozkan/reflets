@@ -12,7 +12,15 @@ from mcp.types import ToolAnnotations
 from reflets import n1x
 from reflets.bridge import Bridge, BridgeError
 from reflets.score import ScoreInfo, build_index, parse_info
-from reflets.write import IdeaError, add_lines, cells, compile_idea, occupied, verify
+from reflets.write import (
+    IdeaError,
+    add_lines,
+    cells,
+    compile_idea,
+    idea_range,
+    occupied,
+    verify,
+)
 
 WHOLE_SCORE_TOKENS = 6000
 FIRST_BARS = 16
@@ -178,10 +186,14 @@ def writes(title: str, destructive: bool) -> ToolAnnotations:
         "other bar fields only as the score has them, they cannot be changed yet) "
         "and one 'staff.voice:' line per voice to write. Each voice line replaces that voice's notes and rests in that bar; voices "
         "and bars you leave out are untouched; a line of rests only (e.g. '1.2: 288 r') empties a voice. "
-        "Silence at the end of a voice line is filled with rests. Marks are written with the voice line and replace "
-        "its marks in that bar, so write again any you keep; a line with marks only (e.g. '1.1: !f \"Dm7\"@96') "
-        "replaces the voice's marks and leaves its notes. A mark needs a note or rest starting at its moment in some "
-        "voice; tempo, rehearsal marks and system text go in 1.1, clefs in voice 1 of their staff. Tuplets, grace "
+        "Silence at the end of a voice line is filled with rests. The score's marks and decorations stay as they are: "
+        "a mark the bar and voice already have, written anywhere in the line, is left where it is, and others are "
+        "added; a new note at the moment of an old one keeps its articulations and other decorations, and fingering, "
+        "parentheses, noteheads and let ring on a note of the same pitch. Remove something only when the user asks, "
+        "with a minus: '-!p', '-\"Dm7\"', '-[fermata]@96', 'D5[-stacc]', 'C4:-paren'; move a mark by removing it and "
+        "writing it where it goes. A line with marks only (e.g. '1.1: !f -!p@96') leaves the notes. A new mark needs a "
+        "note or rest starting at its moment in some voice; tempo, rehearsal marks and system text go in 1.1, clefs in "
+        "voice 1 of their staff. A note with a glissando cannot be rewritten unless the idea removes it ([-gliss]). Tuplets, grace "
         "chords, decorations, decoration groups, fingering and references to bars written out earlier in the idea "
         "('m9 = m1', '2.1 = m1') can be written; glissandos cannot. A tie may run into the bar after the idea when "
         "that bar's voice starts with the same pitch. Lines are marks too: a voice line replaces the lines that "
@@ -200,13 +212,11 @@ def writes(title: str, destructive: bool) -> ToolAnnotations:
 async def propose(idea: str, label: str = "idea", replace: bool = False) -> str:
     info = await load_info()
     staves = max(staff for _, part_staves in info.parts for staff in part_staves)
-    try:
-        plan = compile_idea(idea, info, int(bridge.hello["division"]), staves)
-    except IdeaError as error:
-        raise ToolError(str(error)) from None
     numbers = [measure.number for measure in info.measures]
-    pre = await request(f"read {plan.start_tick} {plan.end_tick}")
     try:
+        start_tick, end_tick = idea_range(idea, info)
+        pre = await request(f"read {start_tick} {end_tick}")
+        plan = compile_idea(idea, info, int(bridge.hello["division"]), staves, pre)
         add_lines(plan, pre, info, int(bridge.hello["division"]))
     except IdeaError as error:
         raise ToolError(str(error)) from None

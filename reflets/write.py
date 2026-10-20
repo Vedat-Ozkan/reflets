@@ -7,7 +7,7 @@ from dataclasses import dataclass, field, replace
 from fractions import Fraction
 
 from reflets import n1x
-from reflets.score import FIFTHS, SEMITONES, SYSTEM_LINES, SYSTEM_MARKS, ScoreInfo, build_index, unescape
+from reflets.score import FIFTHS, SEMITONES, SYSTEM_LINES, SYSTEM_MARKS, Mark, ScoreInfo, build_index, unescape
 
 VALUES = sorted({Fraction(1, 2**k) * dots for k in range(8) for dots in (1, Fraction(3, 2), Fraction(7, 4))}, reverse=True)
 GRACE_TYPES = {"acciaccatura": 1, "grace16": 8}
@@ -38,6 +38,7 @@ class Plan:
     timed: set[tuple[int, int]] = field(default_factory=set)
     counts: dict[str, int] = field(default_factory=dict)
     lines: list[Line] = field(default_factory=list)
+    expected: dict[tuple[int, tuple[int, int]], n1x.Voice] = field(default_factory=dict)
     strays: list[tuple[int, int, bool, str, str]] = field(default_factory=list)
     cleared: int = 0
 
@@ -84,6 +85,15 @@ def unwritable(voice: n1x.Voice, where: str) -> None:
             raise IdeaError(f"{where}: a grace note takes only its type ({', '.join(GRACE_ACTIONS)}), as in gD5[appog]")
 
 
+def uncreatable(name: str) -> bool:
+    return name.startswith("gliss") or name in ("trem2", "fall", "doit", "plop", "scoop")
+
+
+def standalone(name: str) -> str | None:
+    symbol = SYMBOLS.get(name, name)
+    return "fermata" if symbol.startswith("fermata") else "breath" if symbol.startswith(("breath", "caesura")) else None
+
+
 def classify(name: str, where: str) -> tuple[str, str]:
     if name in n1x.ARPEGGIOS:
         return "arp", str(n1x.ARPEGGIOS.index(name))
@@ -98,7 +108,7 @@ def classify(name: str, where: str) -> tuple[str, str]:
         if head not in n1x.HEADS and not head.isdigit():
             raise IdeaError(f"{where}: {name} is not a notehead; use head=x, head=diamond, head=slash, …")
         return "head", str(n1x.HEADS.index(head) if head in n1x.HEADS else int(head))
-    if name.startswith("gliss") or name in ("trem2", "fall", "doit", "plop", "scoop"):
+    if uncreatable(name):
         raise IdeaError(f"{where}: [{name}] cannot be written: MuseScore's plugin API has no way to create glissandos, two-note tremolos or chord lines")
     if name in GRACE_ACTIONS:
         raise IdeaError(f"{where}: [{name}] is a grace note type; it goes on a grace note, as in gD5[{name}]")
@@ -234,6 +244,109 @@ def mark_element(token: str, where: str) -> tuple[str, float, str]:
     return TEXT_KINDS[prefix], 0, n1x.unquoted('"' + text)
 
 
+OldMark = tuple[Fraction, str | None, str]
+
+
+def old_marks(pre: list[str], info: ScoreInfo, division: int) -> dict[tuple[int, int], list[OldMark]]:
+    result: dict[tuple[int, int], list[OldMark]] = {}
+    for line in pre:
+        words = line.split(" ")
+        if words[0] not in ("A", "F"):
+            continue
+        tick, track = int(words[1]), int(words[2])
+        position = bisect.bisect_right(info.ticks, tick) - 1
+        onset = Fraction(tick - info.ticks[position], division)
+        if onset >= info.lengths[position]:
+            continue
+        if words[0] == "F":
+            token = n1x.mark_token(Mark(track, onset, "Clef", words[3], ""))
+        elif words[3] in ("Fermata", "Breath"):
+            token = f"[{n1x.decoration(words[4])}]"
+        else:
+            track = 0 if words[3] in SYSTEM_MARKS else track
+            token = n1x.mark_token(Mark(track, onset, words[3], words[4], unescape(" ".join(words[5:]))))
+            if words[3] in SYSTEM_MARKS and any(mark[:2] == (onset, token) for mark in result.get((position, 0), [])):
+                continue
+        result.setdefault((position, track), []).append((onset, token, line))
+    return result
+
+
+def old_chords(pre: list[str], info: ScoreInfo, division: int, first: int, last: int) -> dict[tuple[int, int], dict[Fraction, n1x.Chord]]:
+    numbers = [measure.number for measure in info.measures]
+    result = {}
+    for bar in n1x.decode(n1x.encode(info, build_index(info, pre, division), first, last)).bars:
+        for (staff, layer), voice in bar.voices.items():
+            chords = {chord.onset: chord for chord in merged(voice.chords) if not chord.grace}
+            result[(numbers.index(bar.number), (staff - 1) * 4 + layer - 1)] = chords
+    return result
+
+
+def match_marks(old: list[OldMark], entries: list[tuple[Fraction, str, bool]], where: str) -> tuple[list[OldMark], list[tuple[Fraction, str, bool]], list[OldMark]]:
+    pool, removed = list(old), []
+    for onset, token, removal in entries:
+        if not removal:
+            continue
+        found = [mark for mark in pool if mark[1] == token]
+        if not found:
+            raise IdeaError(f"{where}: -{token} removes nothing; this bar and voice have no {token}")
+        mark = min(found, key=lambda mark: abs(mark[0] - onset))
+        pool.remove(mark)
+        removed.append(mark)
+    plain = [entry for entry in entries if not entry[2]]
+    taken, used = set(), set()
+    for _, i, j in sorted((abs(mark[0] - entry[0]), i, j) for i, mark in enumerate(pool) for j, entry in enumerate(plain) if mark[1] == entry[1]):
+        if i not in taken and j not in used:
+            taken.add(i)
+            used.add(j)
+    return removed, [entry for j, entry in enumerate(plain) if j not in used], pool
+
+
+def kept_chord(chord: n1x.Chord, old: n1x.Chord | None, where: str) -> n1x.Chord:
+    def split(c: n1x.Chord) -> tuple[list[str], dict[str, tuple[list[str], tuple[str, ...]]]]:
+        names = [name for name in c.decorations if not standalone(name.removeprefix("-"))]
+        level = [name for name in names if name.removeprefix("-").split("=")[0] not in NOTE_ONLY]
+        own = [name for name in names if name not in level]
+        if own and len(c.notes) > 1:
+            raise IdeaError(f"{where}: [{own[0]}] belongs to one note; in a chord write it on the note, as in C4:{own[0]}+E4")
+        return level, {note.pitch: (list(note.decorations) + own, note.fingering) for note in c.notes}
+
+    level, notes = split(chord)
+    old_level, old_notes = split(old) if old else ([], {})
+    gone = {name[1:] for name in level if name.startswith("-")}
+    if gone - set(old_level):
+        raise IdeaError(f"{where}: [-{min(gone - set(old_level))}] removes nothing; the note at that moment does not have it")
+    names = {name for name in level if not name.startswith("-")} | {name for name in old_level if name not in gone}
+    for name in sorted(names & set(old_level)):
+        if uncreatable(name):
+            raise IdeaError(
+                f"{where}: the note at {chord.onset} quarter notes into the bar has [{name}], which the plugin API cannot create again; "
+                f"leave that voice as it is, or remove it with [-{name}]"
+            )
+    result = []
+    for note in chord.notes:
+        mine, fingering = notes[note.pitch]
+        drop = {name[1:] for name in mine if name.startswith("-")}
+        theirs, their_fingering = old_notes.get(note.pitch, ([], ()))
+        if drop - set(theirs):
+            raise IdeaError(f"{where}: {note.pitch}:-{min(drop - set(theirs))} removes nothing; that note does not have it")
+        kept = {name for name in mine if not name.startswith("-")} | {name for name in theirs if name not in drop}
+        result.append(replace(note, decorations=tuple(sorted(kept)), fingering=fingering or their_fingering))
+    return replace(chord, notes=tuple(result), decorations=tuple(sorted(names)))
+
+
+def idea_range(text: str, info: ScoreInfo) -> tuple[int, int]:
+    try:
+        idea = n1x.decode(text)
+    except n1x.DecodeError as error:
+        raise IdeaError(str(error)) from None
+    numbers = [measure.number for measure in info.measures]
+    for bar in idea.bars:
+        if bar.number not in numbers:
+            raise IdeaError(f"Bar {bar.number} does not exist; the score has bars {numbers[0]} to {numbers[-1]}")
+    positions = sorted(numbers.index(bar.number) for bar in idea.bars) or [0]
+    return info.ticks[positions[0]], info.ticks[positions[-1] + 1] if positions[-1] + 1 < len(info.ticks) else 2**31 - 1
+
+
 def split_rest(item: tuple, cuts: list[Fraction]) -> list[tuple]:
     onset, quarters, chord, names = item
     inside = [cut for cut in cuts if onset < cut < onset + quarters] if chord is None else []
@@ -255,7 +368,7 @@ def current_fields(info: ScoreInfo, position: int) -> dict[str, str]:
     return fields
 
 
-def compile_idea(text: str, info: ScoreInfo, division: int, staves: int) -> Plan:
+def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: list[str]) -> Plan:
     try:
         idea = n1x.decode(text)
     except n1x.DecodeError as error:
@@ -265,7 +378,11 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int) -> Plan
             if line.startswith(name + "=") and line != f"{name}={n1x.quote(value)}":
                 raise IdeaError(f"The {name} cannot be changed by an idea; leave the {name}= line out")
     numbers = [measure.number for measure in info.measures]
-    ops, graces, ties, clears, marks, decorations = [], [], [], [], [], []
+    idea_range(text, info)
+    written_bars = sorted(numbers.index(bar.number) for bar in idea.bars)
+    olds = old_marks(pre, info, division)
+    old_notes = old_chords(pre, info, division, numbers[written_bars[0]], numbers[written_bars[-1]]) if written_bars else {}
+    ops, graces, ties, clears, marks, decorations, removals = [], [], [], [], [], [], []
     plan = Plan(0, 0, ops, set(), idea)
     voices: dict[int, list[tuple[int, Fraction, list[tuple[int, int, bool]], tuple[int, int]]]] = {}
     events: list[tuple[int, int, str, bool]] = []
@@ -294,7 +411,10 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int) -> Plan
             plan.cells.add(cell)
             end_tick = info.ticks[position + 1] if position + 1 < len(info.ticks) else 2**31 - 1
             clears.append(f"x {track} {bar_tick} {end_tick} {int(voice.timed)}")
+            entries: list[tuple[Fraction, str, bool]] = []
             for number, (onset, token) in enumerate(voice.marks):
+                if token.startswith("-") and n1x.is_line(token):
+                    raise IdeaError(f"{where}: {token}: removing a line cannot be written yet")
                 if line := n1x.LINE_TOKEN.fullmatch(token):
                     name, text, paren, label = line.groups()
                     if name not in LINE_KINDS:
@@ -308,12 +428,33 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int) -> Plan
                     continue
                 if onset >= length:
                     raise IdeaError(f"{where}: {token} falls at or after the end of the bar")
-                if token.startswith("["):
-                    for name in n1x.names(token):
-                        what, value = classify(name, where)
-                        if what not in ("fermata", "breath"):
+                removal, body = token.startswith("-"), token.removeprefix("-")
+                if body.startswith("["):
+                    for name in n1x.names(body):
+                        if not standalone(name.removeprefix("-")):
                             raise IdeaError(f"{where}: only a fermata or a breath stands on its own with @, not [{name}]")
-                        decorations.append(f"e {track} {bar_tick + round(onset * division)} - {what} {value}")
+                        entries.append((onset, f"[{n1x.decoration(classify(name.removeprefix('-'), where)[1])}]", removal or name.startswith("-")))
+                    continue
+                mark_element(body, where)
+                entries.append((onset, body, removal))
+            for chord in voice.chords:
+                for name in () if chord.grace else chord.decorations:
+                    if kind := standalone(name.removeprefix("-")):
+                        at = chord.onset + (chord.duration if kind == "breath" else 0)
+                        entries.append((at, f"[{n1x.decoration(classify(name.removeprefix('-'), where)[1])}]", name.startswith("-")))
+            for onset, duration, names in voice.rests:
+                for name in names:
+                    if not (kind := standalone(name.removeprefix("-"))):
+                        raise IdeaError(f"{where}: a rest takes only a fermata or a breath, not [{name}]")
+                    at = onset + (duration if kind == "breath" else 0)
+                    entries.append((at, f"[{n1x.decoration(classify(name.removeprefix('-'), where)[1])}]", name.startswith("-")))
+            gone, added, kept = match_marks(olds.get(cell, []), entries, where)
+            removals += [f"y {mark[2]}" for mark in gone]
+            for onset, token, _ in added:
+                tick = bar_tick + round(onset * division)
+                if token.startswith("["):
+                    what, value = classify(token[1:-1], where)
+                    decorations.append(f"e {track} {tick} - {what} {value}")
                     continue
                 kind, value, text = mark_element(token, where)
                 if kind in SYSTEM_KINDS and track != 0:
@@ -321,11 +462,16 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int) -> Plan
                 if kind == "CLEF" and layer != 1:
                     raise IdeaError(f"{where}: a clef belongs to the staff; write it in {staff}.1")
                 escaped = text.replace("\\", "\\\\").replace("\n", "\\n")
-                marks.append(f"a {track} {bar_tick + round(onset * division)} {kind} {value:g} {escaped}")
+                marks.append(f"a {track} {tick} {kind} {value:g} {escaped}")
+            expected_marks = [(mark[0], mark[1]) for mark in kept if mark[1]] + [(onset, token) for onset, token, _ in added]
             if not voice.timed:
+                plan.expected[(bar.number, (staff, layer))] = n1x.Voice(marks=expected_marks)
                 continue
             plan.timed.add(cell)
-            mains = {chord.onset: chord for chord in voice.chords if not chord.grace}
+            mains = {chord.onset: kept_chord(chord, old_notes.get(cell, {}).get(chord.onset), where) for chord in voice.chords if not chord.grace}
+            plan.expected[(bar.number, (staff, layer))] = n1x.Voice(
+                chords=[chord if chord.grace else mains[chord.onset] for chord in voice.chords],
+                tuplets=list(voice.tuplets), marks=expected_marks, timed=True)
             before: dict[Fraction, list[n1x.Chord]] = {}
             for chord in voice.chords:
                 if chord.grace:
@@ -333,10 +479,10 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int) -> Plan
             if any(onset not in mains for onset in before):
                 raise IdeaError(f"{where}: a grace note must come before a note, not a rest or the bar end")
             items = sorted([(chord.onset, chord.duration, chord, ()) for chord in mains.values()]
-                           + [(onset, duration, None, names) for onset, duration, names in voice.rests], key=lambda item: item[0])
+                           + [(onset, duration, None, ()) for onset, duration, _ in voice.rests], key=lambda item: item[0])
             if voice.end < length:
                 items.append((voice.end, length - voice.end, None, ()))
-            cuts = sorted({onset for onset, token in voice.marks if not n1x.is_line(token)})
+            cuts = sorted({onset for onset, _, _ in added})
             items = [piece for item in items for piece in split_rest(item, cuts)]
             tuplets = sorted(voice.tuplets, key=lambda span: (span[0], -span[1]))
             for start, stop, _ in tuplets:
@@ -418,8 +564,8 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int) -> Plan
                         f"The tie on the note at tick {tick} (track {track}) needs the next note of that voice to start "
                         "right after it on the same pitch, in the idea or in the bar after it"
                     )
-    plan.ops = clears + ops + graces + marks + decorations + ties
-    plan.cleared = len(clears)
+    plan.ops = clears + removals + ops + graces + marks + decorations + ties
+    plan.cleared = len(clears) + len(removals)
     positions = sorted({position for position, _ in plan.cells})
     plan.start_tick = info.ticks[positions[0]]
     plan.end_tick = info.ticks[positions[-1] + 1] if positions[-1] + 1 < len(info.ticks) else 2**31 - 1
@@ -430,6 +576,7 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int) -> Plan
         "grace notes": grace_notes,
         "marks": len(marks),
         "decorations": len(decorations),
+        "removed marks": len(removals),
     }
     return plan
 
@@ -506,14 +653,22 @@ def written(voice: n1x.Voice, timed: bool) -> tuple:
     marks = []
     for onset, token in voice.marks:
         if token.startswith("["):
-            marks += [(onset, name) for name in n1x.names(token)]
+            marks += [(onset, f"[{name}]") for name in n1x.names(token)]
         elif not n1x.is_line(token):
             marks.append((onset, token))
     for onset, duration, names in voice.rests:
-        marks += [(onset + duration if classify(name, "")[0] == "breath" else onset, name) for name in names]
+        marks += [(onset + duration if standalone(name) == "breath" else onset, f"[{name}]") for name in names]
+    chords = []
+    for chord in merged(voice.chords):
+        own = [name for name in chord.decorations if standalone(name)]
+        marks += [(chord.onset + chord.duration if standalone(name) == "breath" else chord.onset, f"[{name}]") for name in own]
+        names = [name for name in chord.decorations if not standalone(name)]
+        single = [name for name in names if len(chord.notes) == 1 and name.split("=")[0] in NOTE_ONLY]
+        notes = chord.notes if not single else (replace(chord.notes[0], decorations=tuple(sorted(chord.notes[0].decorations + tuple(single)))),)
+        chords.append(replace(chord, notes=notes, decorations=tuple(name for name in names if name not in single)))
     if not timed:
         return (sorted(marks),)
-    return (merged(voice.chords), sorted(voice.tuplets), sorted(marks))
+    return (chords, sorted(voice.tuplets), sorted(marks))
 
 
 def mark_lines(lines: list[str], info: ScoreInfo, skip: set[tuple[int, int]]) -> list[str]:
@@ -581,7 +736,7 @@ def verify(plan: Plan, pre: list[str], post: list[str], info: ScoreInfo, divisio
     for bar in plan.idea.bars:
         for cell, voice in sorted(bar.voices.items()):
             got = got_voices.get((bar.number, cell), n1x.Voice())
-            if written(voice, voice.timed) != written(got, voice.timed):
+            if written(plan.expected[(bar.number, cell)], voice.timed) != written(got, voice.timed):
                 label = f"{cell[0]}.{cell[1]}"
                 return f"bar {bar.number} {label} was written as '{line_of(plan.idea, bar.number, label)}' and reads back as '{line_of(back, bar.number, label)}'", []
     return None, sorted(cut)

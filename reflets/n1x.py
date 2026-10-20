@@ -545,7 +545,7 @@ PITCH = r"[A-G](?:#{1,2}|b{1,2})?-?\d+"
 NOTE = re.compile(rf"({PITCH})((?:'[^':~]*)*)((?::[^:~]+)*)(~?)")
 CHORD = re.compile(r"([^\[]+?)(\[[^\]]*\])?(~?)")
 GROUP = re.compile(r"(?:(\d+):(\d+))?(\[[^\]]*\])?\{")
-MARK = re.compile(rf'(?:!\S+|{QUOTED}|(?:x|s|S|R|fb|pt){QUOTED}|q[\d.]+(?:{QUOTED})?|clef=\S+|\[[^\]]*\]|[a-z0-9<>-]*(?:{QUOTED})?[()]\d*)')
+MARK = re.compile(rf'-?(?:!\S+|{QUOTED}|(?:x|s|S|R|fb|pt){QUOTED}|q[\d.]+(?:{QUOTED})?|clef=\S+|\[[^\]]*\]|[a-z0-9<>-]*(?:{QUOTED})?[()]\d*)')
 LINE_TOKEN = re.compile(rf'([a-z0-9<>-]*)({QUOTED})?([()])(\d*)')
 
 
@@ -691,4 +691,4 @@ def decode(text: str) -> Idea:
 
 
 def is_line(token: str) -> bool:
-    return bool(LINE_TOKEN.fullmatch(token))
+    return bool(LINE_TOKEN.fullmatch(token.removeprefix("-")))

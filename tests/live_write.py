@@ -29,7 +29,7 @@ GROUPS = {
     "references": ("N1x div=48\nm10 len=288\n1.2: 48 C4 D4 E4 F4 G4 A4\nm11 len=288\n1.2 = m10", "1.2 = m10"),
 }
 MARKS = {
-    "marks with notes": ("N1x div=4\nm5 len=24\n1.1: !f \"Eb\" x\"dolce\" 6 G5 ) q50 Ab5 !p 12 Bb5", "5", ['x"dolce" !f "Eb"', "q50", "!p"]),
+    "marks with notes": ("N1x div=4\nm5 len=24\n1.1: !f \"Eb\" x\"dolce\" 6 G5 ) q50 Ab5 !p 12 Bb5", "5", ['x"dolce"', "!f", '"Eb"', "q50", "!p"]),
     "a marks-only line": ("N1x div=4\nm10 len=24\n2.1: s\"marks only\"@4 clef=treble@12", "10", ['s"marks only"', "clef=treble"]),
 }
 failures = []
@@ -70,7 +70,7 @@ async def main() -> None:
     first = await server.propose(IDEA, "test", replace=True)
     check("propose writes and reads back", "Read-back matched" in first and "3 grace notes" in first, first)
     bars = await server.read_score("5-6")
-    check("bars 5-6 hold the idea", "1.1: 3 G5~ ) G5 gAb5 2 Bb5 1 Ab5 3 G5" in bars and "1.2: 6 r Bb4" in bars, bars)
+    check("bars 5-6 hold the idea", "3 G5~ ) G5 gAb5 2 Bb5 1 Ab5 3 G5" in bars and "!p" in bars and 'x"cresc."' in bars and "1.2: 6 r Bb4" in bars, bars)
     check("discard", "Discarded" in await server.discard(proposal(first)))
     await unchanged("after discard")
 
@@ -110,6 +110,14 @@ async def main() -> None:
     check("crossing slurs read back numbered", "1.2: (2 8 C4 ( D4 )2 E4 ) F4 16 G4" in bars, bars)
     await server.discard(written)
 
+    written = proposal(await server.propose("N1x div=4\nm5 len=24\n1.1: 6 G5 ) 18 Ab5", "a new rhythm", replace=True))
+    bar = next(line for line in (await server.read_score("5")).splitlines() if line.startswith("1.1:"))
+    check("a new rhythm keeps the bar's marks, once", bar.count("!p") == 1 and ")" in bar, bar)
+    await server.discard(written)
+    written = proposal(await server.propose("N1x div=4\nm5 len=24\n1.1: -!p )@6", "remove p"))
+    bar = next(line for line in (await server.read_score("5")).splitlines() if line.startswith("1.1:"))
+    check("a minus removes a mark", "!p" not in bar, bar)
+    await server.discard(written)
     notes_before = strip(await server.read_score("10"))
     for name, (idea, bar, tokens) in MARKS.items():
         written = proposal(await server.propose(idea, name, replace=True))
