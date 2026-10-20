@@ -22,6 +22,10 @@ GROUPS = {
     "tuplets with a rest inside": ("N1x div=48\nm10 len=288\n1.2: 3:2{ 16 r D4 E4 } 48 F4 3:2{ 32 G4 16 r } 144 r", "1.2: 3:2{ 8 r D4 E4 } 24 F4 3:2{ 16 G4 8 r }"),
     "nested tuplets": ("N1x div=144\nm10 len=864\n1.2: 3:2{ 96 C4 D4 3:2{ 32 E4 F4 G4 } }", "1.2: 3:2{ 48 C4 D4 3:2{ 16 E4 F4 G4 } }"),
     "grace chords": ("N1x div=48\nm10 len=288\n1.2: gC4+E4 48 G4 gD4 gF4+A4 B4", "1.2: gC4+E4 8 G4 gD4 gF4+A4 B4"),
+    "decorations": (
+        "N1x div=4\nm10 len=24\n1.2: [stacc]{ 2 C4 D4 E4 } F4[acc,fermata] gG4[appog] A4:paren+C5'2[arp] B4[trem16] 4 r[fermata] 8 r",
+        "1.2: [stacc]{ 4 C4 D4 E4 } F4[acc,fermata] gG4[appog] A4:paren+C5'2[arp] B4[trem16] [fermata]@24",
+    ),
     "references": ("N1x div=48\nm10 len=288\n1.2: 48 C4 D4 E4 F4 G4 A4\nm11 len=288\n1.2 = m10", "1.2 = m10"),
 }
 MARKS = {

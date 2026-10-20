@@ -145,8 +145,10 @@ def encode(info: ScoreInfo, index: ScoreIndex, first: int, last: int) -> str:
 MARK_ORDER = ["Clef", "Tempo", "RehearsalMark", "SystemText", "StaffText", "Expression", "PlayTechAnnotation", "FiguredBass", "Dynamic", "Harmony"]
 
 
-def mark_order(mark: Mark) -> tuple[Fraction, int]:
-    return mark.onset, MARK_ORDER.index(mark.kind) if mark.kind in MARK_ORDER else len(MARK_ORDER)
+def mark_order(mark: Mark) -> tuple:
+    if mark.kind not in MARK_ORDER:
+        return mark.onset, len(MARK_ORDER), "", ""
+    return mark.onset, MARK_ORDER.index(mark.kind), mark.value, mark.text
 
 
 def references(bars: list[tuple[str, list[str]]]) -> list[str]:

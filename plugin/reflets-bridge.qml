@@ -5,10 +5,10 @@ import FileIO 3.0
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.10.0"
+    version: "0.11.0"
     requiresScore: false
 
-    readonly property int proto: 10
+    readonly property int proto: 11
     readonly property int port: 8731
     readonly property string ideaColor: "#1565c0"
     property string token: ""
@@ -355,7 +355,7 @@ MuseScore {
         throw "no note or rest at tick " + tick
     }
 
-    function clearMarks(track, startTick, endTick) {
+    function clearVoice(track, startTick, endTick, notes) {
         var doomed = []
         for (var m = curScore.firstMeasure; m; m = m.nextMeasure) {
             var mt = m.firstSegment.tick
@@ -366,21 +366,55 @@ MuseScore {
             for (var seg = m.firstSegment; seg; seg = seg.nextInMeasure) {
                 if (seg.tick < startTick || seg.tick >= endTick)
                     continue
+                if (seg.segmentType !== Segment.Clef && mt < startTick)
+                    continue
                 if (seg.segmentType === Segment.Clef) {
                     var clef = track % 4 === 0 ? seg.elementAt(track) : null
                     if (clef && !clef.generated)
                         doomed.push(clef)
                     continue
                 }
+                if (seg.segmentType === Segment.Breath) {
+                    if (seg.elementAt(track))
+                        doomed.push(seg.elementAt(track))
+                    continue
+                }
                 var ann = seg.annotations
                 for (var j = 0; ann && j < ann.length; j++) {
-                    if (ann[j].track === track && ann[j].name !== "Fermata")
+                    if (ann[j].track === track)
                         doomed.push(ann[j])
                 }
+                var cr = notes ? seg.elementAt(track) : null
+                for (var g = 0; cr && cr.type === Element.CHORD && cr.graceNotes && g < cr.graceNotes.length; g++)
+                    doomed.push(cr.graceNotes[g])
             }
         }
         for (var k = 0; k < doomed.length; k++)
             removeElement(doomed[k])
+        for (var left = notes ? 1000 : 0; left > 0; left--) {
+            var top = firstTuplet(track, startTick, endTick)
+            if (!top)
+                return
+            removeElement(top)
+        }
+        if (notes)
+            throw "the tuplets in track " + track + " could not be removed"
+    }
+
+    function firstTuplet(track, startTick, endTick) {
+        var c = curScore.newCursor()
+        c.track = track - track % 4
+        c.rewindToTick(startTick)
+        c.track = track
+        for (; c.segment && c.tick < endTick; c.next()) {
+            var t = c.element ? c.element.tuplet : null
+            if (t) {
+                while (t.tuplet)
+                    t = t.tuplet
+                return t
+            }
+        }
+        return null
     }
 
     function addMark(track, tick, kind, value, text) {
@@ -403,6 +437,55 @@ MuseScore {
         if (kind === "TEMPO_TEXT")
             el.tempo = value
         el.color = ideaColor
+    }
+
+    function decorate(track, tick, pitch, what, value) {
+        if ((what === "fermata" || what === "breath" || what === "art") && SymId[value] === undefined)
+            throw "MuseScore has no symbol " + value
+        if (what === "fermata" || what === "breath") {
+            var c = cursorAt(track, tick)
+            var mark = newElement(what === "fermata" ? Element.FERMATA : Element.BREATH)
+            mark.symbol = SymId[value]
+            c.add(mark)
+            return
+        }
+        if (pitch !== "-") {
+            var n = noteAt(track, tick, parseInt(pitch))
+            if (what === "head") {
+                n.headGroup = parseInt(value)
+            } else if (what === "finger") {
+                finger(n, "F" + encodeURIComponent(value))
+            } else {
+                curScore.selection.select(n)
+                cmd(what === "lv" ? "lv" : "add-parentheses")
+            }
+            return
+        }
+        var chord = elementAt(track, tick)
+        if (what === "move") {
+            chord.staffMove = parseInt(value)
+            return
+        }
+        var el
+        if (what === "art") {
+            el = newElement(value.indexOf("ornament") === 0 ? Element.ORNAMENT : Element.ARTICULATION)
+            el.symbol = SymId[value]
+        } else if (what === "arp") {
+            el = newElement(Element.ARPEGGIO)
+            el.arpeggioType = parseInt(value)
+        } else {
+            el = newElement(Element.TREMOLO_SINGLECHORD)
+            el.tremoloType = parseInt(value)
+        }
+        chord.add(el)
+    }
+
+    function finger(n, field) {
+        if (!field)
+            return
+        var f = newElement(Element.FINGERING)
+        n.add(f)
+        f.text = decodeURIComponent(field.substring(1))
     }
 
     function respell(n, tpc, color) {
@@ -437,7 +520,7 @@ MuseScore {
                     c.addRest()
                     rests.push([track, parseInt(w[1])])
                 } else if (w[0] === "x") {
-                    clearMarks(parseInt(w[1]), parseInt(w[2]), parseInt(w[3]))
+                    clearVoice(parseInt(w[1]), parseInt(w[2]), parseInt(w[3]), w[4] === "1")
                 } else if (w[0] === "t") {
                     var ratio = w[1].split(":"), total = w[2].split("/")
                     c.addTuplet(fraction(parseInt(ratio[0]), parseInt(ratio[1])), fraction(parseInt(total[0]), parseInt(total[1])))
@@ -473,16 +556,22 @@ MuseScore {
                     var gns = o[4].split(",")
                     added.pitch = parseInt(gp[0]) - offsetAt(otrack, otick)
                     respell(added, parseInt(gp[1]), ideaColor)
+                    finger(added, gp[2])
                     for (var q = 1; q < gns.length; q++) {
                         var more = newElement(Element.NOTE)
                         var mp = gns[q].split(":")
                         more.pitch = parseInt(mp[0]) - offsetAt(otrack, otick)
                         added.parent.add(more)
                         respell(more, parseInt(mp[1]), ideaColor)
+                        finger(more, mp[2])
                     }
                 } else if (o[0] === "a") {
                     addMark(otrack, otick, o[3], parseFloat(o[4]), unescapeText(o.slice(5).join(" ")))
+                } else if (o[0] === "e") {
+                    decorate(otrack, otick, o[3], o[4], o.slice(5).join(" "))
                 } else if (o[0] === "~") {
+                    if (o[4] && !noteAt(otrack, parseInt(o[4]), parseInt(o[3])))
+                        throw "no note to tie to"
                     var n = noteAt(otrack, otick, parseInt(o[3]))
                     if (!n.tieForward) {
                         curScore.selection.select(n)
