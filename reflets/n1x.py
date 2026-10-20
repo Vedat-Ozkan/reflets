@@ -125,7 +125,7 @@ def encode(info: ScoreInfo, index: ScoreIndex, first: int, last: int) -> str:
         marks: dict[tuple[int, int], list[tuple[Fraction, str]]] = {}
         closers: dict[tuple[int, int], list[tuple[Fraction, str]]] = {}
         attached: dict[tuple[int, int], list[Mark]] = {}
-        for mark in info.bars[position].marks:
+        for mark in sorted(info.bars[position].marks, key=mark_order):
             where = (mark.track // 4 + 1, mark.track % 4 + 1)
             if mark.kind in ("Fermata", "Breath"):
                 attached.setdefault(where, []).append(mark)
@@ -140,6 +140,13 @@ def encode(info: ScoreInfo, index: ScoreIndex, first: int, last: int) -> str:
             body.append(f"{staff}.{layer}: " + voice(events, div, marks.get(where, []), info.details, attached.get(where, []), tuplets, closers.get(where, [])))
             body += lyric_lines(f"{staff}.{layer}", info.lyrics.get((position, staff, layer), {}))
     return "\n".join(lines + references(bars))
+
+
+MARK_ORDER = ["Clef", "Tempo", "RehearsalMark", "SystemText", "StaffText", "Expression", "PlayTechAnnotation", "FiguredBass", "Dynamic", "Harmony"]
+
+
+def mark_order(mark: Mark) -> tuple[Fraction, int]:
+    return mark.onset, MARK_ORDER.index(mark.kind) if mark.kind in MARK_ORDER else len(MARK_ORDER)
 
 
 def references(bars: list[tuple[str, list[str]]]) -> list[str]:
@@ -298,6 +305,10 @@ def quote(text: str) -> str:
     return '"' + text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n") + '"'
 
 
+def unquoted(text: str) -> str:
+    return re.sub(r"\\(.)", lambda match: "\n" if match[1] == "n" else match[1], text[1:-1])
+
+
 def units(value: Fraction, div: int) -> int:
     count = value * div
     if count.denominator != 1:
@@ -451,6 +462,7 @@ class Voice:
     marks: list[tuple[Fraction, str]] = dataclasses.field(default_factory=list)
     lyrics: dict[int, list[str]] = dataclasses.field(default_factory=dict)
     end: Fraction = Fraction(0)
+    timed: bool = False
 
 
 @dataclass
@@ -543,18 +555,22 @@ def decode_voice(text: str, div: int, where: str) -> Voice:
                 stack.append((time, f"{actual}:{normal}" if actual else "", names(bracketed)))
             elif token.isdigit():
                 current = Fraction(int(token), div)
+                voice.timed = True
             elif re.fullmatch(r"r(\[[^\]]*\])?", token):
                 if current is None:
                     raise DecodeError("a rest needs a duration before it")
                 voice.rests.append((time, current, names(token[1:] or None)))
                 time += current
+                voice.timed = True
             elif re.match(r"g[A-G]", token):
                 voice.chords.append(parse_chord(token[1:], time, Fraction(0), True, ()))
+                voice.timed = True
             elif re.match(r"[A-G]", token):
                 if current is None:
                     raise DecodeError("a note needs a duration before it")
                 voice.chords.append(parse_chord(token, time, current, False, shared))
                 time += current
+                voice.timed = True
             else:
                 body, _, offset = token.rpartition("@") if re.search(r"@\d+$", token) else (token, "", "")
                 if not MARK.fullmatch(body):
@@ -609,3 +625,7 @@ def decode(text: str) -> Idea:
         else:
             bar.voices[cell] = decode_voice(match[5], div, where)
     return idea
+
+
+def is_line(token: str) -> bool:
+    return token.endswith(("(", ")"))

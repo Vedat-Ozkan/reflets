@@ -45,7 +45,7 @@ EXPECTED_BARS = [
 ]
 MARKS_TITLE = "Reflets marks"
 EXPECTED_MARKS = """m1 len=8
-1.1: "C" !mf R"A" q120"Allegro" 8 C5 "G7"@4
+1.1: q120"Allegro" R"A" !mf "C" 8 C5 "G7"@4
 2.1: 4 C3 G2
 m2 len=8
 1.1: x"dolce" 2 E5 s"legato" "Dm7" D5 !p C5 D5
@@ -58,7 +58,7 @@ m4 len=8
 2.1: clef=bass s"sempre" 8 C3"""
 SYSTEM_MARKS_TITLE = "Reflets system marks"
 EXPECTED_SYSTEM_MARKS = """m1 len=4
-1.1: R"A" q120"Allegro" 4 C5
+1.1: q120"Allegro" R"A" 4 C5
 2.1: 4 G4
 3.1: 4 C3
 m2 len=4 jump=dc mark=segno

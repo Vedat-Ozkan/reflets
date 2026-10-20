@@ -177,10 +177,13 @@ def writes(title: str, destructive: bool) -> ToolAnnotations:
         "other bar fields only as the score has them, they cannot be changed yet) "
         "and one 'staff.voice:' line per voice to write. Each voice line replaces that voice's notes and rests in that bar; voices "
         "and bars you leave out are untouched; a line of rests only (e.g. '1.2: 288 r') empties a voice. "
-        "Silence at the end of a voice line is filled with rests. Tuplets, grace chords and references to bars "
-        "written out earlier in the idea ('m9 = m1', '2.1 = m1') can be written. Not yet: marks (dynamics, "
-        "chord symbols, texts, tempo, clefs), lines, decorations and decoration groups, lyrics; the marks and lines "
-        "already in a voice stay. replace=True is needed when a voice you write already has "
+        "Silence at the end of a voice line is filled with rests. Marks are written with the voice line and replace "
+        "its marks in that bar, so write again any you keep; a line with marks only (e.g. '1.1: !f \"Dm7\"@96') "
+        "replaces the voice's marks and leaves its notes. A mark needs a note or rest starting at its moment in some "
+        "voice; tempo, rehearsal marks and system text go in 1.1, clefs in voice 1 of their staff. Tuplets, grace "
+        "chords and references to bars written out earlier in the idea ('m9 = m1', '2.1 = m1') can be written. Not "
+        "yet: lines, decorations and decoration groups, lyrics; the lines already in a voice stay. replace=True is "
+        "needed when a voice you write already has "
         "notes there. The idea is written in colour as one undo step and read back; the result gives a proposal id "
         "for keep or discard."
     ),
@@ -207,7 +210,7 @@ async def propose(idea: str, label: str = "idea", replace: bool = False) -> str:
     if mismatch:
         await request("undo")
         after = await request(f"read {plan.start_tick} {plan.end_tick}")
-        state = "The write was undone." if after == pre else "Undoing it did not restore the bars; ask the user to check them."
+        state = "The write was undone." if sorted(after) == sorted(pre) else "Undoing it did not restore the bars; ask the user to check them."
         raise ToolError(f"The idea did not land as written ({mismatch}). {state}")
     positions = sorted({p for p, _ in plan.cells})
     bars = f"bars {numbers[positions[0]]}-{numbers[positions[-1]]}" if len(positions) > 1 else f"bar {numbers[positions[0]]}"
@@ -243,15 +246,15 @@ def find(proposal_id: str) -> Proposal:
 async def discard(proposal_id: str) -> str:
     p = find(proposal_id)
     span = f"read {p.start_tick} {p.end_tick}"
-    if await request(span) != p.post:
+    if sorted(await request(span)) != sorted(p.post):
         raise ToolError(
             f"{p.bars.capitalize()} changed since {proposal_id} was written, so undoing would remove the user's edit. "
             "Nothing was undone; the user can use Ctrl+Z in MuseScore."
         )
     await request("undo")
-    if await request(span) != p.pre:
+    if sorted(await request(span)) != sorted(p.pre):
         await request("redo")
-        restored = await request(span) == p.post
+        restored = sorted(await request(span)) == sorted(p.post)
         raise ToolError(
             f"The last step in MuseScore's undo history was not {proposal_id}"
             + (", so it was redone and nothing changed." if restored else ", and redoing it did not restore the bars; ask the user to check them.")

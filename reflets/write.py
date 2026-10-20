@@ -6,7 +6,7 @@ from dataclasses import dataclass, field, replace
 from fractions import Fraction
 
 from reflets import n1x
-from reflets.score import FIFTHS, SEMITONES, ScoreInfo, build_index
+from reflets.score import FIFTHS, SEMITONES, SYSTEM_MARKS, ScoreInfo, build_index
 
 VALUES = sorted({Fraction(1, 2**k) * dots for k in range(8) for dots in (1, Fraction(3, 2), Fraction(7, 4))}, reverse=True)
 GRACE_TYPES = {"acciaccatura": 1, "grace16": 8}
@@ -23,6 +23,7 @@ class Plan:
     ops: list[str]
     cells: set[tuple[int, int]]
     idea: n1x.Idea
+    timed: set[tuple[int, int]] = field(default_factory=set)
     counts: dict[str, int] = field(default_factory=dict)
 
 
@@ -48,8 +49,9 @@ def pieces(quarters: Fraction, where: str) -> list[Fraction]:
 
 
 def unwritable(voice: n1x.Voice, where: str) -> None:
-    if voice.marks:
-        raise IdeaError(f"{where}: marks and lines cannot be written yet ({' '.join(token for _, token in voice.marks)}); leave them out")
+    later = [token for _, token in voice.marks if n1x.is_line(token) or token.startswith("[")]
+    if later:
+        raise IdeaError(f"{where}: lines and decorations cannot be written yet ({' '.join(later)}); leave them out")
     if voice.lyrics:
         raise IdeaError(f"{where}: lyrics cannot be written yet; leave the lyric lines out")
     for chord in voice.chords:
@@ -59,6 +61,31 @@ def unwritable(voice: n1x.Voice, where: str) -> None:
             raise IdeaError(f"{where}: a tie on a grace note cannot be written")
     if any(names for _, _, names in voice.rests):
         raise IdeaError(f"{where}: decorations on rests cannot be written yet")
+
+
+TEXT_KINDS = {"x": "EXPRESSION", "s": "STAFF_TEXT", "S": "SYSTEM_TEXT", "R": "REHEARSAL_MARK", "pt": "PLAYTECH_ANNOTATION", "fb": "FIGURED_BASS"}
+SYSTEM_KINDS = {"TEMPO_TEXT", "REHEARSAL_MARK", "SYSTEM_TEXT"}
+CLEF_NUMBERS = {**{name: number for number, name in enumerate(n1x.CLEF_NAMES)}, **{name: number for number, name in n1x.CLEFS.items()}}
+
+
+def mark_element(token: str, where: str) -> tuple[str, float, str]:
+    if token.startswith("!"):
+        name = token[1:]
+        if name.startswith('"'):
+            return "DYNAMIC", 0, n1x.unquoted(name)
+        if name not in n1x.DYNAMICS[1:]:
+            raise IdeaError(f"{where}: {token!r} is not a dynamic; use one like !p, !mf, !sfz or !\"text\"")
+        return "DYNAMIC", n1x.DYNAMICS.index(name), name
+    if token.startswith('"'):
+        return "HARMONY", 0, n1x.unquoted(token)
+    if match := re.fullmatch(r'q([\d.]+)("(?:[^"\\]|\\.)*")?', token):
+        return "TEMPO_TEXT", float(match[1]) / 60, n1x.unquoted(match[2]) if match[2] else f"<sym>metNoteQuarterUp</sym> = {match[1]}"
+    if token.startswith("clef="):
+        if token[5:] not in CLEF_NUMBERS:
+            raise IdeaError(f"{where}: {token!r} is not a clef; use treble, bass, alto, tenor, treble8vb, …")
+        return "CLEF", CLEF_NUMBERS[token[5:]], ""
+    prefix, _, text = token.partition('"')
+    return TEXT_KINDS[prefix], 0, n1x.unquoted('"' + text)
 
 
 def current_fields(info: ScoreInfo, position: int) -> dict[str, str]:
@@ -80,7 +107,7 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int) -> Plan
             if line.startswith(name + "=") and line != f"{name}={n1x.quote(value)}":
                 raise IdeaError(f"The {name} cannot be changed by an idea; leave the {name}= line out")
     numbers = [measure.number for measure in info.measures]
-    ops, graces, ties = [], [], []
+    ops, graces, ties, clears, marks = [], [], [], [], []
     plan = Plan(0, 0, ops, set(), idea)
     voices: dict[int, list[tuple[int, Fraction, list[tuple[int, int, bool]], tuple[int, int]]]] = {}
     rests = grace_notes = 0
@@ -105,6 +132,21 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int) -> Plan
             track = (staff - 1) * 4 + layer - 1
             cell = (position, track)
             plan.cells.add(cell)
+            end_tick = info.ticks[position + 1] if position + 1 < len(info.ticks) else 2**31 - 1
+            clears.append(f"x {track} {bar_tick} {end_tick}")
+            for onset, token in voice.marks:
+                kind, value, text = mark_element(token, where)
+                if onset >= length:
+                    raise IdeaError(f"{where}: {token} falls at or after the end of the bar")
+                if kind in SYSTEM_KINDS and track != 0:
+                    raise IdeaError(f"{where}: {token} is a system mark (tempo, rehearsal mark, system text); write it in 1.1")
+                if kind == "CLEF" and layer != 1:
+                    raise IdeaError(f"{where}: a clef belongs to the staff; write it in {staff}.1")
+                escaped = text.replace("\\", "\\\\").replace("\n", "\\n")
+                marks.append(f"a {track} {bar_tick + round(onset * division)} {kind} {value:g} {escaped}")
+            if not voice.timed:
+                continue
+            plan.timed.add(cell)
             mains = {chord.onset: chord for chord in voice.chords if not chord.grace}
             before: dict[Fraction, list[n1x.Chord]] = {}
             for chord in voice.chords:
@@ -176,7 +218,7 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int) -> Plan
                         "in the idea, to start right after it on the same pitch"
                     )
                 ties.append(f"~ {track} {tick} {pitch}")
-    plan.ops = ops + graces + ties
+    plan.ops = clears + ops + graces + marks + ties
     positions = sorted({position for position, _ in plan.cells})
     plan.start_tick = info.ticks[positions[0]]
     plan.end_tick = info.ticks[positions[-1] + 1] if positions[-1] + 1 < len(info.ticks) else 2**31 - 1
@@ -185,6 +227,7 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int) -> Plan
         "rests": rests,
         "ties": len(ties),
         "grace notes": grace_notes,
+        "marks": len(marks),
     }
     return plan
 
@@ -224,7 +267,7 @@ def cells(lines: list[str], info: ScoreInfo) -> dict[tuple[int, int], list[tuple
 
 
 def occupied(plan: Plan, pre: dict[tuple[int, int], list[tuple]]) -> list[tuple[int, int]]:
-    return sorted(cell for cell in plan.cells if any(key[1] != "R" for key in pre.get(cell, [])))
+    return sorted(cell for cell in plan.timed if any(key[1] != "R" for key in pre.get(cell, [])))
 
 
 def _untied(keys: list[tuple], first: bool) -> list[tuple]:
@@ -254,8 +297,23 @@ def merged(chords: list[n1x.Chord]) -> list[n1x.Chord]:
     return result
 
 
-def written(voice: n1x.Voice) -> tuple:
-    return (merged(voice.chords), sorted(voice.tuplets), voice.lyrics, [rest for rest in voice.rests if rest[2]])
+def written(voice: n1x.Voice, timed: bool) -> tuple:
+    marks = sorted((onset, token) for onset, token in voice.marks if not n1x.is_line(token) and not token.startswith("["))
+    if not timed:
+        return (marks,)
+    return (merged(voice.chords), sorted(voice.tuplets), voice.lyrics, [rest for rest in voice.rests if rest[2]], marks)
+
+
+def mark_lines(lines: list[str], info: ScoreInfo, skip: set[tuple[int, int]]) -> list[str]:
+    kept = []
+    for line in lines:
+        words = line.split(" ")
+        if words[0] not in ("A", "F"):
+            continue
+        track = 0 if words[0] == "A" and words[3] in SYSTEM_MARKS else int(words[2])
+        if (bisect.bisect_right(info.ticks, int(words[1])) - 1, track) not in skip:
+            kept.append(line)
+    return sorted(kept)
 
 
 def line_of(idea: n1x.Idea, number: int, label: str) -> str:
@@ -274,27 +332,28 @@ def verify(plan: Plan, pre: list[str], post: list[str], info: ScoreInfo, divisio
     cut = set()
     for cell in sorted(set(before) | set(after)):
         position, track = cell
-        if cell in plan.cells:
+        if cell in plan.timed:
             continue
         want, got = before.get(cell, []), after.get(cell, [])
         loose_want, loose_got = want, got
         for first, neighbour in ((False, position + 1), (True, position - 1)):
-            if (neighbour, track) in plan.cells:
+            if (neighbour, track) in plan.timed:
                 loose_want, loose_got = _untied(loose_want, first), _untied(loose_got, first)
         if loose_want != loose_got:
             return f"bar {numbers[position]}, staff {track // 4 + 1} voice {track % 4 + 1}, outside the idea, changed", []
         if want != got:
             cut.add(numbers[position])
-    annotations = ([line for line in pre if line.startswith("A ")], [line for line in post if line.startswith("A ")])
+    annotations = (mark_lines(pre, info, plan.cells), mark_lines(post, info, plan.cells))
     if annotations[0] != annotations[1]:
-        return f"the dynamics, chord symbols or texts in the range changed: {annotations[0]} -> {annotations[1]}", []
+        return f"marks outside the idea changed: {annotations[0]} -> {annotations[1]}", []
     positions = sorted({position for position, _ in plan.cells})
     text = n1x.encode(info, build_index(info, post, division), numbers[positions[0]], numbers[positions[-1]])
     back = n1x.decode(text)
     got_voices = {(bar.number, cell): voice for bar in back.bars for cell, voice in bar.voices.items()}
     for bar in plan.idea.bars:
         for cell, voice in sorted(bar.voices.items()):
-            if written(voice) != written(got_voices.get((bar.number, cell), n1x.Voice())):
+            got = got_voices.get((bar.number, cell), n1x.Voice())
+            if written(voice, voice.timed) != written(got, voice.timed):
                 label = f"{cell[0]}.{cell[1]}"
                 return f"bar {bar.number} {label} was written as '{line_of(plan.idea, bar.number, label)}' and reads back as '{line_of(back, bar.number, label)}'", []
     return None, sorted(cut)

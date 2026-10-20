@@ -5,10 +5,10 @@ import FileIO 3.0
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.9.0"
+    version: "0.10.0"
     requiresScore: false
 
-    readonly property int proto: 9
+    readonly property int proto: 10
     readonly property int port: 8731
     readonly property string ideaColor: "#1565c0"
     property string token: ""
@@ -19,6 +19,10 @@ MuseScore {
 
     function escapeText(s) {
         return String(s).replace(/\\/g, "\\\\").replace(/\n/g, "\\n")
+    }
+
+    function unescapeText(s) {
+        return String(s).replace(/\\(n|\\)/g, function(m, ch) { return ch === "n" ? "\n" : "\\" })
     }
 
     function frac(f) {
@@ -333,6 +337,74 @@ MuseScore {
         throw "no note " + sounding + " in track " + track + " at tick " + tick
     }
 
+    function cursorAt(track, tick) {
+        var c = curScore.newCursor()
+        var order = [track]
+        for (var t = 0; t < curScore.ntracks; t++) {
+            if (t !== track)
+                order.push(t)
+        }
+        for (var i = 0; i < order.length; i++) {
+            c.track = order[i]
+            c.rewindToTick(tick)
+            if (c.segment && c.tick === tick) {
+                c.track = track
+                return c
+            }
+        }
+        throw "no note or rest at tick " + tick
+    }
+
+    function clearMarks(track, startTick, endTick) {
+        var doomed = []
+        for (var m = curScore.firstMeasure; m; m = m.nextMeasure) {
+            var mt = m.firstSegment.tick
+            if (mt >= endTick)
+                break
+            if (m.nextMeasure && m.nextMeasure.firstSegment.tick < startTick)
+                continue
+            for (var seg = m.firstSegment; seg; seg = seg.nextInMeasure) {
+                if (seg.tick < startTick || seg.tick >= endTick)
+                    continue
+                if (seg.segmentType === Segment.Clef) {
+                    var clef = track % 4 === 0 ? seg.elementAt(track) : null
+                    if (clef && !clef.generated)
+                        doomed.push(clef)
+                    continue
+                }
+                var ann = seg.annotations
+                for (var j = 0; ann && j < ann.length; j++) {
+                    if (ann[j].track === track && ann[j].name !== "Fermata")
+                        doomed.push(ann[j])
+                }
+            }
+        }
+        for (var k = 0; k < doomed.length; k++)
+            removeElement(doomed[k])
+    }
+
+    function addMark(track, tick, kind, value, text) {
+        var c = cursorAt(track, tick)
+        var el = newElement(Element[kind])
+        if (kind === "CLEF") {
+            el.concertClefType = value
+            el.transposingClefType = value
+        }
+        if (kind === "TEMPO_TEXT") {
+            el.tempo = value
+            el.tempoFollowText = false
+        }
+        c.add(el)
+        if (kind === "CLEF")
+            return
+        el.text = text
+        if (kind === "DYNAMIC")
+            el.dynamicType = value
+        if (kind === "TEMPO_TEXT")
+            el.tempo = value
+        el.color = ideaColor
+    }
+
     function respell(n, tpc, color) {
         var transposition = n.tpc2 - n.tpc1
         n.tpc1 = tpc
@@ -364,6 +436,8 @@ MuseScore {
                 } else if (w[0] === "r") {
                     c.addRest()
                     rests.push([track, parseInt(w[1])])
+                } else if (w[0] === "x") {
+                    clearMarks(parseInt(w[1]), parseInt(w[2]), parseInt(w[3]))
                 } else if (w[0] === "t") {
                     var ratio = w[1].split(":"), total = w[2].split("/")
                     c.addTuplet(fraction(parseInt(ratio[0]), parseInt(ratio[1])), fraction(parseInt(total[0]), parseInt(total[1])))
@@ -406,6 +480,8 @@ MuseScore {
                         added.parent.add(more)
                         respell(more, parseInt(mp[1]), ideaColor)
                     }
+                } else if (o[0] === "a") {
+                    addMark(otrack, otick, o[3], parseFloat(o[4]), unescapeText(o.slice(5).join(" ")))
                 } else if (o[0] === "~") {
                     var n = noteAt(otrack, otick, parseInt(o[3]))
                     if (!n.tieForward) {
@@ -436,6 +512,11 @@ MuseScore {
             if (mt >= endTick)
                 break
             for (var seg = m.firstSegment; seg; seg = seg.nextInMeasure) {
+                var ann = seg.annotations
+                for (var a = 0; ann && a < ann.length; a++) {
+                    if (tracks.indexOf(ann[a].track) >= 0 && ann[a].name !== "Fermata")
+                        ann[a].color = color
+                }
                 for (var t = 0; t < tracks.length; t++) {
                     var el = seg.elementAt(tracks[t])
                     if (!el)

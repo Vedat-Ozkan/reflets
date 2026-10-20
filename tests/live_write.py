@@ -24,7 +24,12 @@ GROUPS = {
     "grace chords": ("N1x div=48\nm10 len=288\n1.2: gC4+E4 48 G4 gD4 gF4+A4 B4", "1.2: gC4+E4 8 G4 gD4 gF4+A4 B4"),
     "references": ("N1x div=48\nm10 len=288\n1.2: 48 C4 D4 E4 F4 G4 A4\nm11 len=288\n1.2 = m10", "1.2 = m10"),
 }
+MARKS = {
+    "marks with notes": ("N1x div=4\nm5 len=24\n1.1: !f \"Eb\" x\"dolce\" 6 G5 q50 Ab5 !p 12 Bb5", "5", ['x"dolce" !f "Eb"', "q50", "!p"]),
+    "a marks-only line": ("N1x div=4\nm10 len=24\n2.1: s\"marks only\"@4 clef=treble@12", "10", ['s"marks only"', "clef=treble"]),
+}
 failures = []
+start = ""
 
 
 def check(name: str, ok: bool, detail: str = "") -> None:
@@ -42,7 +47,9 @@ async def refused(coro) -> str:
 
 
 async def unchanged(name: str) -> None:
-    check(name + ", score equals the reference", strip((await server.read_score("all")).strip()) == REFERENCE)
+    text = await server.read_score("all")
+    check(name + ", score equals the reference", strip(text.strip()) == REFERENCE)
+    check(name + ", marks and lines as at the start", text == start)
 
 
 def proposal(result: str) -> str:
@@ -50,6 +57,8 @@ def proposal(result: str) -> str:
 
 
 async def main() -> None:
+    global start
+    start = await server.read_score("all")
     await unchanged("start")
     error = await refused(server.propose(IDEA, "test"))
     check("propose over notes without replace is refused", "replace=True" in error, error)
@@ -57,7 +66,7 @@ async def main() -> None:
     first = await server.propose(IDEA, "test", replace=True)
     check("propose writes and reads back", "Read-back matched" in first and "3 grace notes" in first, first)
     bars = await server.read_score("5-6")
-    check("bars 5-6 hold the idea", "1.1: !p 3 G5~ ) G5 gAb5 2 Bb5 1 Ab5 3 G5" in bars and "1.2: 6 r Bb4" in bars, bars)
+    check("bars 5-6 hold the idea", "1.1: 3 G5~ ) G5 gAb5 2 Bb5 1 Ab5 3 G5" in bars and "1.2: 6 r Bb4" in bars, bars)
     check("discard", "Discarded" in await server.discard(proposal(first)))
     await unchanged("after discard")
 
@@ -86,6 +95,18 @@ async def main() -> None:
     await unchanged("after the tuplets, grace chords and references")
     error = await refused(server.propose("N1x div=48\nm11 len=288\n1.2 = m10", "bad"))
     check("a reference to a bar outside the idea is refused", "written out earlier" in error, error)
+
+    notes_before = strip(await server.read_score("10"))
+    for name, (idea, bar, tokens) in MARKS.items():
+        written = proposal(await server.propose(idea, name, replace=True))
+        text = await server.read_score(bar)
+        check(f"{name} read back as written", all(token in text for token in tokens), text)
+        if bar == "10":
+            check("a marks-only line leaves the notes", strip(text) == notes_before, text)
+        await server.discard(written)
+    await unchanged("after the marks")
+    error = await refused(server.propose("N1x div=4\nm5 len=24\n2.1: q60 24 Eb2", "bad", replace=True))
+    check("a tempo outside 1.1 is refused", "system mark" in error, error)
 
     tick = (await server.load_info()).ticks[5]
     error = await refused(server.request(f"write {tick} {tick + 2880} rollback\nv 0 {tick}\nd 3/2\nn {tick} 67:15\n~ 0 {tick} 99"))
