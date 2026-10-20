@@ -46,9 +46,42 @@ def as_read(word: str) -> str:
     return re.sub(r"(?<=[\[,])(gliss[\w-]*)", r"-\1", word) if not word.startswith("g") else word
 
 
+def closed(lines: list[str]) -> set[tuple[int, int]]:
+    stacks: dict[tuple[str, str], list[tuple[int, int]]] = {}
+    found = set()
+    for row, line in enumerate(lines):
+        match = VOICE.fullmatch(line)
+        for column, word in enumerate(n1x.TOKEN.findall(match[2]) if match else []):
+            body = re.sub(r"@\d+$", "", word)
+            token = n1x.LINE_TOKEN.fullmatch(body)
+            if not token:
+                continue
+            stack = stacks.setdefault((match[1], token[1] + token[4]), [])
+            if token[3] == "(":
+                stack.append((row, column))
+            elif stack:
+                found |= {stack.pop(), (row, column)}
+    return found
+
+
+def bare_idea(lines: list[str], header: str) -> str:
+    lines_closed = closed(lines)
+    result = [header]
+    for row, line in enumerate(lines):
+        match = VOICE.fullmatch(line)
+        if not match:
+            result.append(line)
+            continue
+        words = n1x.TOKEN.findall(match[2])
+        result.append(match[1] + " ".join(
+            ("-" + word if (row, column) in lines_closed else word) if n1x.is_line(re.sub(r"@\d+$", "", word)) else removed(word)
+            for column, word in enumerate(words)
+        ))
+    return "\n".join(result)
+
+
 def removed(word: str) -> str:
-    body = re.sub(r"@\d+$", "", word)
-    if n1x.is_line(body) or word.startswith("g") or word.isdigit() or word == "}":
+    if word.startswith("g") or word.isdigit() or word == "}":
         return word
     word = re.sub(r"(?<=[\[,])(?!-)", "-", word)
     if word.endswith("{"):
@@ -62,7 +95,7 @@ def bare(text: str) -> list[str]:
     left = []
     for bar in n1x.decode(text).bars:
         for cell, voice in bar.voices.items():
-            left += [f"m{bar.number} {cell}: {token}" for _, token in voice.marks if not n1x.is_line(token)]
+            left += [f"m{bar.number} {cell}: {token}" for _, token in voice.marks]
             left += [f"m{bar.number} {cell}: {chord.decorations}" for chord in voice.chords if chord.decorations and not chord.grace]
             left += [f"m{bar.number} {cell}: {note}" for chord in voice.chords for note in chord.notes if note.decorations]
             left += [f"m{bar.number} {cell}: rest {names}" for _, _, names in voice.rests if names]
@@ -92,8 +125,8 @@ async def main() -> None:
             try:
                 if writable(await server.read_score(bars)) != lines:
                     failures.append(f"bars {bars} changed when written back as read")
-                written.append(await server.propose(idea(lines, header, removed), f"bars {bars} bare", replace=True))
-                left = bare(await server.read_score(bars))
+                written.append(await server.propose(bare_idea(lines, header), f"bars {bars} bare", replace=True))
+                left = [item for item in bare(await server.read_score(bars)) if not n1x.is_line(item.split(": ", 1)[1])]
                 if left:
                     failures.append(f"bars {bars}: the minuses left {left}")
                 written.append(await server.propose("\n".join([header, *lines]), f"bars {bars} restored", replace=True))

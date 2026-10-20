@@ -196,11 +196,12 @@ def writes(title: str, destructive: bool) -> ToolAnnotations:
         "voice 1 of their staff. A note with a glissando cannot be rewritten unless the idea removes it ([-gliss]). Tuplets, grace "
         "chords, decorations, decoration groups, fingering and references to bars written out earlier in the idea "
         "('m9 = m1', '2.1 = m1') can be written; glissandos cannot. A tie may run into the bar after the idea when "
-        "that bar's voice starts with the same pitch. Lines are marks too: a voice line replaces the lines that "
-        "start or end in it. A line opened in the idea must close in the idea, in a later bar's marks-only line if "
-        "needed ('1.1: )@96'); a closer with no opener in the idea ends the line from before the idea that read_score "
-        "showed ending there, keeping its start. Leaving out one end of a line that crosses the idea's edge is "
-        "refused, so nothing outside the idea changes: keep that end, or put its bar in the idea. Lyrics cannot be written yet and go with the notes they were on. "
+        "that bar's voice starts with the same pitch. Lines (slurs, hairpins, pedal, …) stay as they are too: a line "
+        "end the bar and voice already have refers to that line, wherever it is written, and a slur over rewritten notes "
+        "is hung on the notes sounding at its old start and end. A new line needs both ends in the idea; a later bar may "
+        "carry just its closer ('1.1: )@96'). Remove a line with a minus on either end ('-ped('); move an end by removing "
+        "it and writing the new one ('-ped) ped)@96'). "
+        "Lyrics cannot be written yet and go with the notes they were on. "
         "replace=True is needed when a voice you write already has "
         "notes there. The idea is written in colour as one undo step and read back; the result gives a proposal id "
         "for keep or discard."
@@ -217,7 +218,7 @@ async def propose(idea: str, label: str = "idea", replace: bool = False) -> str:
         start_tick, end_tick = idea_range(idea, info)
         pre = await request(f"read {start_tick} {end_tick}")
         plan = compile_idea(idea, info, int(bridge.hello["division"]), staves, pre)
-        add_lines(plan, pre, info, int(bridge.hello["division"]))
+        add_lines(plan, pre, info)
     except IdeaError as error:
         raise ToolError(str(error)) from None
     taken = occupied(plan, cells(pre, info))

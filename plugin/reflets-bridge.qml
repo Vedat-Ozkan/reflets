@@ -5,10 +5,10 @@ import FileIO 3.0
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.13.0"
+    version: "0.14.0"
     requiresScore: false
 
-    readonly property int proto: 13
+    readonly property int proto: 14
     readonly property int port: 8731
     readonly property string ideaColor: "#1565c0"
     property string token: ""
@@ -343,6 +343,18 @@ MuseScore {
         return "A " + tick + " " + track + " Breath " + symName(el.symbol) + " "
     }
 
+    function removeSpanner(tick, track, end, name) {
+        var sp = spannerList()
+        for (var i = 0; i < sp.length; i++) {
+            var v = sp[i]
+            if (v.name === name && v.track === track && v.spannerTick.ticks === tick && spannerEnd(v) === end) {
+                removeElement(v)
+                return
+            }
+        }
+        throw "no " + name + " from " + tick + " to " + end + " in track " + track
+    }
+
     function removeMark(line) {
         var tick = parseInt(line.split(" ")[1])
         for (var m = curScore.firstMeasure; m && m.firstSegment.tick <= tick; m = m.nextMeasure) {
@@ -412,11 +424,6 @@ MuseScore {
 
     function clearVoice(track, startTick, endTick, notes) {
         var doomed = []
-        var sp = spannerList()
-        for (var i = 0; i < sp.length; i++) {
-            if (!(sp[i].systemFlag && track !== 0) && spannerIn(sp[i], [track], startTick, endTick))
-                doomed.push(sp[i])
-        }
         for (var m = curScore.firstMeasure; m; m = m.nextMeasure) {
             var mt = m.firstSegment.tick
             if (mt >= endTick)
@@ -657,6 +664,8 @@ MuseScore {
                     c.addTuplet(fraction(parseInt(ratio[0]), parseInt(ratio[1])), fraction(parseInt(total[0]), parseInt(total[1])))
                 } else if (w[0] === "l" && w[6] === "OTTAVA") {
                     addLine(w)
+                } else if (w[0] === "z") {
+                    removeSpanner(parseInt(w[1]), parseInt(w[2]), parseInt(w[3]), w[4])
                 } else if (w[0] === "y") {
                     removeMark(w.slice(1).join(" "))
                 } else {
