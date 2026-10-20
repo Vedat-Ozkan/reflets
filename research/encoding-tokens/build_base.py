@@ -20,7 +20,7 @@ mei = tk.getMEI()
 index = ScoreIndex(mei)
 div = index.ppq
 
-n1 =notes.encode(index)
+n1 = notes.encode(index)
 (OUT / "chopin.n1.txt").write_text(n1 + "\n")
 
 rows = []

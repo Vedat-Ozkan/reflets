@@ -255,7 +255,7 @@ MuseScore {
                     added.pitch = parseInt(gp[0]) - offsetAt(otrack, otick)
                     respell(added, parseInt(gp[1]), ideaColor)
                 } else if (o[0] === "~") {
-                    var n =noteAt(otrack, otick, parseInt(o[3]))
+                    var n = noteAt(otrack, otick, parseInt(o[3]))
                     if (!n.tieForward) {
                         curScore.selection.select(n)
                         cmd("tie")
