@@ -64,6 +64,8 @@ class Plan:
     expected_lyrics: dict[tuple[int, tuple[int, int]], dict[Fraction, dict[int, tuple[str, bool] | None]]] = field(default_factory=dict)
     dropped: list[str] = field(default_factory=list)
     expected_bars: dict[int, Bar] = field(default_factory=dict)
+    meters: dict[int, str] = field(default_factory=dict)
+    rebar: bool = False
 
 
 @dataclass(frozen=True)
@@ -457,7 +459,7 @@ def current_fields(info: ScoreInfo, position: int) -> dict[str, str]:
     return fields
 
 
-def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: list[str]) -> Plan:
+def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: list[str], later: list[str] = ()) -> Plan:
     try:
         idea = n1x.decode(text)
     except n1x.DecodeError as error:
@@ -471,7 +473,7 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
     written_bars = sorted(numbers.index(bar.number) for bar in idea.bars)
     olds = old_marks(pre, info, division)
     old_notes = old_chords(pre, info, division, numbers[written_bars[0]], numbers[written_bars[-1]]) if written_bars else {}
-    ops, graces, ties, clears, marks, decorations, removals, field_ops = [], [], [], [], [], [], [], []
+    ops, graces, ties, clears, marks, decorations, removals, field_ops, meter_ops = [], [], [], [], [], [], [], [], []
     voltas: dict[int, str] = {}
     plan = Plan(0, 0, ops, set(), idea)
     voices: dict[int, list[tuple[int, Fraction, list[tuple[int, int, bool]], tuple[int, int]]]] = {}
@@ -481,6 +483,14 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
             raise IdeaError(f"Bar {bar.number} does not exist; the score has bars {numbers[0]} to {numbers[-1]}")
         position = numbers.index(bar.number)
         length, bar_tick = info.lengths[position], info.ticks[position]
+        meter_op = meter_change(bar, position, info, idea, later)
+        if meter_op:
+            meter_ops.append(f"b {bar_tick} {meter_op}")
+            plan.meters[position] = bar.fields.get("ts") or info.measures[position - 1].meter
+            new_length = Fraction(4) * Fraction(plan.meters[position])
+            if new_length != length:
+                plan.rebar = True
+                length = new_length
         if not bar.fields.get("len", "").isdigit() or Fraction(int(bar.fields["len"]), idea.div) != length:
             raise IdeaError(f"m{bar.number}: len= must match the score's bar, which is {length * idea.div} long")
         expected_bar, changes, volta = bar_changes(bar, position, info)
@@ -624,7 +634,7 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
                 first = bar_tick + round(onset * division)
                 decorations += decoration_ops(track, first, tick, bar_tick + round(stop * division), chord, rest_names, where)
     field_ops += volta_ops(voltas, plan, info, division)
-    if not plan.cells and not field_ops:
+    if not plan.cells and not field_ops and not meter_ops:
         raise IdeaError("The idea changes nothing; write a 'staff.voice:' line or a bar field to change under a bar line")
     for track, chords in voices.items():
         for tick, chunk, _, cell in chords:
@@ -663,8 +673,8 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
                 plan.tied_back.add((track, tick, int(parts[0])))
             else:
                 plan.cut_ties.add(numbers[position - 1])
-    plan.ops = clears + removals + ops + graces + marks + decorations + ties + field_ops
-    plan.cleared = len(clears) + len(removals)
+    plan.ops = meter_ops + clears + removals + ops + graces + marks + decorations + ties + field_ops
+    plan.cleared = len(meter_ops) + len(clears) + len(removals)
     positions = sorted(plan.expected_bars)
     plan.start_tick = info.ticks[positions[0]]
     plan.end_tick = info.ticks[positions[-1] + 1] if positions[-1] + 1 < len(info.ticks) else 2**31 - 1
@@ -676,7 +686,7 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
         "marks": len(marks),
         "decorations": len(decorations),
         "removed marks": len(removals),
-        "bar changes": len(field_ops),
+        "bar changes": len(field_ops) + len(meter_ops),
     }
     add_lyrics(plan, pre, info, division)
     return plan
@@ -707,9 +717,11 @@ def bar_changes(bar: n1x.IdeaBar, position: int, info: ScoreInfo) -> tuple[Bar, 
         removal, key = name.startswith("-"), name.removeprefix("-")
         if key == "len":
             continue
-        if key in ("ts", "ks"):
+        if key == "ts":
+            continue
+        if key == "ks":
             if removal or current.get(key) != value:
-                raise IdeaError(f"{where}: {key}= cannot be changed yet; leave it out or as the score has it")
+                raise IdeaError(f"{where}: ks= cannot be changed yet; leave it out or as the score has it")
             continue
         if key in LISTED:
             values = value.split(",")
@@ -775,6 +787,60 @@ def bar_changes(bar: n1x.IdeaBar, position: int, info: ScoreInfo) -> tuple[Bar, 
     if (new.repeat_start, new.repeat_end, new.repeat_count) != (old.repeat_start, old.repeat_end, old.repeat_count):
         changes.insert(0, f"rep {int(new.repeat_start)} {int(new.repeat_end)} {new.repeat_count}")
     return new, changes, volta
+
+
+def meter_reach(info: ScoreInfo, position: int) -> int:
+    for later in range(position + 1, len(info.measures)):
+        if info.measures[later].meter != info.measures[later - 1].meter:
+            return later
+    return len(info.measures)
+
+
+def meter_span(text: str, info: ScoreInfo) -> tuple[int, int] | None:
+    numbers = [measure.number for measure in info.measures]
+    for bar in n1x.decode(text).bars:
+        if ("ts" in bar.fields or "-ts" in bar.fields) and bar.number in numbers:
+            position = numbers.index(bar.number)
+            reach = meter_reach(info, position)
+            return info.ticks[position], info.ticks[reach] if reach < len(info.ticks) else 2**31 - 1
+    return None
+
+
+def meter_change(bar: n1x.IdeaBar, position: int, info: ScoreInfo, idea: n1x.Idea, later: list[str]) -> str | None:
+    where = f"m{bar.number}"
+    current = info.measures[position].meter
+    previous = info.measures[position - 1].meter if position else None
+    if "-ts" in bar.fields:
+        if bar.fields["-ts"] != current or previous in (None, current):
+            raise IdeaError(f"{where}: -ts={bar.fields['-ts']} removes nothing; the meter does not change to it in this bar")
+        target = previous
+    elif "ts" in bar.fields:
+        target = bar.fields["ts"]
+        if not re.fullmatch(r"[1-9]\d*/(1|2|4|8|16|32|64)", target):
+            raise IdeaError(f"{where}: ts={target} is not a meter like 3/4 or 12/8")
+    else:
+        return None
+    if target == current:
+        return None
+    if Fraction(4) * Fraction(target) != info.lengths[position]:
+        reach = meter_reach(info, position)
+        numbers = [measure.number for measure in info.measures]
+        if bar.voices or any(numbers.index(other.number) > position for other in idea.bars):
+            raise IdeaError(
+                f"{where}: ts={target} changes the bar's length, so MuseScore re-bars the music after it; write it alone, "
+                "with no voice lines and no later bars in the idea, and the notes in a later idea"
+            )
+        if any(line.split(" ")[0] in ("C", "N") for line in later):
+            end = info.measures[reach - 1].number
+            raise IdeaError(
+                f"{where}: ts={target} changes the bar's length, so MuseScore would re-bar bars {bar.number} to {end}, which have notes "
+                "or lines; to recast them in this meter, propose emptying them first ('1.1: … r' for each voice, '-' on their lines), "
+                "then the meter change, then the new notes, each kept by the user in turn"
+            )
+    if target == previous and previous != current:
+        return "meter-"
+    numerator, denominator = target.split("/")
+    return f"meter {numerator} {denominator}"
 
 
 def volta_ops(voltas: dict[int, str], plan: Plan, info: ScoreInfo, division: int) -> list[str]:
@@ -1112,8 +1178,13 @@ def verify(plan: Plan, pre: list[str], post: list[str], info: ScoreInfo, divisio
 
 
 def verify_bars(plan: Plan, info: ScoreInfo, after: ScoreInfo) -> str | None:
-    if after.ticks != info.ticks:
+    if after.ticks != info.ticks and not plan.rebar:
         return f"the score had {len(info.ticks)} bars and has {len(after.ticks)}, or its bars moved"
+    for position, meter in sorted(plan.meters.items()):
+        if after.measures[position].meter != meter:
+            return f"bar {after.measures[position].number} should be in {meter} and reads back in {after.measures[position].meter}"
+    if plan.rebar:
+        return None
     for position, bar in sorted(plan.expected_bars.items()):
         want, got = n1x.bar_fields(bar), n1x.bar_fields(after.bars[position])
         if want != got:

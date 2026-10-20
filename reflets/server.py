@@ -18,6 +18,7 @@ from reflets.write import (
     cells,
     compile_idea,
     idea_range,
+    meter_span,
     occupied,
     verify,
     verify_bars,
@@ -184,7 +185,8 @@ def writes(title: str, destructive: bool) -> ToolAnnotations:
     description=(
         "Use this to write an idea into the open score so the user can hear it. idea is N1x in the form "
         "read_score returns: the header line, then for each bar to write its 'mN len=' line (len as in the score; "
-        "ts= and ks= only as the score has them; other bar fields as marks: one the bar has stays when left out, "
+        "ks= only as the score has it; ts= changes the meter from that bar on, and when it changes the bar's length "
+        "(3/4 to 4/4, but not 4/4 to 2/2 or 3/4 to 6/8) only alone on a bar line, over bars with no notes; other bar fields as marks: one the bar has stays when left out, "
         "one written is set, e.g. 'm8 len=4 rep=end x=3 jump=dc-al-fine', and a minus removes one, e.g. '-break=line'; "
         "-volta= removes the whole volta) and one 'staff.voice:' line per voice to write; a bar line alone changes only its fields. Each voice line replaces that voice's notes and rests in that bar; voices "
         "and bars you leave out are untouched; a line of rests only (e.g. '1.2: 288 r') empties a voice. "
@@ -224,7 +226,9 @@ async def propose(idea: str, label: str = "idea", replace: bool = False) -> str:
     try:
         start_tick, end_tick = idea_range(idea, info)
         pre = await request(f"read {start_tick} {end_tick}")
-        plan = compile_idea(idea, info, int(bridge.hello["division"]), staves, pre)
+        span = meter_span(idea, info)
+        later = await request(f"read {span[0]} {span[1]}") if span else []
+        plan = compile_idea(idea, info, int(bridge.hello["division"]), staves, pre, later)
         add_lines(plan, pre, info)
     except IdeaError as error:
         raise ToolError(str(error)) from None
@@ -234,7 +238,11 @@ async def propose(idea: str, label: str = "idea", replace: bool = False) -> str:
         raise ToolError(f"These voices already have notes: {where}. Ask the user, then call again with replace=True.")
     label = " ".join(label.split()) or "idea"
     reply = await request(f"write {plan.start_tick} {plan.end_tick} {label}\n" + "\n".join(plan.ops))
-    mismatch, cut = verify(plan, pre, reply, info, int(bridge.hello["division"]))
+    mismatch, cut = verify(plan, pre, reply, info, int(bridge.hello["division"])) if not plan.rebar else (None, [])
+    if not mismatch and span and not plan.rebar:
+        again = await request(f"read {span[0]} {span[1]}")
+        if beyond(later, plan.end_tick) != beyond(again, plan.end_tick):
+            mismatch = "the bars after the idea, up to the next meter change, changed with the meter"
     if not mismatch and any(op.startswith("b ") or " VOLTA " in op for op in plan.ops):
         mismatch = verify_bars(plan, info, await load_info())
     if mismatch:
@@ -258,6 +266,10 @@ async def propose(idea: str, label: str = "idea", replace: bool = False) -> str:
         f"The new notes are blue. The user listens with Play in MuseScore; then keep(\"{proposal_id}\") turns them "
         f"black, or discard(\"{proposal_id}\") removes them.\nproposal id: {proposal_id}"
     )
+
+
+def beyond(lines: list[str], tick: int) -> list[str]:
+    return sorted(line for line in lines if int(line.split(" ")[1]) >= tick)
 
 
 def find(proposal_id: str) -> Proposal:

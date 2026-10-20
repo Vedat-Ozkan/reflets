@@ -5,10 +5,10 @@ import FileIO 3.0
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.17.0"
+    version: "0.18.0"
     requiresScore: false
 
-    readonly property int proto: 17
+    readonly property int proto: 18
     readonly property int port: 8731
     readonly property string ideaColor: "#1565c0"
     property string token: ""
@@ -522,7 +522,7 @@ MuseScore {
         throw "no grace note in track " + track + " at tick " + tick
     }
 
-    function addSlur(track, tick, track2, end, grace) {
+    function addSlur(track, tick, track2, end, grace, color) {
         var first = elementAt(track, tick)
         if (first.type !== Element.CHORD)
             throw "a slur starts on a note; track " + track + " has a rest at tick " + tick
@@ -540,7 +540,7 @@ MuseScore {
         var sp = spannerList()
         for (var i = 0; i < sp.length; i++) {
             if (sp[i].name === "Slur" && sp[i].track === track && sp[i].spannerTick.ticks === tick)
-                sp[i].color = ideaColor
+                sp[i].color = color
         }
     }
 
@@ -548,7 +548,7 @@ MuseScore {
         var track = parseInt(w[1]), tick = parseInt(w[2]), track2 = parseInt(w[3]), end = parseInt(w[4])
         var kind = w[6], sub = parseInt(w[7]), text = unescapeText(w.slice(8).join(" "))
         if (kind === "SLUR") {
-            addSlur(track, tick, track2, end, w[5] === "1")
+            addSlur(track, tick, track2, end, w[5] === "1", ideaColor)
             return
         }
         var el = newElement(Element[kind])
@@ -688,6 +688,41 @@ MuseScore {
         return m
     }
 
+    function annotationTexts(from, texts) {
+        for (var am = from; am; am = am.nextMeasure) {
+            for (var seg = am.firstSegment; seg; seg = seg.nextInMeasure) {
+                var ann = seg.annotations
+                var seen = {}
+                for (var a = 0; ann && a < ann.length; a++) {
+                    var key = seg.tick + " " + ann[a].track + " " + ann[a].name
+                    seen[key] = (seen[key] || 0) + 1
+                    key += " " + seen[key]
+                    if (texts[key] === undefined)
+                        texts[key] = ann[a].text
+                    else if (texts[key] !== ann[a].text)
+                        ann[a].text = texts[key]
+                }
+            }
+        }
+        return texts
+    }
+
+    function rehang(before, after) {
+        for (var i = 0; i < before.length; i++) {
+            var o = before[i].split(" ")
+            if (o[5] !== "Slur" || o[2].slice(-1) !== "g" || after.indexOf(before[i]) >= 0)
+                continue
+            for (var j = 0; j < after.length; j++) {
+                var n = after[j].split(" ")
+                if (n[5] === "Slur" && n[1] === o[1] && n[3] === o[3] && before.indexOf(after[j]) < 0) {
+                    removeSpanner(parseInt(n[1]), parseInt(n[3]), parseInt(n[2]), "Slur")
+                    addSlur(parseInt(o[3]), parseInt(o[1]), parseInt(o[4]), parseInt(o[2]), true, "#000000")
+                    break
+                }
+            }
+        }
+    }
+
     function barChange(tick, w) {
         var m = measureAt(tick)
         var what = w[0]
@@ -707,6 +742,31 @@ MuseScore {
                         bl.barlineType = parseInt(w[1])
                 }
             }
+            return
+        }
+        if (what === "meter" || what === "meter-") {
+            var texts = annotationTexts(m.prevMeasure || m, {})
+            var slurs = spannerLines(tick, 2147483647)
+            if (what === "meter") {
+                var ts = newElement(Element.TIMESIG)
+                ts.timesig = fraction(parseInt(w[1]), parseInt(w[2]))
+                var tc = curScore.newCursor()
+                tc.track = 0
+                tc.rewindToTick(tick)
+                tc.add(ts)
+            } else {
+                var found = null
+                for (var ms = m.firstSegment; ms && !found; ms = ms.nextInMeasure) {
+                    if (ms.segmentType === Segment.TimeSig && ms.elementAt(0))
+                        found = ms.elementAt(0)
+                }
+                if (!found)
+                    throw "no time signature at tick " + tick
+                removeElement(found)
+            }
+            var back = measureAt(tick)
+            annotationTexts(back.prevMeasure || back, texts)
+            rehang(slurs, spannerLines(tick, 2147483647))
             return
         }
         if (what === "volta-") {
@@ -805,6 +865,8 @@ MuseScore {
                     removeSpanner(parseInt(w[1]), parseInt(w[2]), parseInt(w[3]), w[4])
                 } else if (w[0] === "y") {
                     removeMark(w.slice(1).join(" "))
+                } else if (w[0] === "b") {
+                    barChange(parseInt(w[1]), w.slice(2))
                 } else {
                     break
                 }
