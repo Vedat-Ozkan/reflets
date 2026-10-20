@@ -18,8 +18,10 @@ from reflets.write import (
     cells,
     compile_idea,
     idea_range,
+    meter_reach,
     meter_span,
     occupied,
+    recast_view,
     verify,
     verify_bars,
 )
@@ -71,6 +73,7 @@ class Proposal:
     bars: str
     pre: list[str]
     post: list[str]
+    pre_end: int
 
 
 proposals: dict[str, Proposal] = {}
@@ -186,7 +189,7 @@ def writes(title: str, destructive: bool) -> ToolAnnotations:
         "Use this to write an idea into the open score so the user can hear it. idea is N1x in the form "
         "read_score returns: the header line, then for each bar to write its 'mN len=' line (len as in the score; "
         "ks= changes the concert key from that bar on, on every staff (notes keep their pitches); ts= changes the meter from that bar on, and when it changes the bar's length "
-        "(3/4 to 4/4, but not 4/4 to 2/2 or 3/4 to 6/8) only alone on a bar line, over bars with no notes; other bar fields as marks: one the bar has stays when left out, "
+        "(3/4 to 4/4, but not 4/4 to 2/2 or 3/4 to 6/8) only alone on a bar line, over bars with no notes, or with recast=True; other bar fields as marks: one the bar has stays when left out, "
         "one written is set, e.g. 'm8 len=4 rep=end x=3 jump=dc-al-fine', and a minus removes one, e.g. '-break=line'; "
         "-volta= removes the whole volta) and one 'staff.voice:' line per voice to write; a bar line alone changes only its fields. Each voice line replaces that voice's notes and rests in that bar; voices "
         "and bars you leave out are untouched; a line of rests only (e.g. '1.2: 288 r') empties a voice. "
@@ -212,49 +215,65 @@ def writes(title: str, destructive: bool) -> ToolAnnotations:
         "syllable before and '*' a note without one; an empty one ('1.1 L1:') removes the verse there. To change only "
         "the lyrics, write the voice line empty ('1.1:') with the lyric line under it. "
         "replace=True is needed when a voice you write already has "
-        "notes there. The idea is written in colour as one undo step and read back; the result gives a proposal id "
+        "notes there. recast=True, only when the user asks to recast music in a meter of another length (4/4 triplets as "
+        "12/8, say), rewrites bars in a new meter bar for bar: the idea's first bar has the new ts=, and it writes each "
+        "bar to recast, every voice that has notes or rests there, in the new meter; the bar after it keeps its meter. "
+        "Marks, lines and lyrics move to the same place in the beat, on the nearest note or rest. The tempo stays in "
+        "quarter notes, so to keep the beat write the new tempo too (q120 in 4/4 is q180 in 12/8) and the old one after. "
+        "The idea is written in colour as one undo step and read back; the result gives a proposal id "
         "for keep or discard."
     ),
     annotations=writes("Propose an idea", destructive=True),
     meta={"anthropic/alwaysLoad": True},
     structured_output=False,
 )
-async def propose(idea: str, label: str = "idea", replace: bool = False) -> str:
+async def propose(idea: str, label: str = "idea", replace: bool = False, recast: bool = False) -> str:
     info = await load_info()
+    division = int(bridge.hello["division"])
     staves = max(staff for _, part_staves in info.parts for staff in part_staves)
     numbers = [measure.number for measure in info.measures]
     try:
         start_tick, end_tick = idea_range(idea, info)
-        pre = await request(f"read {start_tick} {end_tick}")
-        span = meter_span(idea, info)
+        original = pre = await request(f"read {start_tick} {end_tick}")
+        view = recast_view(idea, info, pre, division) if recast else None
+        if view:
+            reach = meter_reach(info, view.positions[-1])
+            span = (view.after, info.ticks[reach] if reach < len(info.ticks) else 2**31 - 1 - view.delta)
+            info, pre = view.info, view.pre
+        else:
+            span = meter_span(idea, info)
         later = await request(f"read {span[0]} {span[1]}") if span else []
-        plan = compile_idea(idea, info, int(bridge.hello["division"]), staves, pre, later)
+        plan = compile_idea(idea, info, division, staves, pre, later, recast)
         add_lines(plan, pre, info)
     except IdeaError as error:
         raise ToolError(str(error)) from None
+    if view:
+        plan.ops[0:0] = view.ops
+        plan.meters = dict.fromkeys(view.positions, view.meter)
     taken = occupied(plan, cells(pre, info))
     if taken and not replace:
         where = ", ".join(f"bar {numbers[p]} {t // 4 + 1}.{t % 4 + 1}" for p, t in taken)
         raise ToolError(f"These voices already have notes: {where}. Ask the user, then call again with replace=True.")
     label = " ".join(label.split()) or "idea"
     reply = await request(f"write {plan.start_tick} {plan.end_tick} {label}\n" + "\n".join(plan.ops))
-    mismatch, cut = verify(plan, pre, reply, info, int(bridge.hello["division"])) if not plan.rebar else (None, [])
+    mismatch, cut = verify(plan, pre, reply, info, division) if not plan.rebar else (None, [])
     if not mismatch and span and not plan.rebar:
-        again = await request(f"read {span[0]} {span[1]}")
-        if beyond(later, plan.end_tick) != beyond(again, plan.end_tick):
+        shift = view.delta if view else 0
+        again = await request(f"read {span[0] + shift} {span[1] + shift}")
+        if beyond(shifted(later, shift), plan.end_tick) != beyond(again, plan.end_tick):
             mismatch = "the bars after the idea, up to the next meter change, changed with the meter"
     if not mismatch and any(op.startswith("b ") or " VOLTA " in op for op in plan.ops):
         mismatch = verify_bars(plan, info, await load_info())
     if mismatch:
         await request("undo")
-        after = await request(f"read {plan.start_tick} {plan.end_tick}")
-        state = "The write was undone." if sorted(after) == sorted(pre) else "Undoing it did not restore the bars; ask the user to check them."
+        after = await request(f"read {start_tick} {end_tick}")
+        state = "The write was undone." if sorted(after) == sorted(original) else "Undoing it did not restore the bars; ask the user to check them."
         raise ToolError(f"The idea did not land as written ({mismatch}). {state}")
     positions = sorted(plan.expected_bars)
     bars = f"bars {numbers[positions[0]]}-{numbers[positions[-1]]}" if len(positions) > 1 else f"bar {numbers[positions[0]]}"
     proposal_id = f"p{next(proposal_numbers)}"
     tracks = sorted({t for _, t in plan.cells})
-    proposals[proposal_id] = Proposal(label, plan.start_tick, plan.end_tick, tracks, bars, pre, reply)
+    proposals[proposal_id] = Proposal(label, plan.start_tick, plan.end_tick, tracks, bars, original, reply, end_tick)
     counts = ", ".join(f"{n} {what if n > 1 else what[:-1]}" for what, n in plan.counts.items() if n)
     voices = ", ".join(f"{t // 4 + 1}.{t % 4 + 1}" for t in tracks)
     cut = sorted(set(cut) | plan.cut_ties)
@@ -266,6 +285,18 @@ async def propose(idea: str, label: str = "idea", replace: bool = False) -> str:
         f"The new notes are blue. The user listens with Play in MuseScore; then keep(\"{proposal_id}\") turns them "
         f"black, or discard(\"{proposal_id}\") removes them.\nproposal id: {proposal_id}"
     )
+
+
+def shifted(lines: list[str], delta: int) -> list[str]:
+    result = []
+    for line in lines:
+        words = line.split(" ")
+        words[1] = str(int(words[1]) + delta)
+        if words[0] == "N":
+            end = words[2].rstrip("g")
+            words[2] = str(int(end) + delta) + words[2][len(end):]
+        result.append(" ".join(words))
+    return result
 
 
 def beyond(lines: list[str], tick: int) -> list[str]:
@@ -297,7 +328,7 @@ async def discard(proposal_id: str) -> str:
             "Nothing was undone; the user can use Ctrl+Z in MuseScore."
         )
     await request("undo")
-    if sorted(await request(span)) != sorted(p.pre):
+    if sorted(await request(f"read {p.start_tick} {p.pre_end}")) != sorted(p.pre):
         await request("redo")
         restored = sorted(await request(span)) == sorted(p.post)
         raise ToolError(

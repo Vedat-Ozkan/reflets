@@ -5,10 +5,10 @@ import FileIO 3.0
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.19.0"
+    version: "0.20.0"
     requiresScore: false
 
-    readonly property int proto: 19
+    readonly property int proto: 20
     readonly property int port: 8731
     readonly property string ideaColor: "#1565c0"
     property string token: ""
@@ -895,7 +895,8 @@ MuseScore {
                     chords.push([track, tick, ns])
                 } else if (w[0] === "r") {
                     c.addRest()
-                    rests.push([track, parseInt(w[1])])
+                    if (w.length > 1)
+                        rests.push([track, parseInt(w[1])])
                 } else if (w[0] === "x") {
                     clearVoice(parseInt(w[1]), parseInt(w[2]), parseInt(w[3]), w[4] === "1")
                 } else if (w[0] === "t") {

@@ -8,6 +8,8 @@ from dataclasses import dataclass, field, replace
 from fractions import Fraction
 
 from reflets import n1x
+from engine.score import beat_length
+
 from reflets.score import FIFTHS, SEMITONES, SYSTEM_LINES, SYSTEM_MARKS, Bar, Jump, Marker, Mark, ScoreInfo, build_index, unescape
 
 VALUES = sorted({Fraction(1, 2**k) * dots for k in range(8) for dots in (1, Fraction(3, 2), Fraction(7, 4))}, reverse=True)
@@ -67,6 +69,18 @@ class Plan:
     meters: dict[int, str] = field(default_factory=dict)
     keys: dict[int, str] = field(default_factory=dict)
     rebar: bool = False
+    recast: bool = False
+
+
+@dataclass
+class Recast:
+    positions: range
+    meter: str
+    after: int
+    delta: int
+    info: ScoreInfo
+    pre: list[str]
+    ops: list[str]
 
 
 @dataclass(frozen=True)
@@ -300,10 +314,10 @@ def add_lines(plan: Plan, pre: list[str], info: ScoreInfo) -> None:
             where = f"m{numbers[start_cell(line, info)[0]]} {line.track // 4 + 1}.{line.track % 4 + 1}"
             removed.append(line)
             redone.append(snapped(line, plan, info, where))
-    plan.lines = added + redone
+    plan.lines = added + redone + ([line for line in left if line not in removed] if plan.recast else [])
     plan.expected_lines = sorted(set(old) - set(removed) | set(added) | set(redone))
     octaves, others = line_ops(plan.lines)
-    drops = [f"z {line.tick} {line.track} {line.end} {line.kind}" for line in removed]
+    drops = [] if plan.recast else [f"z {line.tick} {line.track} {line.end} {line.kind}" for line in removed]
     plan.ops[plan.cleared:plan.cleared] = octaves
     plan.ops[0:0] = drops
     plan.ops += others
@@ -460,7 +474,7 @@ def current_fields(info: ScoreInfo, position: int) -> dict[str, str]:
     return fields
 
 
-def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: list[str], later: list[str] = ()) -> Plan:
+def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: list[str], later: list[str] = (), recast: bool = False) -> Plan:
     try:
         idea = n1x.decode(text)
     except n1x.DecodeError as error:
@@ -473,10 +487,10 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
     idea_range(text, info)
     written_bars = sorted(numbers.index(bar.number) for bar in idea.bars)
     olds = old_marks(pre, info, division)
-    old_notes = old_chords(pre, info, division, numbers[written_bars[0]], numbers[written_bars[-1]]) if written_bars else {}
+    old_notes = old_chords([line for line in pre if line[0] in "CR"] if recast else pre, info, division, numbers[written_bars[0]], numbers[written_bars[-1]]) if written_bars else {}
     ops, graces, ties, clears, marks, decorations, removals, field_ops, meter_ops = [], [], [], [], [], [], [], [], []
     voltas: dict[int, str] = {}
-    plan = Plan(0, 0, ops, set(), idea)
+    plan = Plan(0, 0, ops, set(), idea, recast=recast)
     voices: dict[int, list[tuple[int, Fraction, list[tuple[int, int, bool]], tuple[int, int]]]] = {}
     rests = grace_notes = 0
     for bar in sorted(idea.bars, key=lambda bar: numbers.index(bar.number) if bar.number in numbers else -1):
@@ -554,7 +568,11 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
                     at = onset + (duration if kind == "breath" else 0)
                     entries.append((at, f"[{n1x.decoration(classify(name.removeprefix('-'), where)[1])}]", name.startswith("-")))
             gone, added, kept = match_marks(olds.get(cell, []), entries, where)
-            removals += [f"y {mark[2]}" for mark in gone]
+            if recast:
+                added += [(onset, token, False) for onset, token, _ in kept if token]
+                kept = []
+            else:
+                removals += [f"y {mark[2]}" for mark in gone]
             for onset, token, _ in added:
                 tick = bar_tick + round(onset * division)
                 if token.startswith("["):
@@ -857,14 +875,14 @@ def meter_change(bar: n1x.IdeaBar, position: int, info: ScoreInfo, idea: n1x.Ide
         if bar.voices or any(numbers.index(other.number) > position for other in idea.bars):
             raise IdeaError(
                 f"{where}: ts={target} changes the bar's length, so MuseScore re-bars the music after it; write it alone, "
-                "with no voice lines and no later bars in the idea, and the notes in a later idea"
+                "with no voice lines and no later bars in the idea, and the notes in a later idea, or, when the user asks to "
+                "recast these bars in the new meter, write them in it with recast=True"
             )
         if any(line.split(" ")[0] in ("C", "N") for line in later):
             end = info.measures[reach - 1].number
             raise IdeaError(
                 f"{where}: ts={target} changes the bar's length, so MuseScore would re-bar bars {bar.number} to {end}, which have notes "
-                "or lines; to recast them in this meter, propose emptying them first ('1.1: … r' for each voice, '-' on their lines), "
-                "then the meter change, then the new notes, each kept by the user in turn"
+                "or lines; to recast bars in this meter, write them in it with recast=True"
             )
     if target == previous and previous != current:
         return "meter-"
@@ -1222,3 +1240,119 @@ def verify_bars(plan: Plan, info: ScoreInfo, after: ScoreInfo) -> str | None:
         if want != got:
             return f"bar {after.measures[position].number} should have the fields '{' '.join(want)}' and reads back with '{' '.join(got)}'"
     return None
+
+
+def recast_view(text: str, info: ScoreInfo, pre: list[str], division: int) -> Recast:
+    try:
+        idea = n1x.decode(text)
+    except n1x.DecodeError as error:
+        raise IdeaError(str(error)) from None
+    numbers = [measure.number for measure in info.measures]
+    if any(bar.number not in numbers for bar in idea.bars):
+        raise IdeaError(f"Bar {min(bar.number for bar in idea.bars if bar.number not in numbers)} does not exist")
+    bars = sorted(idea.bars, key=lambda bar: numbers.index(bar.number))
+    changed = [bar for bar in bars if "ts" in bar.fields or "-ts" in bar.fields]
+    if not changed or changed[0] is not bars[0] or "ts" not in changed[0].fields:
+        raise IdeaError("recast=True needs ts= on the idea's first bar, followed by the bars it recasts")
+    ends = [numbers.index(bar.number) for bar in changed[1:] if bar.fields.get("ts") == info.measures[numbers.index(bar.number)].meter]
+    if len(changed) > 2 or len(ends) != len(changed) - 1:
+        raise IdeaError(
+            f"m{changed[-1].number}: in a recast, only one later bar takes ts=, its own meter, to end the recast before it, "
+            f"e.g. 'm{changed[-1].number} len=… ts={info.measures[numbers.index(changed[-1].number)].meter}'"
+        )
+    meter = changed[0].fields["ts"]
+    if not re.fullmatch(r"[1-9]\d*/(1|2|4|8|16|32|64)", meter):
+        raise IdeaError(f"m{changed[0].number}: ts={meter} is not a meter like 3/4 or 12/8")
+    first = numbers.index(changed[0].number)
+    length = 4 * Fraction(meter)
+    if info.lengths[first] == length:
+        raise IdeaError(f"m{changed[0].number}: ts={meter} keeps the bar's length, so it needs no recast; leave recast=True out")
+    written = sorted(numbers.index(bar.number) for bar in idea.bars)
+    positions = range(first, ends[0] if ends else written[-1] + 1)
+    shorter = [numbers[position] for position in positions if info.lengths[position] > length]
+    if shorter:
+        raise IdeaError(
+            f"m{shorter[0]}: ts={meter} is shorter than the bar, and a recast can only lengthen bars: MuseScore splits a bar "
+            "into a shorter meter, and removing the extra bars crashes it from a plugin. Recast into a meter at least as long"
+        )
+    if any(position not in written for position in positions):
+        raise IdeaError(f"m{changed[0].number}: a recast idea starts at the bar with ts= and writes every bar it recasts, in order, without gaps")
+    ticks = info.ticks
+    after = ticks[positions[-1]] + round(info.lengths[positions[-1]] * division)
+    delta = round(len(positions) * length * division) - (after - ticks[first])
+    needed: dict[int, set[int]] = {}
+    for line in pre:
+        words = line.split(" ")
+        if words[0] in ("C", "R", "A", "F"):
+            position = bisect.bisect_right(ticks, int(words[1])) - 1
+            if position in positions:
+                needed.setdefault(position, set()).add(0 if words[0] == "A" and words[3] in SYSTEM_MARKS else int(words[2]))
+    starts: dict[int, list[Fraction]] = {}
+    for bar in idea.bars:
+        position = numbers.index(bar.number)
+        if position not in positions:
+            continue
+        timed = {(staff - 1) * 4 + layer - 1 for (staff, layer), voice in bar.voices.items() if voice.timed}
+        missing = sorted(needed.get(position, set()) - timed)
+        if missing:
+            voices = ", ".join(f"{track // 4 + 1}.{track % 4 + 1}" for track in missing)
+            raise IdeaError(f"m{bar.number}: a recast rewrites every voice of its bars; write {voices} too, with its notes or rests in the new meter")
+        starts[position] = sorted({chord.onset for voice in bar.voices.values() for chord in voice.chords if not chord.grace}
+                                  | {onset for voice in bar.voices.values() for onset, _, _ in voice.rests})
+
+    def start_of(position: int) -> int:
+        return ticks[first] + round((position - first) * length * division)
+
+    def moved(tick: int, snap: str = "") -> int:
+        if tick < ticks[first]:
+            return tick
+        if tick >= after:
+            return tick + delta
+        position = bisect.bisect_right(ticks, tick) - 1
+        at = Fraction(tick - ticks[position], division) * length / info.lengths[position]
+        if snap and starts[position]:
+            at = min(starts[position] + ([length] if snap == "end" else []), key=lambda onset: abs(onset - at))
+        return start_of(position) + round(at * division)
+
+    mapped = []
+    for line in pre:
+        words = line.split(" ")
+        tick = int(words[1])
+        position = bisect.bisect_right(ticks, tick) - 1
+        if words[0] in ("C", "R"):
+            words[1] = str(moved(tick))
+            if position in positions:
+                words[3] = str(Fraction(words[3]) * length / info.lengths[position])
+        elif words[0] in ("A", "F"):
+            words[1] = str(moved(tick, "start"))
+        elif words[0] == "N":
+            end = words[2].rstrip("g")
+            words[1] = str(moved(tick, "start"))
+            words[2] = str(moved(int(end), "end")) + words[2][len(end):]
+        elif words[0] == "Y":
+            words[1] = str(moved(tick))
+            words[5] = str(moved(tick + int(words[5])) - int(words[1]))
+        mapped.append(" ".join(words))
+    projected = copy.deepcopy(info)
+    count, unit = (int(x) for x in meter.split("/"))
+    for position in positions:
+        projected.measures[position] = replace(projected.measures[position], meter=meter, beat_length=beat_length(count, unit), declared_length=length)
+        projected.lengths[position] = length
+    projected.ticks = [tick if position <= first else start_of(position) if position in positions else tick + delta for position, tick in enumerate(ticks)]
+    projected.keys = {moved(tick): key for tick, key in info.keys.items()}
+    removals = [f"y {mark[2]}" for (position, _), marks in old_marks(pre, info, division).items() if position in positions for mark in marks]
+    for line in spans(pre):
+        if line.name not in LINE_KINDS:
+            raise IdeaError(f"The {line.kind} in these bars cannot be written again in the new meter; remove it first")
+        removals.append(f"z {line.tick} {line.track} {line.end} {line.kind}")
+    anchors = [f"b {ticks[j]} meter {info.measures[j].meter.replace('/', ' ')}" for j in range(first + 1, positions[-1] + 2) if j < len(ticks)]
+    empties = []
+    for position in positions:
+        end = ticks[position] + round(info.lengths[position] * division)
+        for track in sorted(needed.get(position, set())):
+            empties += [f"x {track} {ticks[position]} {end} 1", f"v {track} {ticks[position]}"]
+            for chunk in pieces(info.lengths[position], f"m{numbers[position]}"):
+                empties += [f"d {chunk.numerator}/{chunk.denominator}", "r"]
+    meters = [f"b {start_of(position)} meter {count} {unit}" for position in positions]
+    meters += [f"b {start_of(position)} meter-" for position in positions[1:]]
+    return Recast(positions, meter, after, delta, projected, mapped, removals + anchors + empties + meters)
