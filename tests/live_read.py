@@ -195,7 +195,7 @@ def strip(text: str) -> str:
             words = line.split()
             line = " ".join([words[0], *(word for word in words[1:] if word.split("=")[0] in ("len", "ts"))])
         else:
-            line = re.sub(r' [a-z0-9<>-]*("(?:[^"\\]|\\.)*")?[()](@\d+)?(?= |$)', "", line)
+            line = re.sub(r' [a-z0-9<>-]*("(?:[^"\\]|\\.)*")?[()]\d*(@\d+)?(?= |$)', "", line)
             line = re.sub(r' (!|x|s|S|R|fb|pt|q[\d.]+)?"(?:[^"\\]|\\.)*"(@\d+)?| (![a-z]+|q[\d.]+|clef=\S+)(@\d+)?', "", line)
             line = re.sub(r"\[[^\]]*\](@\d+)?|(?<=\d)('[^\s+\[~:']*)*(:[A-Za-z][\w=-]*)*", "", line)
             line = re.sub(r"(?<= )(\d+:\d+)?\{ | \}(?= |$)", "", line + " ")

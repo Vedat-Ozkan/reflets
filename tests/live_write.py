@@ -103,6 +103,10 @@ async def main() -> None:
     check("a line with no closer in the idea is refused", "has no closer in the idea" in error, error)
     error = await refused(server.propose("N1x div=48\nm10 len=288\n1.2: 288 r <)@96", "stray"))
     check("a closer with no line to close is refused", "closes no line" in error, error)
+    written = proposal(await server.propose("N1x div=48\nm10 len=288\n1.2: ( 48 C4 (2 D4 ) E4 )2 F4 96 G4", "crossing slurs"))
+    bars = await server.read_score("10")
+    check("crossing slurs read back numbered", "1.2: (2 8 C4 ( D4 )2 E4 ) F4 16 G4" in bars, bars)
+    await server.discard(written)
 
     notes_before = strip(await server.read_score("10"))
     for name, (idea, bar, tokens) in MARKS.items():
