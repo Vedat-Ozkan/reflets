@@ -6,7 +6,7 @@ from pathlib import Path
 
 import websockets
 
-PROTO = 15
+PROTO = 16
 CLIENT = "reflets-server/0.2.0"
 TIMEOUT = 10
 NOT_RUNNING = (

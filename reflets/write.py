@@ -56,6 +56,8 @@ class Plan:
     line_tokens: list[LineToken] = field(default_factory=list)
     chunks: dict[tuple[int, int], list[tuple[int, int]]] = field(default_factory=dict)
     grace_ticks: set[tuple[int, int]] = field(default_factory=set)
+    tied_back: set[tuple[int, int, int]] = field(default_factory=set)
+    cut_ties: set[int] = field(default_factory=set)
     expected_lines: list[Line] = field(default_factory=list)
     cleared: int = 0
     expected_lyrics: dict[tuple[int, tuple[int, int]], dict[Fraction, dict[int, tuple[str, bool] | None]]] = field(default_factory=dict)
@@ -638,6 +640,24 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
                         f"The tie on the note at tick {tick} (track {track}) needs the next note of that voice to start "
                         "right after it on the same pitch, in the idea or in the bar after it"
                     )
+    for line in pre:
+        words = line.split(" ")
+        if words[0] != "C" or any(word[:1] == "G" and word[1:2].isdigit() for word in words[4:]):
+            continue
+        tick, track = int(words[1]), int(words[2])
+        position = bisect.bisect_right(info.ticks, tick) - 1
+        if tick != info.ticks[position] or (position, track) not in plan.timed or (position - 1, track) in plan.timed:
+            continue
+        starting = {pitch for start, _, pitches, _ in voices.get(track, []) if start == tick for pitch, _, _ in pitches}
+        for note in words[-1].split(","):
+            parts = note.split(":")
+            if "b" not in parts[3:]:
+                continue
+            if int(parts[0]) in starting:
+                ties.append(f"^ {track} {tick} {parts[0]}")
+                plan.tied_back.add((track, tick, int(parts[0])))
+            else:
+                plan.cut_ties.add(numbers[position - 1])
     plan.ops = clears + removals + ops + graces + marks + decorations + ties
     plan.cleared = len(clears) + len(removals)
     positions = sorted({position for position, _ in plan.cells})
@@ -931,6 +951,11 @@ def verify(plan: Plan, pre: list[str], post: list[str], info: ScoreInfo, divisio
             return f"bar {numbers[position]}, staff {track // 4 + 1} voice {track % 4 + 1}, outside the idea, changed", []
         if want != got:
             cut.add(numbers[position])
+    tied = {(int(words[2]), int(words[1]), int(note.split(":")[0])) for words in (line.split(" ") for line in post)
+            if words[0] == "C" for note in words[-1].split(",") if "b" in note.split(":")[3:]}
+    if plan.tied_back - tied:
+        track, tick, _ = min(plan.tied_back - tied)
+        return f"the tie into bar {numbers[bisect.bisect_right(info.ticks, tick) - 1]}, staff {track // 4 + 1} voice {track % 4 + 1}, was not made again", []
     annotations = (mark_lines(pre, info, plan.cells), mark_lines(post, info, plan.cells))
     if annotations[0] != annotations[1]:
         return f"marks outside the idea changed: {annotations[0]} -> {annotations[1]}", []

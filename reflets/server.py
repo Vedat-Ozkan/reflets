@@ -196,7 +196,8 @@ def writes(title: str, destructive: bool) -> ToolAnnotations:
         "voice 1 of their staff. A note with a glissando cannot be rewritten unless the idea removes it ([-gliss]). Tuplets, grace "
         "chords, decorations, decoration groups, fingering and references to bars written out earlier in the idea "
         "('m9 = m1', '2.1 = m1') can be written; glissandos cannot. A tie may run into the bar after the idea when "
-        "that bar's voice starts with the same pitch. Lines (slurs, hairpins, pedal, …) stay as they are too: a line "
+        "that bar's voice starts with the same pitch; a tie from the bar before stays when the bar still starts with "
+        "that pitch, and the result says when one was cut. Lines (slurs, hairpins, pedal, …) stay as they are too: a line "
         "end the bar and voice already have refers to that line, wherever it is written, and a slur over rewritten notes "
         "is hung on the notes sounding at its old start and end. A new line needs both ends in the idea; a later bar may "
         "carry just its closer ('1.1: )@96'). Remove a line with a minus on either end ('-ped('); move an end by removing "
@@ -244,6 +245,7 @@ async def propose(idea: str, label: str = "idea", replace: bool = False) -> str:
     proposals[proposal_id] = Proposal(label, plan.start_tick, plan.end_tick, tracks, bars, pre, reply)
     counts = ", ".join(f"{n} {what if n > 1 else what[:-1]}" for what, n in plan.counts.items() if n)
     voices = ", ".join(f"{t // 4 + 1}.{t % 4 + 1}" for t in tracks)
+    cut = sorted(set(cut) | plan.cut_ties)
     note = f" The tie into or out of bar(s) {', '.join(map(str, cut))} was cut, as the idea replaced its note." if cut else ""
     if plan.dropped:
         note += f" These syllables had no note left and were removed: {'; '.join(plan.dropped)}."

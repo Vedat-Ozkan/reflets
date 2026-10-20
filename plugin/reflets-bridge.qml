@@ -5,10 +5,10 @@ import FileIO 3.0
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.15.0"
+    version: "0.16.0"
     requiresScore: false
 
-    readonly property int proto: 15
+    readonly property int proto: 16
     readonly property int port: 8731
     readonly property string ideaColor: "#1565c0"
     property string token: ""
@@ -626,19 +626,23 @@ MuseScore {
         return null
     }
 
-    function lyricBefore(track, tick, verse) {
+    function chordBefore(track, tick, wanted) {
         var m = curScore.firstMeasure
         while (m.nextMeasure && m.nextMeasure.firstSegment.tick <= tick)
             m = m.nextMeasure
         for (; m; m = m.prevMeasure) {
             for (var seg = m.lastSegment; seg; seg = seg.prevInMeasure) {
                 var el = seg.tick <= tick ? seg.elementAt(track) : null
-                var ly = el && el.type === Element.CHORD ? lyricOf(el, verse) : null
-                if (ly)
-                    return [seg.tick, ly]
+                var found = el && el.type === Element.CHORD ? wanted(el) : null
+                if (found)
+                    return [seg.tick, found]
             }
         }
         return null
+    }
+
+    function lyricBefore(track, tick, verse) {
+        return chordBefore(track, tick, function(chord) { return lyricOf(chord, verse) })
     }
 
     function hold(ly, track, tick, bound) {
@@ -768,6 +772,17 @@ MuseScore {
                     decorate(otrack, otick, o[3], o[4], o.slice(5).join(" "))
                 } else if (o[0] === "l") {
                     addLine(o)
+                } else if (o[0] === "^") {
+                    var from = chordBefore(otrack, otick - 1, function(chord) { return chord })
+                    if (!from)
+                        throw "no note before tick " + otick + " in track " + otrack + " to tie from"
+                    var back = noteAt(otrack, from[0], parseInt(o[3]))
+                    if (!back.tieForward) {
+                        curScore.selection.select(back)
+                        cmd("tie")
+                    }
+                    if (!back.tieForward)
+                        throw "tie not made"
                 } else if (o[0] === "w") {
                     setLyric(otrack, otick, parseInt(o[3]), o[4] === "1", parseInt(o[5]), unescapeText(o.slice(6).join(" ")))
                 } else if (o[0] === "u") {
