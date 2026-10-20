@@ -20,6 +20,7 @@ from reflets.write import (
     idea_range,
     occupied,
     verify,
+    verify_bars,
 )
 
 WHOLE_SCORE_TOKENS = 6000
@@ -183,8 +184,9 @@ def writes(title: str, destructive: bool) -> ToolAnnotations:
     description=(
         "Use this to write an idea into the open score so the user can hear it. idea is N1x in the form "
         "read_score returns: the header line, then for each bar to write its 'mN len=' line (len as in the score; "
-        "other bar fields only as the score has them, they cannot be changed yet) "
-        "and one 'staff.voice:' line per voice to write. Each voice line replaces that voice's notes and rests in that bar; voices "
+        "ts= and ks= only as the score has them; other bar fields as marks: one the bar has stays when left out, "
+        "one written is set, e.g. 'm8 len=4 rep=end x=3 jump=dc-al-fine', and a minus removes one, e.g. '-break=line'; "
+        "-volta= removes the whole volta) and one 'staff.voice:' line per voice to write; a bar line alone changes only its fields. Each voice line replaces that voice's notes and rests in that bar; voices "
         "and bars you leave out are untouched; a line of rests only (e.g. '1.2: 288 r') empties a voice. "
         "Silence at the end of a voice line is filled with rests. The score's marks and decorations stay as they are: "
         "a mark the bar and voice already have, written anywhere in the line, is left where it is, and others are "
@@ -233,12 +235,14 @@ async def propose(idea: str, label: str = "idea", replace: bool = False) -> str:
     label = " ".join(label.split()) or "idea"
     reply = await request(f"write {plan.start_tick} {plan.end_tick} {label}\n" + "\n".join(plan.ops))
     mismatch, cut = verify(plan, pre, reply, info, int(bridge.hello["division"]))
+    if not mismatch and any(op.startswith("b ") or " VOLTA " in op for op in plan.ops):
+        mismatch = verify_bars(plan, info, await load_info())
     if mismatch:
         await request("undo")
         after = await request(f"read {plan.start_tick} {plan.end_tick}")
         state = "The write was undone." if sorted(after) == sorted(pre) else "Undoing it did not restore the bars; ask the user to check them."
         raise ToolError(f"The idea did not land as written ({mismatch}). {state}")
-    positions = sorted({p for p, _ in plan.cells})
+    positions = sorted(plan.expected_bars)
     bars = f"bars {numbers[positions[0]]}-{numbers[positions[-1]]}" if len(positions) > 1 else f"bar {numbers[positions[0]]}"
     proposal_id = f"p{next(proposal_numbers)}"
     tracks = sorted({t for _, t in plan.cells})

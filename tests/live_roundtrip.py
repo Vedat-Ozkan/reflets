@@ -1,11 +1,11 @@
 """End-to-end check of writing N1x against a live MuseScore (docs/spec-core.md 4.3, 6.6).
 
 Needs the bridge plugin running and a score open. From every bar, the shortest range of bars whose lines close inside
-it is read and written three times with propose: back as read, which must change nothing; with a minus on every mark
-and decoration, which must remove them all; then as read again, which must bring them back. Each write is checked and
-the score must be as it was after the discards. The bare write empties every lyric line. Glissandos cannot be created
-through the plugin API, so they are left out of the comparison and removed explicitly ([-gliss]). A range with another
-element the plugin API cannot create is refused and skipped.
+it is read and written three times with propose: back as read, which must change nothing; with a minus on every mark,
+decoration and bar field but the meter and key, which must remove them all; then as read again, which must bring them
+back. Each write is checked and the score must be as it was after the discards. The bare write empties every lyric
+line. Glissandos cannot be created through the plugin API, so they are left out of the comparison and removed
+explicitly ([-gliss]). A range with another element the plugin API cannot create is refused and skipped.
 
     REFLETS_TOKEN_FILE=... uv run python tests/live_roundtrip.py
 """
@@ -70,7 +70,10 @@ def bare_idea(lines: list[str], header: str) -> str:
     for row, line in enumerate(lines):
         match = VOICE.fullmatch(line)
         if not match:
-            result.append(line.split(":")[0] + ":" if " L" in line else line)
+            if " L" in line:
+                result.append(line.split(":")[0] + ":")
+            else:
+                result.append(" ".join(word if re.fullmatch(r"m\d+", word) or word.startswith(("len=", "ts=", "ks=")) else "-" + word for word in line.split()))
             continue
         words = n1x.TOKEN.findall(match[2])
         result.append(match[1] + " ".join(
@@ -94,6 +97,7 @@ def removed(word: str) -> str:
 def bare(text: str) -> list[str]:
     left = []
     for bar in n1x.decode(text).bars:
+        left += [f"m{bar.number}: {name}={value}" for name, value in bar.fields.items() if name not in ("len", "ts", "ks")]
         for cell, voice in bar.voices.items():
             left += [f"m{bar.number} {cell}: {token}" for _, token in voice.marks]
             left += [f"m{bar.number} {cell}: {chord.decorations}" for chord in voice.chords if chord.decorations and not chord.grace]

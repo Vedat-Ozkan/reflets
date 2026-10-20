@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import bisect
+import copy
 import re
 from urllib.parse import quote
 from dataclasses import dataclass, field, replace
 from fractions import Fraction
 
 from reflets import n1x
-from reflets.score import FIFTHS, SEMITONES, SYSTEM_LINES, SYSTEM_MARKS, Mark, ScoreInfo, build_index, unescape
+from reflets.score import FIFTHS, SEMITONES, SYSTEM_LINES, SYSTEM_MARKS, Bar, Jump, Marker, Mark, ScoreInfo, build_index, unescape
 
 VALUES = sorted({Fraction(1, 2**k) * dots for k in range(8) for dots in (1, Fraction(3, 2), Fraction(7, 4))}, reverse=True)
 GRACE_TYPES = {"acciaccatura": 1, "grace16": 8}
@@ -62,6 +63,7 @@ class Plan:
     cleared: int = 0
     expected_lyrics: dict[tuple[int, tuple[int, int]], dict[Fraction, dict[int, tuple[str, bool] | None]]] = field(default_factory=dict)
     dropped: list[str] = field(default_factory=list)
+    expected_bars: dict[int, Bar] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -469,7 +471,8 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
     written_bars = sorted(numbers.index(bar.number) for bar in idea.bars)
     olds = old_marks(pre, info, division)
     old_notes = old_chords(pre, info, division, numbers[written_bars[0]], numbers[written_bars[-1]]) if written_bars else {}
-    ops, graces, ties, clears, marks, decorations, removals = [], [], [], [], [], [], []
+    ops, graces, ties, clears, marks, decorations, removals, field_ops = [], [], [], [], [], [], [], []
+    voltas: dict[int, str] = {}
     plan = Plan(0, 0, ops, set(), idea)
     voices: dict[int, list[tuple[int, Fraction, list[tuple[int, int, bool]], tuple[int, int]]]] = {}
     rests = grace_notes = 0
@@ -480,10 +483,11 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
         length, bar_tick = info.lengths[position], info.ticks[position]
         if not bar.fields.get("len", "").isdigit() or Fraction(int(bar.fields["len"]), idea.div) != length:
             raise IdeaError(f"m{bar.number}: len= must match the score's bar, which is {length * idea.div} long")
-        current = current_fields(info, position)
-        changed = [f"{name}={value}" for name, value in bar.fields.items() if name != "len" and current.get(name) != value]
-        if changed:
-            raise IdeaError(f"m{bar.number}: bar fields cannot be changed yet ({' '.join(changed)}); leave them out or as the score has them")
+        expected_bar, changes, volta = bar_changes(bar, position, info)
+        plan.expected_bars[position] = expected_bar
+        field_ops += [f"b {bar_tick} {change}" for change in changes]
+        if volta is not None:
+            voltas[position] = volta
         for (staff, layer), voice in sorted(bar.voices.items()):
             where = f"m{bar.number} {staff}.{layer}"
             if not 1 <= staff <= staves or not 1 <= layer <= 4:
@@ -619,8 +623,9 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
                     cursor += chunk * 4 / scale
                 first = bar_tick + round(onset * division)
                 decorations += decoration_ops(track, first, tick, bar_tick + round(stop * division), chord, rest_names, where)
-    if not plan.cells:
-        raise IdeaError("The idea has no voice lines; write at least one 'staff.voice:' line under a bar line")
+    field_ops += volta_ops(voltas, plan, info, division)
+    if not plan.cells and not field_ops:
+        raise IdeaError("The idea changes nothing; write a 'staff.voice:' line or a bar field to change under a bar line")
     for track, chords in voices.items():
         for tick, chunk, _, cell in chords:
             plan.chunks.setdefault(cell, []).append((tick, tick + round(chunk * 4 * division)))
@@ -658,9 +663,9 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
                 plan.tied_back.add((track, tick, int(parts[0])))
             else:
                 plan.cut_ties.add(numbers[position - 1])
-    plan.ops = clears + removals + ops + graces + marks + decorations + ties
+    plan.ops = clears + removals + ops + graces + marks + decorations + ties + field_ops
     plan.cleared = len(clears) + len(removals)
-    positions = sorted({position for position, _ in plan.cells})
+    positions = sorted(plan.expected_bars)
     plan.start_tick = info.ticks[positions[0]]
     plan.end_tick = info.ticks[positions[-1] + 1] if positions[-1] + 1 < len(info.ticks) else 2**31 - 1
     plan.counts = {
@@ -671,9 +676,135 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
         "marks": len(marks),
         "decorations": len(decorations),
         "removed marks": len(removals),
+        "bar changes": len(field_ops),
     }
     add_lyrics(plan, pre, info, division)
     return plan
+
+
+REPEATS = {"start": (True, False), "end": (False, True), "both": (True, True)}
+BARLINE_TYPES = {name: number for number, name in n1x.BARLINES.items()}
+JUMP_LABELS = {name: labels for labels, name in n1x.JUMPS.items()}
+JUMP_TEXTS = {
+    "dc": "D.C.", "dc-al-fine": "D.C. al Fine", "dc-al-coda": "D.C. al Coda", "ds-al-coda": "D.S. al Coda", "ds-al-fine": "D.S. al Fine",
+    "ds": "D.S.", "dc-al-dblcoda": "D.C. al Double Coda", "ds-al-dblcoda": "D.S. al Double Coda", "dss": "D.S.S.",
+    "dss-al-coda": "D.S.S. al Coda", "dss-al-dblcoda": "D.S.S. al Double Coda", "dss-al-fine": "D.S.S. al Fine",
+}
+LISTED = {"break": n1x.LAYOUT_BREAKS, "jump": list(JUMP_TEXTS), "mark": n1x.MARKERS[:-1]}
+
+
+def word(text: str) -> str:
+    return text.replace("\\", "\\\\").replace(" ", "\\s") if text else "-"
+
+
+def bar_changes(bar: n1x.IdeaBar, position: int, info: ScoreInfo) -> tuple[Bar, list[str], str | None]:
+    where = f"m{bar.number}"
+    current = current_fields(info, position)
+    old = info.bars[position]
+    new = copy.deepcopy(old)
+    changes, volta = [], None
+    for name, value in bar.fields.items():
+        removal, key = name.startswith("-"), name.removeprefix("-")
+        if key == "len":
+            continue
+        if key in ("ts", "ks"):
+            if removal or current.get(key) != value:
+                raise IdeaError(f"{where}: {key}= cannot be changed yet; leave it out or as the score has it")
+            continue
+        if key in LISTED:
+            values = value.split(",")
+            have = list(current[key].split(",")) if key in current else []
+            for item in values:
+                if item not in LISTED[key]:
+                    raise IdeaError(f"{where}: {key}={item} is not one of {', '.join(LISTED[key])}")
+                if removal and item not in have:
+                    raise IdeaError(f"{where}: -{key}={item} removes nothing; the bar has no {key}={item}")
+            if removal:
+                gone = set(values)
+                if key == "break":
+                    new.layout_break_types = [t for t in new.layout_break_types if n1x.LAYOUT_BREAKS[t] not in gone]
+                    changes += [f"break- {n1x.LAYOUT_BREAKS.index(item)}" for item in values]
+                elif key == "jump":
+                    new.jumps = [j for j in new.jumps if n1x.JUMPS.get((j.jump_to, j.play_until, j.continue_at)) not in gone]
+                    changes += ["jump- " + " ".join(word(label) for label in JUMP_LABELS[item]) for item in values]
+                else:
+                    new.markers = [m for m in new.markers if n1x.MARKERS[m.marker_type] not in gone]
+                    changes += [f"mark- {n1x.MARKERS.index(item)}" for item in values]
+                continue
+            for item in values:
+                if item in have:
+                    continue
+                have.append(item)
+                if key == "break":
+                    new.layout_break_types.append(n1x.LAYOUT_BREAKS.index(item))
+                    changes.append(f"break+ {n1x.LAYOUT_BREAKS.index(item)}")
+                elif key == "jump":
+                    labels = JUMP_LABELS[item]
+                    new.jumps.append(Jump(*labels, JUMP_TEXTS[item]))
+                    changes.append("jump+ " + " ".join(word(label) for label in labels) + " " + JUMP_TEXTS[item])
+                else:
+                    new.markers.append(Marker(n1x.MARKERS.index(item), "", ""))
+                    changes.append(f"mark+ {n1x.MARKERS.index(item)}")
+            continue
+        if removal and current.get(key) != value:
+            raise IdeaError(f"{where}: -{key}={value} removes nothing; the bar has {key + '=' + current[key] if key in current else 'no ' + key + '='}")
+        if key == "rep":
+            if value not in REPEATS:
+                raise IdeaError(f"{where}: rep={value} is not start, end or both")
+            new.repeat_start, new.repeat_end = (False, False) if removal else REPEATS[value]
+        elif key == "x":
+            if not value.isdigit() or int(value) < 2:
+                raise IdeaError(f"{where}: x={value} is not a count of times played, 2 or more")
+            new.repeat_count = 2 if removal else int(value)
+        elif key == "bar":
+            if value not in BARLINE_TYPES:
+                raise IdeaError(f"{where}: bar={value} is not one of {', '.join(BARLINE_TYPES)}")
+            new.user_barline_type = None if removal else BARLINE_TYPES[value]
+            changes.append(f"bar {1 if removal else BARLINE_TYPES[value]}")
+        elif key == "volta":
+            if not re.fullmatch(r"\d+(,\d+)*", value):
+                raise IdeaError(f"{where}: volta={value} is not a list of endings like 1 or 1,2")
+            if not removal and old.volta_endings and old.volta_endings != [int(n) for n in value.split(",")]:
+                raise IdeaError(f"{where}: the bar is under volta={current['volta']}; remove it first with -volta={current['volta']}")
+            if removal or not old.volta_endings:
+                volta = "-" if removal else value
+        else:
+            raise IdeaError(f"{where}: {name}= is not a bar field; use rep=, x=, volta=, bar=, break=, jump= or mark=")
+    if new.repeat_count != 2 and not new.repeat_end:
+        raise IdeaError(f"{where}: x= needs a repeat end, rep=end or rep=both")
+    if (new.repeat_start, new.repeat_end, new.repeat_count) != (old.repeat_start, old.repeat_end, old.repeat_count):
+        changes.insert(0, f"rep {int(new.repeat_start)} {int(new.repeat_end)} {new.repeat_count}")
+    return new, changes, volta
+
+
+def volta_ops(voltas: dict[int, str], plan: Plan, info: ScoreInfo, division: int) -> list[str]:
+    ops = []
+    for position, value in sorted(voltas.items()):
+        if value != "-":
+            continue
+        endings = info.bars[position].volta_endings
+        ops.append(f"b {info.ticks[position]} volta-")
+        for step in (-1, 1):
+            q = position
+            while 0 <= q < len(info.bars) and info.bars[q].volta_endings == endings:
+                if q in plan.expected_bars:
+                    plan.expected_bars[q].volta_endings = []
+                q += step
+    added = sorted((position, value) for position, value in voltas.items() if value != "-")
+    groups: list[list[tuple[int, str]]] = []
+    for position, value in added:
+        if groups and groups[-1][-1] == (position - 1, value):
+            groups[-1].append((position, value))
+        else:
+            groups.append([(position, value)])
+    for group in groups:
+        first, last, value = group[0][0], group[-1][0], group[0][1]
+        end = info.ticks[last] + round(info.lengths[last] * division)
+        text = ", ".join(value.split(",")) + "."
+        ops.append(f"l 0 {info.ticks[first]} 0 {end} 0 VOLTA 0 {text}")
+        for position, _ in group:
+            plan.expected_bars[position].volta_endings = [int(n) for n in value.split(",")]
+    return ops
 
 
 def old_lyrics(pre: list[str]) -> dict[tuple[int, int], dict[int, Syllable]]:
@@ -963,7 +1094,7 @@ def verify(plan: Plan, pre: list[str], post: list[str], info: ScoreInfo, divisio
     if got != plan.expected_lines:
         missing, extra = sorted(set(plan.expected_lines) - set(got)), sorted(set(got) - set(plan.expected_lines))
         return f"the lines differ: expected {described(missing, info, plan.idea.div, division)} but read back {described(extra, info, plan.idea.div, division)}", []
-    positions = sorted({position for position, _ in plan.cells})
+    positions = sorted(plan.expected_bars)
     text = n1x.encode(info, build_index(info, post, division), numbers[positions[0]], numbers[positions[-1]])
     back = n1x.decode(text)
     got_voices = {(bar.number, cell): voice for bar in back.bars for cell, voice in bar.voices.items()}
@@ -978,3 +1109,13 @@ def verify(plan: Plan, pre: list[str], post: list[str], info: ScoreInfo, divisio
             if [want[onset] for onset in sorted(want)] != [sung[onset] for onset in sorted(sung)]:
                 return f"bar {bar.number} {label} should have the lyrics {n1x.lyric_lines(label, want)} and reads back with {n1x.lyric_lines(label, sung)}", []
     return None, sorted(cut)
+
+
+def verify_bars(plan: Plan, info: ScoreInfo, after: ScoreInfo) -> str | None:
+    if after.ticks != info.ticks:
+        return f"the score had {len(info.ticks)} bars and has {len(after.ticks)}, or its bars moved"
+    for position, bar in sorted(plan.expected_bars.items()):
+        want, got = n1x.bar_fields(bar), n1x.bar_fields(after.bars[position])
+        if want != got:
+            return f"bar {after.measures[position].number} should have the fields '{' '.join(want)}' and reads back with '{' '.join(got)}'"
+    return None

@@ -5,10 +5,10 @@ import FileIO 3.0
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.16.0"
+    version: "0.17.0"
     requiresScore: false
 
-    readonly property int proto: 16
+    readonly property int proto: 17
     readonly property int port: 8731
     readonly property string ideaColor: "#1565c0"
     property string token: ""
@@ -325,8 +325,10 @@ MuseScore {
                     }
                 }
                 var ann = seg.annotations
-                for (var j = 0; ann && j < ann.length; j++)
-                    lines.push(annotationLine(seg.tick, ann[j]))
+                for (var j = 0; ann && j < ann.length; j++) {
+                    if (ann[j].name !== "PlayCountText")
+                        lines.push(annotationLine(seg.tick, ann[j]))
+                }
             }
         }
         return lines.concat(spannerLines(startTick, endTick))
@@ -675,6 +677,84 @@ MuseScore {
         ly.color = ideaColor
     }
 
+    function unword(s) {
+        return s === "-" ? "" : unescapeText(s.replace(/\\s/g, " "))
+    }
+
+    function measureAt(tick) {
+        var m = curScore.firstMeasure
+        while (m.nextMeasure && m.nextMeasure.firstSegment.tick <= tick)
+            m = m.nextMeasure
+        return m
+    }
+
+    function barChange(tick, w) {
+        var m = measureAt(tick)
+        var what = w[0]
+        if (what === "rep") {
+            m.repeatStart = w[1] === "1"
+            m.repeatEnd = w[2] === "1"
+            m.repeatCount = parseInt(w[3])
+            return
+        }
+        if (what === "bar") {
+            for (var seg = m.firstSegment; seg; seg = seg.nextInMeasure) {
+                if (seg.segmentType !== Segment.EndBarLine)
+                    continue
+                for (var s = 0; s < curScore.nstaves; s++) {
+                    var bl = seg.elementAt(s * 4)
+                    if (bl)
+                        bl.barlineType = parseInt(w[1])
+                }
+            }
+            return
+        }
+        if (what === "volta-") {
+            var sp = curScore.spanners
+            for (var i = 0; sp && i < sp.length; i++) {
+                var v = sp[i]
+                if (v.type === Element.VOLTA && v.spannerTick.ticks <= tick && tick < v.spannerTick.ticks + v.spannerTicks.ticks) {
+                    removeElement(v)
+                    return
+                }
+            }
+            throw "no volta over tick " + tick
+        }
+        var el
+        if (what === "break+") {
+            el = newElement(Element.LAYOUT_BREAK)
+            el.layoutBreakType = parseInt(w[1])
+        } else if (what === "jump+") {
+            el = newElement(Element.JUMP)
+            el.text = unescapeText(w.slice(4).join(" "))
+            el.jumpTo = unword(w[1])
+            el.playUntil = unword(w[2])
+            el.continueAt = unword(w[3])
+        } else if (what === "mark+") {
+            el = newElement(Element.MARKER)
+            el.markerType = parseInt(w[1])
+        }
+        if (el) {
+            var c = curScore.newCursor()
+            c.track = 0
+            c.rewindToTick(m.firstSegment.tick)
+            c.add(el)
+            return
+        }
+        var els = m.elements
+        for (var j = 0; els && j < els.length; j++) {
+            var e = els[j]
+            if (what === "break-" && e.type === Element.LAYOUT_BREAK && e.layoutBreakType === parseInt(w[1])
+                    || what === "jump-" && e.type === Element.JUMP && e.jumpTo === unword(w[1]) && e.playUntil === unword(w[2])
+                        && e.continueAt === unword(w[3])
+                    || what === "mark-" && e.type === Element.MARKER && e.markerType === parseInt(w[1])) {
+                removeElement(e)
+                return
+            }
+        }
+        throw "no " + w.join(" ") + " in the bar at tick " + tick
+    }
+
     function finger(n, field) {
         if (!field)
             return
@@ -772,6 +852,8 @@ MuseScore {
                     decorate(otrack, otick, o[3], o[4], o.slice(5).join(" "))
                 } else if (o[0] === "l") {
                     addLine(o)
+                } else if (o[0] === "b") {
+                    barChange(parseInt(o[1]), o.slice(2))
                 } else if (o[0] === "^") {
                     var from = chordBefore(otrack, otick - 1, function(chord) { return chord })
                     if (!from)

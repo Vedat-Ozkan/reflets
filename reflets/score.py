@@ -130,6 +130,8 @@ def parse_info(lines: list[str]) -> ScoreInfo:
             text = unescape(" ".join(words[3:]))
             endings = [int(n) for n in (words[2].split(",") if words[2] != "-" else re.findall(r"\d+", text))]
             voltas.append((int(words[0]), int(words[0]) + int(words[1]), endings))
+    if bars and bars[-1].user_barline_type == 0x20:
+        bars[-1].user_barline_type = None
     for staff, part in sorted(staff_part.items()):
         parts[part][1].append(staff + 1)
     for start, end, endings in voltas:

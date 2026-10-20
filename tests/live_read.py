@@ -41,7 +41,7 @@ EXPECTED_BARS = [
     "m7 len=3 mark=tocoda",
     "m8 len=3 bar=double break=page jump=ds-al-coda",
     "m9 len=3 mark=coda",
-    "m10 len=3 bar=final mark=fine",
+    "m10 len=3 mark=fine",
 ]
 MARKS_TITLE = "Reflets marks"
 EXPECTED_MARKS = """m1 len=8
