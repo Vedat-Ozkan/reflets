@@ -58,6 +58,15 @@ class Plan:
     grace_ticks: set[tuple[int, int]] = field(default_factory=set)
     expected_lines: list[Line] = field(default_factory=list)
     cleared: int = 0
+    expected_lyrics: dict[tuple[int, tuple[int, int]], dict[Fraction, dict[int, tuple[str, bool] | None]]] = field(default_factory=dict)
+    dropped: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class Syllable:
+    text: str
+    continues: bool
+    end: int
 
 
 def midi_tpc(name: str) -> tuple[int, int]:
@@ -92,8 +101,6 @@ NOTE_ONLY = ("lv", "paren", "head")
 
 
 def unwritable(voice: n1x.Voice, where: str) -> None:
-    if voice.lyrics:
-        raise IdeaError(f"{where}: lyrics cannot be written yet; leave the lyric lines out")
     for chord in voice.chords:
         if chord.grace and any(note.tied for note in chord.notes):
             raise IdeaError(f"{where}: a tie on a grace note cannot be written")
@@ -645,7 +652,145 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
         "decorations": len(decorations),
         "removed marks": len(removals),
     }
+    add_lyrics(plan, pre, info, division)
     return plan
+
+
+def old_lyrics(pre: list[str]) -> dict[tuple[int, int], dict[int, Syllable]]:
+    result: dict[tuple[int, int], dict[int, Syllable]] = {}
+    for line in pre:
+        words = line.split(" ")
+        if words[0] == "Y":
+            tick, track, verse, syllabic, held = (int(word) for word in words[1:6])
+            result.setdefault((track, verse), {})[tick] = Syllable(unescape(" ".join(words[6:])), syllabic in (1, 3), tick + held)
+    return result
+
+
+def sung_ticks(pre: list[str], info: ScoreInfo) -> dict[tuple[int, int], list[int]]:
+    result: dict[tuple[int, int], set[int]] = {}
+    for line in pre:
+        words = line.split(" ")
+        if words[0] == "C" and not any(word[:1] == "G" and word[1:2].isdigit() for word in words[4:]):
+            tick, track = int(words[1]), int(words[2])
+            result.setdefault((bisect.bisect_right(info.ticks, tick) - 1, track), set()).add(tick)
+    return {cell: sorted(ticks) for cell, ticks in result.items()}
+
+
+def syllable(token: str, where: str) -> tuple[str, bool]:
+    if token.startswith('"'):
+        match = re.fullmatch(rf"({n1x.QUOTED})(-?)", token)
+        if not match:
+            raise IdeaError(f"{where}: {token} is not a syllable; quote the whole syllable, as in \"you are\"-")
+        return n1x.unquoted(match[1]), bool(match[2])
+    return (token[:-1], True) if token.endswith("-") else (token, False)
+
+
+def lyric_text(text: str) -> str:
+    return text.replace("\\", "\\\\").replace("\n", "\\n")
+
+
+def add_lyrics(plan: Plan, pre: list[str], info: ScoreInfo, division: int) -> None:
+    old = old_lyrics(pre)
+    lyrics = {key: dict(syllables) for key, syllables in old.items()}
+    sung = sung_ticks(pre, info)
+    numbers = [measure.number for measure in info.measures]
+    outside: dict[tuple[int, int], tuple[int, int]] = {}
+    pieces_at = {cell: sorted(start for start, _ in chunks) for cell, chunks in plan.chunks.items()}
+    for bar in sorted(plan.idea.bars, key=lambda bar: numbers.index(bar.number)):
+        position = numbers.index(bar.number)
+        start = info.ticks[position]
+        stop = info.ticks[position + 1] if position + 1 < len(info.ticks) else 2**31 - 1
+        for (staff, layer), voice in sorted(bar.voices.items()):
+            track = (staff - 1) * 4 + layer - 1
+            cell = (position, track)
+            timed = cell in plan.timed
+            where = f"m{bar.number} {staff}.{layer}"
+            if timed:
+                chords = [(start + round(chord.onset * division), start + round((chord.onset + chord.duration) * division))
+                          for chord in voice.chords if not chord.grace]
+            else:
+                chords = [(tick, tick) for tick in sung.get(cell, [])]
+            for verse in sorted({verse for t, verse in lyrics if t == track} | {number - 1 for number in voice.lyrics}):
+                if verse + 1 not in voice.lyrics and not timed:
+                    continue
+                mine = lyrics.setdefault((track, verse), {})
+                gone = {tick: mine.pop(tick) for tick in [tick for tick in mine if start <= tick < stop]}
+                if verse + 1 not in voice.lyrics:
+                    starts = {begin for begin, _ in chords}
+                    for tick, old_syllable in sorted(gone.items()):
+                        home = tick if tick in starts else next((begin for begin, end in chords if begin < tick < end), None)
+                        if home is None or home in mine:
+                            at = (tick - start) * plan.idea.div // division
+                            plan.dropped.append(f"{where} L{verse + 1}: {n1x.syllable_token((old_syllable.text, old_syllable.continues))} at {at}")
+                        else:
+                            mine[home] = old_syllable
+                    continue
+                tokens = voice.lyrics[verse + 1]
+                if len(tokens) > len(chords):
+                    raise IdeaError(f"{where} L{verse + 1}: {len(tokens)} syllables for {len(chords)} notes; one per note, rests and grace notes skipped")
+                holding: int | None = None
+                lead = None
+                for number, ((tick, _), token) in enumerate(zip(chords, tokens)):
+                    if token == "_":
+                        if holding is not None:
+                            mine[holding] = replace(mine[holding], end=tick)
+                        elif number == 0 or lead is not None and lead == chords[number - 1][0]:
+                            lead = tick
+                        continue
+                    holding = None
+                    if token != "*":
+                        text, continues = syllable(token, where)
+                        mine[tick] = Syllable(text, continues, tick)
+                        holding = tick
+                if holding is not None and len(tokens) == len(chords) and holding in gone and gone[holding].end >= stop:
+                    mine[holding] = replace(mine[holding], end=gone[holding].end)
+                previous = max((tick for tick in mine if tick < start), default=None)
+                if lead is not None and previous is None:
+                    outside[(track, verse)] = (start, lead)
+                elif lead is not None:
+                    mine[previous] = replace(mine[previous], end=lead)
+                elif previous is not None and mine[previous].end >= start:
+                    mine[previous] = replace(mine[previous], end=start - 1)
+    writes, holds, drops = [], [], []
+    for (track, verse), mine in sorted(lyrics.items()):
+        before = old.get((track, verse), {})
+        for tick, new in sorted(mine.items()):
+            cell = (bisect.bisect_right(info.ticks, tick) - 1, track)
+            was = before.get(tick)
+            if cell in plan.timed or was is None or (was.text, was.continues) != (new.text, new.continues):
+                writes.append((tick, f"w {track} {tick} {verse} {int(new.continues)} {new.end} {lyric_text(new.text)}"))
+            elif was.end != new.end:
+                holds.append(f"h {track} {tick} {verse} {new.end}")
+        for tick in sorted(before):
+            cell = (bisect.bisect_right(info.ticks, tick) - 1, track)
+            if tick not in mine and cell not in plan.timed:
+                drops.append(f"u {track} {tick} {verse}")
+    holds += [f"h {track} {start - 1} {verse} {end}" for (track, verse), (start, end) in sorted(outside.items())]
+    plan.ops += drops + [op for _, op in sorted(writes)] + holds
+    plan.counts["syllables"] = len(writes) + len(holds)
+    plan.counts["removed syllables"] = len(drops)
+    for bar in plan.idea.bars:
+        position = numbers.index(bar.number)
+        start = info.ticks[position]
+        for (staff, layer) in bar.voices:
+            track = (staff - 1) * 4 + layer - 1
+            cell = (position, track)
+            expected: dict[Fraction, dict[int, tuple[str, bool] | None]] = {}
+            for tick in pieces_at.get(cell, []) if cell in plan.timed else sung.get(cell, []):
+                entry: dict[int, tuple[str, bool] | None] = {}
+                for (t, verse), mine in lyrics.items():
+                    if t != track:
+                        continue
+                    if tick in mine:
+                        entry[verse] = (mine[tick].text, mine[tick].continues)
+                        continue
+                    held = [(begin, mine[begin].end) for begin in mine if begin < tick]
+                    if (track, verse) in outside:
+                        held.append((outside[(track, verse)][0] - 1, outside[(track, verse)][1]))
+                    if held and max(held)[1] >= tick:
+                        entry[verse] = None
+                expected[Fraction(tick - start, division)] = dict(sorted(entry.items()))
+            plan.expected_lyrics[(bar.number, (staff, layer))] = expected
 
 
 def _order(key: tuple) -> tuple:
@@ -800,7 +945,11 @@ def verify(plan: Plan, pre: list[str], post: list[str], info: ScoreInfo, divisio
     for bar in plan.idea.bars:
         for cell, voice in sorted(bar.voices.items()):
             got = got_voices.get((bar.number, cell), n1x.Voice())
+            label = f"{cell[0]}.{cell[1]}"
             if written(plan.expected[(bar.number, cell)], voice.timed) != written(got, voice.timed):
-                label = f"{cell[0]}.{cell[1]}"
                 return f"bar {bar.number} {label} was written as '{line_of(plan.idea, bar.number, label)}' and reads back as '{line_of(back, bar.number, label)}'", []
+            want = plan.expected_lyrics[(bar.number, cell)]
+            sung = info.lyrics.get((numbers.index(bar.number), *cell), {})
+            if [want[onset] for onset in sorted(want)] != [sung[onset] for onset in sorted(sung)]:
+                return f"bar {bar.number} {label} should have the lyrics {n1x.lyric_lines(label, want)} and reads back with {n1x.lyric_lines(label, sung)}", []
     return None, sorted(cut)

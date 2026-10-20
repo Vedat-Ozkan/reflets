@@ -3,9 +3,9 @@
 Needs the bridge plugin running and a score open. From every bar, the shortest range of bars whose lines close inside
 it is read and written three times with propose: back as read, which must change nothing; with a minus on every mark
 and decoration, which must remove them all; then as read again, which must bring them back. Each write is checked and
-the score must be as it was after the discards. Lyrics cannot be written yet and glissandos cannot be created through
-the plugin API, so they are left out of the comparison and glissandos are removed explicitly ([-gliss]). A range with
-another element the plugin API cannot create is refused and skipped.
+the score must be as it was after the discards. The bare write empties every lyric line. Glissandos cannot be created
+through the plugin API, so they are left out of the comparison and removed explicitly ([-gliss]). A range with another
+element the plugin API cannot create is refused and skipped.
 
     REFLETS_TOKEN_FILE=... uv run python tests/live_roundtrip.py
 """
@@ -26,12 +26,12 @@ def unglissed(match: re.Match) -> str:
     return f"[{','.join(names)}]" if names else ""
 
 
-def unlyrical(text: str) -> list[str]:
-    return [line for line in n1x.expand(text).splitlines() if re.match(r"m\d+ |\d+\.\d+:", line)]
+def body(text: str) -> list[str]:
+    return [line for line in n1x.expand(text).splitlines() if re.match(r"m\d+ |\d+\.\d+( L\d+)?:", line)]
 
 
 def writable(text: str) -> list[str]:
-    return [re.sub(r"\[([^\]\"]*)\]", unglissed, line) for line in unlyrical(text)]
+    return [re.sub(r"\[([^\]\"]*)\]", unglissed, line) for line in body(text)]
 
 
 def idea(lines: list[str], header: str, token) -> str:
@@ -70,7 +70,7 @@ def bare_idea(lines: list[str], header: str) -> str:
     for row, line in enumerate(lines):
         match = VOICE.fullmatch(line)
         if not match:
-            result.append(line)
+            result.append(line.split(":")[0] + ":" if " L" in line else line)
             continue
         words = n1x.TOKEN.findall(match[2])
         result.append(match[1] + " ".join(
@@ -99,6 +99,7 @@ def bare(text: str) -> list[str]:
             left += [f"m{bar.number} {cell}: {chord.decorations}" for chord in voice.chords if chord.decorations and not chord.grace]
             left += [f"m{bar.number} {cell}: {note}" for chord in voice.chords for note in chord.notes if note.decorations]
             left += [f"m{bar.number} {cell}: rest {names}" for _, _, names in voice.rests if names]
+            left += [f"m{bar.number} {cell} L{number}: {tokens}" for number, tokens in voice.lyrics.items()]
     return left
 
 
@@ -112,7 +113,7 @@ async def main() -> None:
             text = await server.read_score(bars)
             header, lines = text.splitlines()[0], writable(text)
             try:
-                same = await server.propose(idea(unlyrical(text), header, as_read), f"bars {bars} as read", replace=True)
+                same = await server.propose(idea(body(text), header, as_read), f"bars {bars} as read", replace=True)
             except ToolError as error:
                 if "has no closer in the idea" in str(error) and last != numbers[-1]:
                     continue

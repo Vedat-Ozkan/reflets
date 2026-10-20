@@ -201,7 +201,11 @@ def writes(title: str, destructive: bool) -> ToolAnnotations:
         "is hung on the notes sounding at its old start and end. A new line needs both ends in the idea; a later bar may "
         "carry just its closer ('1.1: )@96'). Remove a line with a minus on either end ('-ped('); move an end by removing "
         "it and writing the new one ('-ped) ped)@96'). "
-        "Lyrics cannot be written yet and go with the notes they were on. "
+        "Lyrics stay too: when the notes change, each syllable stays on the note starting at its moment, or else on the "
+        "note sounding there; one left without a note is named in the result. A lyric line ('1.1 L1: Twin- kle _ *') "
+        "under a voice line sets that verse in the bar, one syllable per note as read_score shows it, with '_' holding the "
+        "syllable before and '*' a note without one; an empty one ('1.1 L1:') removes the verse there. To change only "
+        "the lyrics, write the voice line empty ('1.1:') with the lyric line under it. "
         "replace=True is needed when a voice you write already has "
         "notes there. The idea is written in colour as one undo step and read back; the result gives a proposal id "
         "for keep or discard."
@@ -241,6 +245,8 @@ async def propose(idea: str, label: str = "idea", replace: bool = False) -> str:
     counts = ", ".join(f"{n} {what if n > 1 else what[:-1]}" for what, n in plan.counts.items() if n)
     voices = ", ".join(f"{t // 4 + 1}.{t % 4 + 1}" for t in tracks)
     note = f" The tie into or out of bar(s) {', '.join(map(str, cut))} was cut, as the idea replaced its note." if cut else ""
+    if plan.dropped:
+        note += f" These syllables had no note left and were removed: {'; '.join(plan.dropped)}."
     return (
         f'Written: {bars}, voices {voices}, {counts}, as one undo step "Reflets: {label}". Read-back matched.{note}\n'
         f"The new notes are blue. The user listens with Play in MuseScore; then keep(\"{proposal_id}\") turns them "

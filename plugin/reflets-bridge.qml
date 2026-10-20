@@ -5,10 +5,10 @@ import FileIO 3.0
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.14.0"
+    version: "0.15.0"
     requiresScore: false
 
-    readonly property int proto: 14
+    readonly property int proto: 15
     readonly property int port: 8731
     readonly property string ideaColor: "#1565c0"
     property string token: ""
@@ -618,6 +618,59 @@ MuseScore {
         chord.add(el)
     }
 
+    function lyricOf(chord, verse) {
+        for (var y = 0; chord.lyrics && y < chord.lyrics.length; y++) {
+            if (chord.lyrics[y].verse === verse)
+                return chord.lyrics[y]
+        }
+        return null
+    }
+
+    function lyricBefore(track, tick, verse) {
+        var m = curScore.firstMeasure
+        while (m.nextMeasure && m.nextMeasure.firstSegment.tick <= tick)
+            m = m.nextMeasure
+        for (; m; m = m.prevMeasure) {
+            for (var seg = m.lastSegment; seg; seg = seg.prevInMeasure) {
+                var el = seg.tick <= tick ? seg.elementAt(track) : null
+                var ly = el && el.type === Element.CHORD ? lyricOf(el, verse) : null
+                if (ly)
+                    return [seg.tick, ly]
+            }
+        }
+        return null
+    }
+
+    function hold(ly, track, tick, bound) {
+        var c = curScore.newCursor()
+        c.track = track
+        c.rewindToTick(tick)
+        var last = tick
+        for (c.next(); c.segment && c.tick <= bound; c.next()) {
+            if (c.element && c.element.type === Element.CHORD)
+                last = c.tick
+        }
+        ly.lyricTicks = fraction(last - tick, division * 4)
+    }
+
+    function setLyric(track, tick, verse, continues, bound, text) {
+        var chord = elementAt(track, tick)
+        if (chord.type !== Element.CHORD)
+            throw "a syllable goes on a note; track " + track + " has a rest at tick " + tick
+        var old = lyricOf(chord, verse)
+        if (old)
+            removeElement(old)
+        var before = lyricBefore(track, tick - 1, verse)
+        var joined = before !== null && (before[1].syllabic === 1 || before[1].syllabic === 3)
+        var ly = newElement(Element.LYRICS)
+        ly.verse = verse
+        cursorAt(track, tick).add(ly)
+        ly.text = text
+        ly.syllabic = continues ? (joined ? 3 : 1) : (joined ? 2 : 0)
+        hold(ly, track, tick, bound)
+        ly.color = ideaColor
+    }
+
     function finger(n, field) {
         if (!field)
             return
@@ -715,6 +768,18 @@ MuseScore {
                     decorate(otrack, otick, o[3], o[4], o.slice(5).join(" "))
                 } else if (o[0] === "l") {
                     addLine(o)
+                } else if (o[0] === "w") {
+                    setLyric(otrack, otick, parseInt(o[3]), o[4] === "1", parseInt(o[5]), unescapeText(o.slice(6).join(" ")))
+                } else if (o[0] === "u") {
+                    var gone = lyricOf(elementAt(otrack, otick), parseInt(o[3]))
+                    if (!gone)
+                        throw "no syllable in track " + otrack + " at tick " + otick
+                    removeElement(gone)
+                } else if (o[0] === "h") {
+                    var held = lyricBefore(otrack, otick, parseInt(o[3]))
+                    if (!held)
+                        throw "no syllable before tick " + otick + " in track " + otrack + " to hold"
+                    hold(held[1], otrack, held[0], parseInt(o[4]))
                 } else if (o[0] === "~") {
                     if (o[4] && !noteAt(otrack, parseInt(o[4]), parseInt(o[3])))
                         throw "no note to tie to"
@@ -765,6 +830,8 @@ MuseScore {
                         el.color = color
                     if (el.type !== Element.CHORD)
                         continue
+                    for (var y = 0; el.lyrics && y < el.lyrics.length; y++)
+                        el.lyrics[y].color = color
                     var cs = [el]
                     for (var g = 0; el.graceNotes && g < el.graceNotes.length; g++)
                         cs.push(el.graceNotes[g])
