@@ -170,7 +170,7 @@ def touches(line: Line, cells: set[tuple[int, int]], info: ScoreInfo) -> bool:
     return start in cells or (side(info.ticks, line.end) - 1, line.track2) in cells
 
 
-def add_lines(plan: Plan, pre: list[str], info: ScoreInfo) -> None:
+def add_lines(plan: Plan, pre: list[str], info: ScoreInfo, division: int) -> None:
     numbers = [measure.number for measure in info.measures]
     old = [line for line in spans(pre) if touches(line, plan.cells, info)]
     for track2, end, grace, name, where in plan.strays:
@@ -184,6 +184,25 @@ def add_lines(plan: Plan, pre: list[str], info: ScoreInfo) -> None:
         line = max(found)
         old.remove(line)
         plan.lines.append(replace(line, end=end, grace=grace))
+    starts = {(line.name, line.tick, line.track) for line in plan.lines}
+    for line in old:
+        first = bisect.bisect_right(info.ticks, line.tick) - 1
+        last = (bisect.bisect_right if line.grace else bisect.bisect_left)(info.ticks, line.end) - 1
+        offset = (line.end - info.ticks[last]) * plan.idea.div // division
+        label = f"{line.name}( line" if line.name else "slur"
+        if (first, line.track) not in plan.cells:
+            raise IdeaError(
+                f"m{numbers[last]} {line.track2 // 4 + 1}.{line.track2 % 4 + 1}: the {label} from m{numbers[first]} ends here at "
+                f"@{offset}; write its {line.name}) to keep it (with @ to move its end), or put m{numbers[first]} in the idea, "
+                f"a marks-only line if need be, to change or remove it"
+            )
+        if (last, line.track2) not in plan.cells and (line.name, line.tick, line.track) not in starts:
+            offset = (line.tick - info.ticks[first]) * plan.idea.div // division
+            raise IdeaError(
+                f"m{numbers[first]} {line.track // 4 + 1}.{line.track % 4 + 1}: the {label} starting here at @{offset} ends in "
+                f"m{numbers[last]}, after the idea; to keep or remove it, put m{numbers[last]} in the idea too, a marks-only line "
+                f"if need be, with its {line.name}) if it stays"
+            )
     octaves, others = line_ops(plan)
     plan.ops[plan.cleared:plan.cleared] = octaves
     plan.ops += others

@@ -187,7 +187,8 @@ def writes(title: str, destructive: bool) -> ToolAnnotations:
         "that bar's voice starts with the same pitch. Lines are marks too: a voice line replaces the lines that "
         "start or end in it. A line opened in the idea must close in the idea, in a later bar's marks-only line if "
         "needed ('1.1: )@96'); a closer with no opener in the idea ends the line from before the idea that read_score "
-        "showed ending there, keeping its start. Lyrics cannot be written yet and go with the notes they were on. "
+        "showed ending there, keeping its start. Leaving out one end of a line that crosses the idea's edge is "
+        "refused, so nothing outside the idea changes: keep that end, or put its bar in the idea. Lyrics cannot be written yet and go with the notes they were on. "
         "replace=True is needed when a voice you write already has "
         "notes there. The idea is written in colour as one undo step and read back; the result gives a proposal id "
         "for keep or discard."
@@ -206,7 +207,7 @@ async def propose(idea: str, label: str = "idea", replace: bool = False) -> str:
     numbers = [measure.number for measure in info.measures]
     pre = await request(f"read {plan.start_tick} {plan.end_tick}")
     try:
-        add_lines(plan, pre, info)
+        add_lines(plan, pre, info, int(bridge.hello["division"]))
     except IdeaError as error:
         raise ToolError(str(error)) from None
     taken = occupied(plan, cells(pre, info))

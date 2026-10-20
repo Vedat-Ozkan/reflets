@@ -29,7 +29,7 @@ GROUPS = {
     "references": ("N1x div=48\nm10 len=288\n1.2: 48 C4 D4 E4 F4 G4 A4\nm11 len=288\n1.2 = m10", "1.2 = m10"),
 }
 MARKS = {
-    "marks with notes": ("N1x div=4\nm5 len=24\n1.1: !f \"Eb\" x\"dolce\" 6 G5 q50 Ab5 !p 12 Bb5", "5", ['x"dolce" !f "Eb"', "q50", "!p"]),
+    "marks with notes": ("N1x div=4\nm5 len=24\n1.1: !f \"Eb\" x\"dolce\" 6 G5 ) q50 Ab5 !p 12 Bb5", "5", ['x"dolce" !f "Eb"', "q50", "!p"]),
     "a marks-only line": ("N1x div=4\nm10 len=24\n2.1: s\"marks only\"@4 clef=treble@12", "10", ['s"marks only"', "clef=treble"]),
 }
 failures = []
@@ -103,6 +103,8 @@ async def main() -> None:
     check("a line with no closer in the idea is refused", "has no closer in the idea" in error, error)
     error = await refused(server.propose("N1x div=48\nm10 len=288\n1.2: 288 r <)@96", "stray"))
     check("a closer with no line to close is refused", "closes no line" in error, error)
+    error = await refused(server.propose(IDEA.replace("G5~ ) ", "G5~ "), "dropped", replace=True))
+    check("leaving out the end of a line from before the idea is refused", "the slur from m4 ends here" in error, error)
     written = proposal(await server.propose("N1x div=48\nm10 len=288\n1.2: ( 48 C4 (2 D4 ) E4 )2 F4 96 G4", "crossing slurs"))
     bars = await server.read_score("10")
     check("crossing slurs read back numbered", "1.2: (2 8 C4 ( D4 )2 E4 ) F4 16 G4" in bars, bars)
