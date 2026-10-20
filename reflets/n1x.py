@@ -6,6 +6,7 @@ import bisect
 import html
 import re
 from fractions import Fraction
+from urllib.parse import unquote
 
 from engine.notes import NotesError
 from engine.score import Event, ScoreIndex
@@ -56,6 +57,15 @@ ARPEGGIOS = ["arp", "arp-up", "arp-down", "arp-bracket", "arp-up-straight", "arp
 TREMOLOS = ["trem8", "trem16", "trem32", "trem64", "buzz"]
 GRACES = {1: "acciacc", 2: "appog", 4: "grace4", 8: "grace16", 16: "grace32", 32: "after", 64: "after16", 128: "after32"}
 NOTE_DECORATIONS = {"l": "lv", "p": "paren"}
+HEADS = (
+    "normal x plus xcircle withx triangle-up triangle-down slashed1 slashed2 diamond diamond-old circled circled-large "
+    "large-arrow altbrevis slash large-diamond sol la fa mi do re ti heavy-cross heavy-cross-hat do-walker re-walker "
+    "ti-walker do-funk re-funk ti-funk do-name di-name ra-name re-name ri-name me-name mi-name fa-name fi-name se-name "
+    "sol-name le-name la-name li-name te-name ti-name si-name a-sharp-name a-name a-flat-name b-sharp-name b-name "
+    "b-flat-name c-sharp-name c-name c-flat-name d-sharp-name d-name d-flat-name e-sharp-name e-name e-flat-name "
+    "f-sharp-name f-name f-flat-name g-sharp-name g-name g-flat-name h-name h-sharp-name swiss-rudiments-flam "
+    "swiss-rudiments-double custom"
+).split()
 MARKERS = ["segno", "varsegno", "coda", "varcoda", "codetta", "fine", "tocoda", "tocodasym", "dacoda", "dadblcoda", "user"]
 
 
@@ -163,21 +173,35 @@ def chord_decorations(fields: list[str], graces: int) -> list[str]:
             names.append(TREMOLOS[int(word[1:])] if int(word[1:]) < len(TREMOLOS) else f"trem{word[1:]}")
         elif word[0] == "G" and int(word[1:]) != (1 if graces == 1 else 8):
             names.insert(0, GRACES.get(int(word[1:]), word[1:]))
+        elif word[0] == "X":
+            names.append(f"staff{int(word[1:]):+d}")
     return names
 
 
-def note_token(event: Event, decorations: list[str], in_chord: bool) -> str:
+def note_decorations(fields: list[str]) -> list[str]:
+    names = []
+    for field in fields:
+        if field in NOTE_DECORATIONS:
+            names.append(NOTE_DECORATIONS[field])
+        elif field[0] == "h":
+            names.append("head=" + (HEADS[int(field[1:])] if int(field[1:]) < len(HEADS) else field[1:]))
+    return names
+
+
+def note_token(event: Event, fields: list[str], decorations: list[str], in_chord: bool) -> str:
+    name = event.pitch + "".join("'" + unquote(field[1:]) for field in fields if field[0] == "F")
     if in_chord:
-        return event.pitch + "".join(f":{name}" for name in decorations) + ("~" if event.tied else "")
-    return event.pitch + (f"[{','.join(decorations)}]" if decorations else "") + ("~" if event.tied else "")
+        return name + "".join(f":{decoration}" for decoration in decorations) + ("~" if event.tied else "")
+    return name + (f"[{','.join(decorations)}]" if decorations else "") + ("~" if event.tied else "")
 
 
 def chord_token(group: list[Event], details: dict[str, tuple[list[str], list[str]]], extra: list[str], graces: int) -> str:
     chord = chord_decorations(details[group[0].id][0], graces) + extra
-    notes = [[NOTE_DECORATIONS[f] for f in details[event.id][1] if f in NOTE_DECORATIONS] for event in group]
+    fields = [details[event.id][1] for event in group]
     if len(group) == 1:
-        return note_token(group[0], notes[0] + chord, False)
-    return "+".join(note_token(event, own, True) for event, own in zip(group, notes)) + (f"[{','.join(chord)}]" if chord else "")
+        return note_token(group[0], fields[0], note_decorations(fields[0]) + chord, False)
+    notes = "+".join(note_token(event, own, note_decorations(own), True) for event, own in zip(group, fields))
+    return notes + (f"[{','.join(chord)}]" if chord else "")
 
 
 def plain(text: str) -> str:

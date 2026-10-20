@@ -58,24 +58,27 @@ m2 len=4 jump=dc mark=segno
 2.1: 4 G4
 3.1: 4 C3"""
 DECORATIONS_TITLE = "Reflets decorations"
-EXPECTED_DECORATIONS = """m1 len=4
-1.1: 1 C5[stacc] D5[ten] E5[acc] F5[marc]
-2.1: 4 C3
-m2 len=4
-1.1: 1 G5[staccis] C5+E5+G5[arp] A5[mord] B5[tr]
-2.1: 4 C3
-m3 len=4
-1.1: 2 C6[fermata,breath] 1 D5[turn] E5[trem32]
-2.1: 4 C3
-m4 len=4
-1.1: gD5[appog] 1 C5 C4+E4+G4 F5 A4
-2.1: 4 C3
-m5 len=4
-1.1: 2 G4[caesura] E5[lv]
-2.1: 4 C3
-m6 len=4
-1.1: gD5 gE5 1 C5 1 r[fermata] C4:lv+E4:paren[arp]
-2.1: 4 C3"""
+EXPECTED_DECORATIONS = """m1 len=8
+1.1: 2 C5[stacc] D5[ten] E5[acc] F5[marc]
+2.1: 8 C3
+m2 len=8
+1.1: 2 G5[staccis] C5+E5+G5[arp] A5[mord] B5[tr]
+2.1: 8 C3
+m3 len=8
+1.1: 4 C6[fermata,breath] 2 D5[turn] E5[trem32]
+2.1: 8 C3
+m4 len=8
+1.1: gD5[appog] 2 C5 C4'1+E4'3+G4'5 F5 A4[head=x]
+2.1: 8 C3
+m5 len=8
+1.1: 4 G4[caesura] E5[lv]
+2.1: 8 C3
+m6 len=8
+1.1: gD5 gE5 2 C5 2 r[fermata] C4:lv+E4:paren[arp]
+2.1: 8 C3
+m7 len=8
+1.1: 1 C5 D5 B3[staff+1] A3[staff+1] 2 C5+E5:head=diamond E5'2
+2.1: 8 C3"""
 failures = []
 
 
@@ -96,7 +99,7 @@ def strip(text: str) -> str:
             line = " ".join([words[0], *(word for word in words[1:] if word.split("=")[0] in ("len", "ts"))])
         else:
             line = re.sub(r' (!|x|s|S|R|fb|pt|q[\d.]+)?"(?:[^"\\]|\\.)*"(@\d+)?| (![a-z]+|q[\d.]+|clef=\S+)(@\d+)?', "", line)
-            line = re.sub(r"\[[^\]]*\](@\d+)?|(?<=\d):[A-Za-z][\w-]*", "", line)
+            line = re.sub(r"\[[^\]]*\](@\d+)?|(?<=\d)('[^\s+\[~:']*)*(:[A-Za-z][\w=-]*)*", "", line)
             line = re.sub(r" +", " ", line).rstrip()
             if line.endswith(":"):
                 continue
