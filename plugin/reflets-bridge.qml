@@ -5,10 +5,10 @@ import FileIO 3.0
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.7.0"
+    version: "0.8.0"
     requiresScore: false
 
-    readonly property int proto: 7
+    readonly property int proto: 8
     readonly property int port: 8731
     readonly property string ideaColor: "#1565c0"
     property string token: ""
@@ -206,8 +206,65 @@ MuseScore {
         return lines
     }
 
-    function read(startTick, endTick) {
+    function lyricLines(tick, track, el) {
         var lines = []
+        for (var y = 0; el.lyrics && y < el.lyrics.length; y++) {
+            var ly = el.lyrics[y]
+            lines.push("Y " + tick + " " + track + " " + ly.verse + " " + ly.syllabic + " " + ly.lyricTicks.ticks
+                + " " + escapeText(ly.plainText))
+        }
+        return lines
+    }
+
+    function heldLyrics(startTick) {
+        var lines = []
+        var m = curScore.firstMeasure
+        while (m && m.firstSegment.tick < startTick)
+            m = m.nextMeasure
+        var open = curScore.ntracks
+        var done = {}
+        for (var p = 0; p < curScore.parts.length; p++) {
+            var part = curScore.parts[p]
+            for (var t = part.startTrack; part.lyricCount === 0 && t < part.endTrack; t++) {
+                done[t] = true
+                open--
+            }
+        }
+        for (var bar = m ? m.prevMeasure : curScore.lastMeasure; bar && open > 0; bar = bar.prevMeasure) {
+            var sung = {}
+            for (var seg = bar.lastSegment; seg; seg = seg.prevInMeasure) {
+                for (var track = 0; track < curScore.ntracks; track++) {
+                    var el = done[track] ? null : seg.elementAt(track)
+                    if (el && el.type === Element.REST) {
+                        done[track] = true
+                        open--
+                    }
+                    if (!el || el.type !== Element.CHORD)
+                        continue
+                    sung[track] = true
+                    if (!el.lyrics || !el.lyrics.length)
+                        continue
+                    done[track] = true
+                    open--
+                    var held = lyricLines(seg.tick, track, el).filter(function(line) {
+                        var w = line.split(" ")
+                        return Number(w[1]) + Number(w[5]) >= startTick
+                    })
+                    lines = lines.concat(held)
+                }
+            }
+            for (var t2 = 0; t2 < curScore.ntracks; t2++) {
+                if (!done[t2] && !sung[t2]) {
+                    done[t2] = true
+                    open--
+                }
+            }
+        }
+        return lines
+    }
+
+    function read(startTick, endTick) {
+        var lines = startTick > 0 && curScore.hasLyrics ? heldLyrics(startTick) : []
         var ntracks = curScore.ntracks
         for (var m = curScore.firstMeasure; m; m = m.nextMeasure) {
             var mt = m.firstSegment.tick
@@ -232,6 +289,7 @@ MuseScore {
                         for (var g = 0; gs && g < gs.length; g++)
                             lines.push(chordLine(seg.tick, track, gs[g], true))
                         lines.push(chordLine(seg.tick, track, el, false))
+                        lines = lines.concat(lyricLines(seg.tick, track, el))
                     } else if (el.type === Element.BREATH) {
                         lines.push("A " + seg.tick + " " + track + " Breath " + symName(el.symbol) + " ")
                     } else if (el.type === Element.REST) {

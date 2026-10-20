@@ -76,6 +76,8 @@ def as_n1(idea: str) -> str:
             if unwritable:
                 raise IdeaError(f"{words[0]}: bar fields cannot be written yet ({' '.join(unwritable)}); leave them out")
             lines.append(line)
+        elif re.match(r"\d+\.\d+ L\d+:", line):
+            raise IdeaError(f"{line.split(':')[0]}: lyrics cannot be written yet; leave the lyric lines out")
         else:
             lines.append(line)
     return "\n".join(lines)

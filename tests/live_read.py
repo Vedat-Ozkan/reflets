@@ -13,7 +13,8 @@ decorations.musicxml. With tests/data/groups.mscz open, the tuplets and decorati
 ones; it is the import of groups.musicxml with the triplet inside bar 5's triplet added by hand (Ctrl+3 on E5), as
 MuseScore imports nested tuplets wrongly. With tests/data/lines.mscz open, the lines must be the expected ones; it
 is the import of lines.musicxml with the rit. line on bar 4 and the cresc. line on bar 3 added by hand; the
-wavy glissando of the import reads straight once saved and reopened.
+wavy glissando of the import reads straight once saved and reopened. With tests/data/lyrics.mscz open, the import of
+lyrics.musicxml, the lyrics must be the expected ones.
 
     REFLETS_TOKEN_FILE=... uv run python tests/live_read.py
 """
@@ -113,6 +114,25 @@ m4 len=4
 m5 len=4
 1.1: line"rit."( 4 C5 line)
 2.1: ped( 4 C3 ped)@2"""
+LYRICS_TITLE = "Reflets lyrics"
+EXPECTED_LYRICS = """m1 len=4
+1.1: 1 C5 D5 E5 F5
+1.1 L1: Twin- kle lit- tle
+1.1 L2: Ah vous di- rai
+m2 len=4
+1.1: 1 G5 A5 B5
+1.1 L1: star _ _
+m3 len=4
+1.1: 1 C5 D5 E5 F5~
+1.1 L1: won- * der what
+m4 len=4
+1.1: 2 F5 gA5 1 G5
+1.1 L1: _ "you are"
+m5 len=4
+1.1: 2 C5 D5
+1.1 L1: high up
+1.2: 4 A4
+1.2 L1: Oo"""
 failures = []
 
 
@@ -130,7 +150,7 @@ def strip(text: str) -> str:
     lines = text.splitlines()
     kept = [re.sub(r"^N1x ", "N1 ", lines[0])]
     for line in lines[1:]:
-        if re.match(r'(title|composer)=|P\d+ "', line):
+        if re.match(r'(title|composer)=|P\d+ "|\d+\.\d+ L\d+:', line):
             continue
         if re.match(r"m\d+ ", line):
             words = line.split()
@@ -180,6 +200,12 @@ async def main() -> None:
     if info.title == LINES_TITLE:
         got = text[text.index("\nm1 ") + 1 :]
         check("lines", got == EXPECTED_LINES, f"\n{got}")
+    if info.title == LYRICS_TITLE:
+        got = text[text.index("\nm1 ") + 1 :]
+        check("lyrics", got == EXPECTED_LYRICS, f"\n{got}")
+        _, lines = await server.bridge.request(f"read {info.ticks[numbers.index(4)]} {2**31 - 1}")
+        got = n1x.encode(info, build_index(info, lines, int(server.bridge.hello["division"])), 4, 5)
+        check("syllable held from before the range", '\nm4 len=4\n1.1: 2 F5 gA5 1 G5\n1.1 L1: _ "you are"\n' in got, f"\n{got}")
     if failures:
         sys.exit(f"{len(failures)} failed")
 

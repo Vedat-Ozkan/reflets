@@ -75,6 +75,7 @@ class ScoreInfo:
     bars: list[Bar] = field(default_factory=list)
     details: dict[str, tuple[list[str], list[str]]] = field(default_factory=dict)
     tuplets: dict[tuple[int, int, int], list[tuple[Fraction, Fraction, str]]] = field(default_factory=dict)
+    lyrics: dict[tuple[int, int, int], dict[Fraction, dict[int, tuple[str, bool] | None]]] = field(default_factory=dict)
 
 
 def parse_info(lines: list[str]) -> ScoreInfo:
@@ -141,7 +142,9 @@ def build_index(info: ScoreInfo, lines: list[str], division: int) -> ScoreIndex:
     for measure, bar in zip(info.measures, info.bars):
         measure.events = []
         bar.marks = []
-    info.details, info.tuplets = {}, {}
+    info.details, info.tuplets, info.lyrics = {}, {}, {}
+    melismas: dict[tuple[int, int], int] = {}
+    chords: dict[int, dict[int, tuple[str, bool] | None]] = {}
     open_tuplets: dict[tuple[int, int], list[tuple[Fraction, Fraction, str]]] = {}
     cursors: dict[tuple[int, int], Fraction] = {}
     spanners: list[list[str]] = []
@@ -161,6 +164,12 @@ def build_index(info: ScoreInfo, lines: list[str], division: int) -> ScoreIndex:
                 mark = Mark(0 if system else track, onset, words[3], words[4], unescape(" ".join(words[5:])))
                 if not system or mark not in info.bars[position].marks:
                     info.bars[position].marks.append(mark)
+            continue
+        if words[0] == "Y":
+            tick, track, verse, syllabic, held = (int(word) for word in words[1:6])
+            if track in chords:
+                chords[track][verse] = (unescape(" ".join(words[6:])), syllabic in (1, 3))
+            melismas[(track, verse)] = tick + held
             continue
         if words[0] not in ("C", "R"):
             continue
@@ -183,6 +192,9 @@ def build_index(info: ScoreInfo, lines: list[str], division: int) -> ScoreIndex:
             cursors[(position, track)] = onset + duration
             spans = info.tuplets.setdefault((position, staff, layer), [])
             track_tuplets(open_tuplets.setdefault((position, track), []), spans, onset, flags)
+        if words[0] == "C" and not grace:
+            chords[track] = {verse: None for (held, verse), end in melismas.items() if held == track and tick <= end}
+            info.lyrics.setdefault((position, staff, layer), {})[onset] = chords[track]
         if words[0] == "R":
             measure.events.append(Event(f"e{number}", measure.number, staff, onset, duration, layer=layer, segment=measure.id))
             continue

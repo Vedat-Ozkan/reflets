@@ -135,7 +135,27 @@ def encode(info: ScoreInfo, index: ScoreIndex, first: int, last: int) -> str:
             tuplets = info.tuplets.get((position, staff, layer), []) if events else []
             body = voice(events, div, marks.get(where, []), info.details, attached.get(where, []), tuplets, closers.get(where, []))
             lines.append(f"{staff}.{layer}: " + body)
+            lines += lyric_lines(f"{staff}.{layer}", info.lyrics.get((position, staff, layer), {}))
     return "\n".join(lines)
+
+
+def lyric_lines(where: str, lyrics: dict[Fraction, dict[int, tuple[str, bool] | None]]) -> list[str]:
+    lines = []
+    for verse in sorted({verse for syllables in lyrics.values() for verse in syllables}):
+        tokens = [syllable_token(lyrics[onset].get(verse, "*")) for onset in sorted(lyrics)]
+        while tokens[-1] == "*":
+            tokens.pop()
+        lines.append(f"{where} L{verse + 1}: " + " ".join(tokens))
+    return lines
+
+
+def syllable_token(syllable: tuple[str, bool] | str | None) -> str:
+    if syllable is None:
+        return "_"
+    if isinstance(syllable, str):
+        return syllable
+    text, continues = syllable
+    return (quote(text) if not text or re.search(r'[\s"]|^[_*]|-$', text) else text) + ("-" if continues else "")
 
 
 def bar_fields(bar: Bar) -> list[str]:
