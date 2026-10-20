@@ -1,9 +1,3 @@
-// Reflets bridge: lets the Reflets MCP server read and write the score open in MuseScore Studio 4.7.
-// Protocol and design: docs/spec-core.md sections 2 and 3. MIT licence.
-//
-// No pluginType, so MuseScore runs this as a macro: no dialog, and the object (with its server) stays
-// alive until MuseScore quits. An open plugin dialog makes MuseScore refuse notation actions such as
-// tie (spec 2.1).
 import QtQuick 2.15
 import MuseScore 3.0
 import FileIO 3.0
@@ -11,10 +5,10 @@ import FileIO 3.0
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.2.0"
+    version: "0.3.0"
     requiresScore: false
 
-    readonly property int proto: 2
+    readonly property int proto: 3
     readonly property int port: 8731
     readonly property string ideaColor: "#1565c0"
     property string token: ""
@@ -37,7 +31,6 @@ MuseScore {
         return hex
     }
 
-    // Qt.resolvedUrl gives file:///C:/... on Windows and file:///home/... elsewhere.
     function localPath(url) {
         var p = decodeURIComponent(String(url).replace(/^file:\/\//, ""))
         return /^\/[A-Za-z]:/.test(p) ? p.substring(1) : p
@@ -50,7 +43,6 @@ MuseScore {
         return list
     }
 
-    // pitch is written pitch; under an octave line the sounding pitch is pitch + offset (spec 3.7).
     function noteText(n, offset) {
         return (n.pitch + offset) + ":" + n.tpc1 + ":" + n.tpc2 + (n.tieBack ? ":b" : "") + (n.tieForward ? ":f" : "")
     }
@@ -65,15 +57,57 @@ MuseScore {
             + (grace ? " G" + el.noteType : "") + " " + ns.join(",")
     }
 
-    // T, P, S, M, K lines (spec 3.7). K only where a staff's key differs from its previous bar.
+    function word(s) {
+        return s ? escapeText(s).replace(/ /g, "\\s") : "-"
+    }
+
+    function barLines(m, tick) {
+        var lines = []
+        for (var seg = m.firstSegment; seg; seg = seg.nextInMeasure) {
+            if (seg.segmentType !== Segment.EndBarLine)
+                continue
+            var bl = seg.elementAt(0)
+            if (bl && !bl.generated)
+                lines.push("B " + tick + " " + bl.barlineType)
+        }
+        var els = m.elements
+        for (var i = 0; els && i < els.length; i++) {
+            var e = els[i]
+            if (e.type === Element.LAYOUT_BREAK)
+                lines.push("L " + tick + " " + e.layoutBreakType)
+            else if (e.type === Element.JUMP)
+                lines.push("J " + tick + " " + word(e.jumpTo) + " " + word(e.playUntil) + " " + word(e.continueAt)
+                    + " " + escapeText(e.text))
+            else if (e.type === Element.MARKER)
+                lines.push("Q " + tick + " " + e.markerType + " " + word(e.label) + " " + escapeText(e.text))
+        }
+        return lines
+    }
+
+    function voltas() {
+        var lines = []
+        var sp = curScore.spanners
+        for (var i = 0; sp && i < sp.length; i++) {
+            var v = sp[i]
+            if (v.type !== Element.VOLTA)
+                continue
+            var endings = []
+            var ve = v.volta_ending
+            for (var j = 0; ve && j < ve.length; j++)
+                endings.push(ve[j])
+            lines.push("V " + v.spannerTick.ticks + " " + v.spannerTicks.ticks + " " + (endings.join(",") || "-")
+                + " " + escapeText(v.beginText))
+        }
+        return lines
+    }
+
     function info() {
-        var lines = ["T " + escapeText(curScore.title || curScore.scoreName)]
+        var lines = ["T " + escapeText(curScore.title || curScore.scoreName), "X composer " + escapeText(curScore.composer)]
         for (var p = 0; p < curScore.parts.length; p++) {
             var part = curScore.parts[p]
             lines.push("P " + p + " " + part.startTrack + " " + part.endTrack + " " + part.instrumentId
                 + " " + escapeText(part.longName))
         }
-        // Wrappers are new objects on every access, so staves are matched to parts by track, not identity.
         for (var s = 0; s < curScore.nstaves; s++) {
             for (var q = 0; q < curScore.parts.length; q++) {
                 if (s * 4 >= curScore.parts[q].startTrack && s * 4 < curScore.parts[q].endTrack)
@@ -86,7 +120,9 @@ MuseScore {
             var m = ms[i]
             var tick = m.firstSegment.tick
             lines.push("M " + m.no + " " + (m.irregular ? 1 : 0) + " " + tick + " " + frac(m.timesigActual)
-                + " " + frac(m.timesigNominal))
+                + " " + frac(m.timesigNominal) + " " + (m.repeatStart ? 1 : 0) + " " + (m.repeatEnd ? 1 : 0)
+                + " " + m.repeatCount)
+            lines = lines.concat(barLines(m, tick))
             for (var k = 0; k < curScore.nstaves; k++) {
                 var key = curScore.staves[k].key(fraction(tick, division * 4))
                 if (keys[k] !== key) {
@@ -95,10 +131,9 @@ MuseScore {
                 }
             }
         }
-        return lines
+        return lines.concat(voltas())
     }
 
-    // C, R, A lines for bars whose first tick is in [startTick, endTick), all tracks (spec 3.7).
     function read(startTick, endTick) {
         var lines = []
         var ntracks = curScore.ntracks
@@ -138,7 +173,6 @@ MuseScore {
         return curScore.staves[Math.floor(track / 4)].pitchOffset(fraction(tick, division * 4))
     }
 
-    // rewindToTick moves on to the next segment holding something in the cursor's track, so check the tick.
     function elementAt(track, tick) {
         var c = curScore.newCursor()
         c.track = track
@@ -158,7 +192,6 @@ MuseScore {
         throw "no note " + sounding + " in track " + track + " at tick " + tick
     }
 
-    // Sets the concert spelling and keeps the instrument's transposition, which is tpc2 - tpc1 in fifths.
     function respell(n, tpc, color) {
         var transposition = n.tpc2 - n.tpc1
         n.tpc1 = tpc
@@ -166,8 +199,6 @@ MuseScore {
         n.color = color
     }
 
-    // Ops of spec 3.8, as one undo step (6.3): v/d/n/r voice passes, then spelling and colour by tick, then
-    // g, then ~. Any failure rolls the whole step back. Returns the read-back of [startTick, endTick).
     function write(id, startTick, endTick, label, ops) {
         var c = null, track = 0, step = 0, chords = [], rests = []
         curScore.startCmd("Reflets: " + label)
@@ -175,8 +206,6 @@ MuseScore {
             for (; step < ops.length; step++) {
                 var w = ops[step].split(" ")
                 if (w[0] === "v") {
-                    // Spec 6.4: land through voice 1 of the staff, which always has something at the bar
-                    // start, then switch track without moving.
                     track = parseInt(w[1])
                     c = curScore.newCursor()
                     c.track = track - track % 4
@@ -198,7 +227,6 @@ MuseScore {
                     break
                 }
             }
-            // After addNote the cursor already sits on the next position, so revisit by tick (spec 6.4).
             for (var j = 0; j < chords.length; j++) {
                 for (var k = 0; k < chords[j][2].length; k++) {
                     var pt = chords[j][2][k].split(":")
@@ -211,8 +239,6 @@ MuseScore {
                 var o = ops[step].split(" ")
                 var otrack = parseInt(o[1]), otick = parseInt(o[2])
                 if (o[0] === "g") {
-                    // The grace action adds a grace note at the main note's pitch, in front of any earlier
-                    // ones, so the first grace still on that pitch is the new one (spike round 5).
                     var chord = elementAt(otrack, otick)
                     var main = chord.notes[0]
                     curScore.selection.select(main)
@@ -229,8 +255,7 @@ MuseScore {
                     added.pitch = parseInt(gp[0]) - offsetAt(otrack, otick)
                     respell(added, parseInt(gp[1]), ideaColor)
                 } else if (o[0] === "~") {
-                    // cmd("tie") toggles, so only when the tie is not there yet (spec 6.5).
-                    var n = noteAt(otrack, otick, parseInt(o[3]))
+                    var n =noteAt(otrack, otick, parseInt(o[3]))
                     if (!n.tieForward) {
                         curScore.selection.select(n)
                         cmd("tie")
@@ -250,7 +275,6 @@ MuseScore {
         return [id + " ok"].concat(read(startTick, endTick)).join("\n")
     }
 
-    // Sets the colour of every note and rest of the tracks in [startTick, endTick), as one undo step.
     function recolor(startTick, endTick, tracks, color, label) {
         curScore.startCmd("Reflets: " + label)
         for (var m = curScore.firstMeasure; m; m = m.nextMeasure) {
@@ -305,7 +329,6 @@ MuseScore {
                 + " division=" + division + " score=" + (curScore ? 1 : 0)
                 + " title=" + escapeText(curScore ? (curScore.title || curScore.scoreName) : "")
         }
-        // Nothing but hello until this connection has shown the token (spec 2.2).
         if (!authed[clientId])
             return id + " err unauthorized send hello with the token first"
         if (verb === "ping")
@@ -316,15 +339,12 @@ MuseScore {
             return [id + " ok"].concat(info()).join("\n")
         if (verb === "read")
             return [id + " ok"].concat(read(parseInt(head[2]), parseInt(head[3]))).join("\n")
-        // write <startTick> <endTick> <label...>, ops in the body (spec 3.8).
         if (verb === "write")
             return write(id, parseInt(head[2]), parseInt(head[3]), head.slice(4).join(" "), lines.slice(1))
-        // color <startTick> <endTick> <track,...> <#rrggbb> <label...>
         if (verb === "color") {
             recolor(parseInt(head[2]), parseInt(head[3]), head[4].split(",").map(Number), head[5], head.slice(6).join(" "))
             return id + " ok"
         }
-        // Outside any startCmd. 4.7 renamed the codes; the old ones are silent no-ops there (spec 6.8).
         if (verb === "undo" || verb === "redo") {
             cmd("action://notation/" + verb)
             return id + " ok"

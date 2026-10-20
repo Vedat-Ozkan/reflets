@@ -1,5 +1,3 @@
-"""Client side of protocol A (docs/spec-core.md section 3): the server talks to the bridge plugin in MuseScore."""
-
 from __future__ import annotations
 
 import asyncio
@@ -8,7 +6,7 @@ from pathlib import Path
 
 import websockets
 
-PROTO = 2
+PROTO = 3
 CLIENT = "reflets-server/0.2.0"
 TIMEOUT = 10
 NOT_RUNNING = (
@@ -18,7 +16,7 @@ NOT_RUNNING = (
 
 
 class BridgeError(Exception):
-    """A failure the user or the model can act on; the message says what to do."""
+    pass
 
 
 def token_file() -> Path:
@@ -28,17 +26,14 @@ def token_file() -> Path:
 
 
 class Bridge:
-    """One connection to the plugin, opened on first use, reopened once if it has dropped."""
-
     def __init__(self) -> None:
-        self.url = f"ws://127.0.0.1:{os.environ.get('REFLETS_PORT', '8731')}"  # never "localhost" (spec 3.1)
+        self.url = f"ws://127.0.0.1:{os.environ.get('REFLETS_PORT', '8731')}"
         self.socket = None
         self.next_id = 1
         self.hello: dict[str, str] = {}
         self.lock = asyncio.Lock()
 
     async def request(self, line: str) -> tuple[list[str], list[str]]:
-        """Send one request; return the words after "ok" and the body lines."""
         async with self.lock:
             for attempt in (1, 2):
                 try:
@@ -61,13 +56,11 @@ class Bridge:
         try:
             words, _ = await self._send(f"hello proto={PROTO} token={token} client={CLIENT}")
         except BridgeError:
-            self.socket = None  # not admitted; the next request starts over with a fresh token read
+            self.socket = None
             raise
         self.hello = dict(word.split("=", 1) for word in words if "=" in word)
         if self.hello.get("proto") != str(PROTO):
             self.socket = None
-            # A newer plugin with an older server usually means the harness still runs a server it started
-            # before Reflets was updated.
             newer = int(self.hello.get("proto", "0")) > PROTO
             raise BridgeError(
                 f"The Reflets Bridge plugin speaks protocol {self.hello.get('proto')}, this server {PROTO}. "
@@ -83,7 +76,6 @@ class Bridge:
             reply = await asyncio.wait_for(self.socket.recv(), TIMEOUT)
             lines = reply.split("\n")
             words = lines[0].split(" ")
-            # A reply to an earlier request that timed out arrives late; skip it (spec 3.2).
             if words[0] == str(rid):
                 break
         if words[1] != "ok":

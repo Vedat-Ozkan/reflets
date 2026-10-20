@@ -1,5 +1,3 @@
-"""The Reflets MCP server (docs/spec-core.md section 5). Slices 1 and 2: reading, and ideas written in place."""
-
 from __future__ import annotations
 
 import itertools
@@ -11,11 +9,11 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
+from reflets import n1x
 from reflets.bridge import Bridge, BridgeError
 from reflets.score import ScoreInfo, build_index, parse_info
 from reflets.write import IdeaError, cells, compile_idea, occupied, verify
 
-# Spec 4.4: estimate tokens as characters / 3.5; a default read over this returns the first bars only.
 WHOLE_SCORE_TOKENS = 6000
 FIRST_BARS = 16
 
@@ -24,7 +22,10 @@ mcp = MCPServer(
     title="Reflets",
     instructions=(
         "Reflets connects you to the score open in the user's MuseScore Studio. Call score_info first, then "
-        "read_score for the notes. Notes come in N1: one 'staff.voice:' line per voice per bar, a bare number "
+        "read_score for the notes. Notes come in N1x: a header line, then the title, composer and one 'P' line per "
+        "part; each bar starts 'mN len=' with fields where they apply: ts= and ks= at a meter or key change, "
+        "rep=start|end|both and x= (times played), volta=, bar= (a bar line the user set), break=, jump=, mark=. "
+        "Then one 'staff.voice:' line per voice per bar, a bare number "
         "sets the duration in div units per quarter note, '+' joins a chord, 'r' is a rest, a leading 'g' marks "
         "a grace note, a trailing '~' a tie. Pitches are sounding pitches with their spelling (Eb4, not D#4). "
         "To try an idea, write it in the same form with propose; it lands in the score in colour as one undo step. "
@@ -43,12 +44,12 @@ class Proposal:
     end_tick: int
     tracks: list[int]
     bars: str
-    pre: list[str]  # the range before the write, all tracks (spec 6.2)
-    post: list[str]  # the range after it, to see whether the user has edited since (6.9)
+    pre: list[str]
+    post: list[str]
 
 
 proposals: dict[str, Proposal] = {}
-proposal_numbers = itertools.count(1)  # never reused, so an old id cannot name a newer idea
+proposal_numbers = itertools.count(1)
 
 
 def read_only(title: str) -> ToolAnnotations:
@@ -71,7 +72,7 @@ async def load_info() -> ScoreInfo:
     ),
     annotations=read_only("Score info"),
     meta={"anthropic/alwaysLoad": True},
-    structured_output=False,  # plain text only; a structured copy would double the tokens (spec 5.1)
+    structured_output=False,
 )
 async def score_info() -> str:
     try:
@@ -98,14 +99,14 @@ async def score_info() -> str:
 @mcp.tool(
     title="Read the score",
     description=(
-        "Use this to see the notes of the score open in MuseScore, as N1 text (see the server instructions). "
+        "Use this to see the notes of the score open in MuseScore, as N1x text (see the server instructions). "
         'bars is "all" or a range like "5-12", numbered as MuseScore shows them, a pickup being bar 0. '
         f"A long score read as \"all\" returns the first {FIRST_BARS} bars and says how many there are; "
         "then read further ranges as needed."
     ),
     annotations=read_only("Read the score"),
     meta={"anthropic/alwaysLoad": True},
-    structured_output=False,  # plain text only; a structured copy would double the tokens (spec 5.1)
+    structured_output=False,
 )
 async def read_score(bars: str = "all") -> str:
     info = await load_info()
@@ -121,7 +122,6 @@ async def read_score(bars: str = "all") -> str:
     for number in (first, last):
         if number not in numbers:
             raise ToolError(f"Bar {number} does not exist; the score has bars {numbers[0]} to {numbers[-1]}")
-    # notes.encode takes the pickup along with a range that starts at bar 1, so its notes must be read too.
     start_tick = info.ticks[0 if first == 1 and numbers[0] == 0 else numbers.index(first)]
     end_index = numbers.index(last) + 1
     end_tick = info.ticks[end_index] if end_index < len(info.ticks) else 2**31 - 1
@@ -131,10 +131,10 @@ async def read_score(bars: str = "all") -> str:
         raise ToolError(str(error)) from None
     index = build_index(info, lines, int(bridge.hello["division"]))
     try:
-        text = notes.encode(index, first, last)
+        text = n1x.encode(info, index, first, last)
         if whole and len(text) / 3.5 > WHOLE_SCORE_TOKENS:
             cut = numbers[min(len(numbers) - 1, numbers.index(first) + FIRST_BARS - 1)]
-            text = notes.encode(index, first, cut) + (
+            text = n1x.encode(info, index, first, cut) + (
                 f"\n(The score has bars {numbers[0]}-{numbers[-1]}; this is bars {first}-{cut}. "
                 "Call read_score with a range for more.)"
             )
@@ -158,8 +158,9 @@ def writes(title: str, destructive: bool) -> ToolAnnotations:
 @mcp.tool(
     title="Propose an idea",
     description=(
-        "Use this to write an idea into the open score so the user can hear it. idea is N1 in the form "
-        "read_score returns: the header line, then for each bar to write its 'mN len=' line (len as in the score) "
+        "Use this to write an idea into the open score so the user can hear it. idea is N1x in the form "
+        "read_score returns: the header line, then for each bar to write its 'mN len=' line (len as in the score; "
+        "bar fields other than len and ts cannot be written yet) "
         "and one 'staff.voice:' line per voice to write. Each voice line replaces that voice in that bar; voices "
         "and bars you leave out are untouched; a line of rests only (e.g. '1.2: 288 r') empties a voice. "
         "Silence at the end of a voice line is filled with rests. Not yet: tuplets, grace chords, dynamics, chord "
@@ -168,7 +169,7 @@ def writes(title: str, destructive: bool) -> ToolAnnotations:
     ),
     annotations=writes("Propose an idea", destructive=True),
     meta={"anthropic/alwaysLoad": True},
-    structured_output=False,  # plain text only; a structured copy would double the tokens (spec 5.1)
+    structured_output=False,
 )
 async def propose(idea: str, label: str = "idea", replace: bool = False) -> str:
     info = await load_info()
@@ -187,7 +188,6 @@ async def propose(idea: str, label: str = "idea", replace: bool = False) -> str:
     reply = await request(f"write {plan.start_tick} {plan.end_tick} {label}\n" + "\n".join(plan.ops))
     mismatch, cut = verify(plan, pre, reply, info)
     if mismatch:
-        # Spec 6.6 verifies inside the command; as built, the plugin commits and a mismatch is undone here.
         await request("undo")
         after = await request(f"read {plan.start_tick} {plan.end_tick}")
         state = "The write was undone." if after == pre else "Undoing it did not restore the bars; ask the user to check them."
@@ -233,7 +233,6 @@ async def discard(proposal_id: str) -> str:
         )
     await request("undo")
     if await request(span) != p.pre:
-        # The last undo step was something else, such as an edit elsewhere in the score (spec 6.9): put it back.
         await request("redo")
         restored = await request(span) == p.post
         raise ToolError(

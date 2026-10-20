@@ -6,10 +6,12 @@ MCP server (`reflets/`, Python) plus a MuseScore bridge plugin (`plugin/reflets-
 
 - `reflets/bridge.py`: WebSocket client for the plugin (token, hello, reconnect once)
 - `reflets/score.py`: parses the plugin's `info`/`read` lines into the engine's index
-- `reflets/write.py`: compiles an N1 idea into the plugin's write ops and checks the read-back
+- `reflets/n1x.py`: encodes the score as N1x (spec 4.2)
+- `reflets/write.py`: compiles an N1x idea into the plugin's write ops and checks the read-back
 - `reflets/server.py`: MCP tools
 - `plugin/reflets-bridge.qml`: the bridge, a macro plugin with no dialog (spec 2.1)
 - `tests/live_write.py`: end-to-end check of the write path against a live MuseScore with the nocturne open
+- `tests/live_read.py`: end-to-end check of N1x reading against a live MuseScore; `tests/data/bar-fields.mscz` is its score for bar fields. Scores for the owner to open go in `Documents/MuseScore4/Scores/reflets/` on Windows
 - `research/`, `spikes/`: research reports and throwaway spike code, kept as a record
 
 ## Environment

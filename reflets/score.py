@@ -1,59 +1,88 @@
-"""Turns the plugin's raw lines (docs/spec-core.md 3.7) into the engine's ScoreIndex."""
-
 from __future__ import annotations
 
 import bisect
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
 from fractions import Fraction
 
 from engine.score import Event, Measure, ScoreIndex, beat_length
 
-FIFTHS = "FCGDAEB"  # tonal pitch class 13 is F, 14 C, 15 G, ...; each step of 7 adds a sharp
+FIFTHS = "FCGDAEB"
 SEMITONES = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
 
 
 def spell(pitch: int, tpc: int) -> str:
-    """MIDI pitch plus MuseScore tonal pitch class to the engine's spelling, e.g. (63, 11) -> "Eb4"."""
     letter = FIFTHS[(tpc + 1) % 7]
     alter = (tpc + 1) // 7 - 2
-    # The octave belongs to the letter, so B#3 is MIDI 60 and Cb4 is MIDI 59.
     octave = (pitch - alter - SEMITONES[letter]) // 12 - 1
     return f"{letter}{'#' * alter if alter > 0 else 'b' * -alter}{octave}"
 
 
 def key_name(key: int) -> str:
-    """MuseScore's key (sharps positive, flats negative) in the engine's form: "3f", "2s", "0"."""
     return "0" if key == 0 else f"{abs(key)}{'s' if key > 0 else 'f'}"
+
+
+@dataclass
+class Jump:
+    jump_to: str
+    play_until: str
+    continue_at: str
+    text: str
+
+
+@dataclass
+class Marker:
+    marker_type: int
+    label: str
+    text: str
+
+
+@dataclass
+class Bar:
+    repeat_start: bool = False
+    repeat_end: bool = False
+    repeat_count: int = 2
+    user_barline_type: int | None = None
+    layout_break_types: list[int] = field(default_factory=list)
+    jumps: list[Jump] = field(default_factory=list)
+    markers: list[Marker] = field(default_factory=list)
+    volta_endings: list[int] = field(default_factory=list)
 
 
 @dataclass
 class ScoreInfo:
     title: str
-    parts: list[tuple[str, list[int]]]  # name, 1-based staves
+    parts: list[tuple[str, list[int]]]
     measures: list[Measure]
-    ticks: list[int]  # first tick of each measure, same order
+    ticks: list[int]
     key: str
-    keys: dict[int, str]  # tick of a bar where staff 1's key changes -> key
-    lengths: list[Fraction]  # actual length of each measure in quarter notes, same order
+    keys: dict[int, str]
+    lengths: list[Fraction]
+    composer: str = ""
+    instrument_ids: list[str] = field(default_factory=list)
+    bars: list[Bar] = field(default_factory=list)
 
 
 def parse_info(lines: list[str]) -> ScoreInfo:
-    title, parts, measures, ticks, keys, lengths = "", [], [], [], {}, []
+    title, composer, parts, instrument_ids, measures, ticks, keys, lengths, bars = "", "", [], [], [], [], {}, [], []
+    voltas: list[tuple[int, int, list[int]]] = []
     staff_part: dict[int, int] = {}
     for line in lines:
         kind, _, rest = line.partition(" ")
         words = rest.split(" ")
         if kind == "T":
             title = unescape(rest)
+        elif kind == "X" and words[0] == "composer":
+            composer = unescape(" ".join(words[1:]))
         elif kind == "P":
             parts.append((unescape(" ".join(words[4:])), []))
+            instrument_ids.append(words[3])
         elif kind == "S":
             staff_part[int(words[0])] = int(words[1])
         elif kind == "M":
             no, irregular, tick, actual, nominal = int(words[0]), words[1] == "1", int(words[2]), words[3], words[4]
             count, unit = (int(x) for x in nominal.split("/"))
             numerator, denominator = (int(x) for x in actual.split("/"))
-            # A pickup shares `no` with the bar after it; the engine numbers it 0 (spec 3.7).
             number = 0 if irregular and not measures else no + 1
             measure = Measure(
                 id=f"m{len(measures) + 1}",
@@ -66,15 +95,31 @@ def parse_info(lines: list[str]) -> ScoreInfo:
             measures.append(measure)
             ticks.append(tick)
             lengths.append(Fraction(4 * numerator, denominator))
+            bars.append(Bar(words[5] == "1", words[6] == "1", int(words[7])))
         elif kind == "K" and words[1] == "0":
             keys[int(words[0])] = key_name(int(words[2]))
+        elif kind == "B":
+            bars[-1].user_barline_type = int(words[1])
+        elif kind == "L":
+            bars[-1].layout_break_types.append(int(words[1]))
+        elif kind == "J":
+            bars[-1].jumps.append(Jump(*(unword(w) for w in words[1:4]), unescape(" ".join(words[4:]))))
+        elif kind == "Q":
+            bars[-1].markers.append(Marker(int(words[1]), unword(words[2]), unescape(" ".join(words[3:]))))
+        elif kind == "V":
+            text = unescape(" ".join(words[3:]))
+            endings = [int(n) for n in (words[2].split(",") if words[2] != "-" else re.findall(r"\d+", text))]
+            voltas.append((int(words[0]), int(words[0]) + int(words[1]), endings))
     for staff, part in sorted(staff_part.items()):
         parts[part][1].append(staff + 1)
-    return ScoreInfo(title, parts, measures, ticks, keys.get(0, "0"), keys, lengths)
+    for start, end, endings in voltas:
+        for position, tick in enumerate(ticks):
+            if start <= tick < end:
+                bars[position].volta_endings = endings
+    return ScoreInfo(title, parts, measures, ticks, keys.get(0, "0"), keys, lengths, composer, instrument_ids, bars)
 
 
 def build_index(info: ScoreInfo, lines: list[str], division: int) -> ScoreIndex:
-    """Fill info's measures with the events of the plugin's C and R lines."""
     for measure in info.measures:
         measure.events = []
     for number, line in enumerate(lines):
@@ -105,7 +150,7 @@ def build_index(info: ScoreInfo, lines: list[str], division: int) -> ScoreIndex:
                     staff,
                     onset,
                     Fraction(0) if grace else duration,
-                    spell(int(parts[0]), int(parts[1])),  # tpc1 is the concert spelling
+                    spell(int(parts[0]), int(parts[1])),
                     grace,
                     layer,
                     "f" in parts[3:],
@@ -121,3 +166,7 @@ def build_index(info: ScoreInfo, lines: list[str], division: int) -> ScoreIndex:
 
 def unescape(text: str) -> str:
     return text.replace("\\n", "\n").replace("\\\\", "\\")
+
+
+def unword(word: str) -> str:
+    return "" if word == "-" else unescape(word.replace("\\s", " "))

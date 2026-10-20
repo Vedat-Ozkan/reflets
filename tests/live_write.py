@@ -1,11 +1,3 @@
-"""End-to-end check of the write path against a live MuseScore (docs/spec-core.md section 6).
-
-Needs MuseScore with chopin_nocturne_op9_no2.musicxml open and the bridge plugin running. Every step must
-leave the score equal to research/encoding-tokens/chopin.n1.txt once the idea is gone.
-
-    REFLETS_TOKEN_FILE=... uv run python tests/live_write.py
-"""
-
 import asyncio
 import re
 import sys
@@ -13,6 +5,7 @@ from pathlib import Path
 
 from mcp.server.mcpserver.exceptions import ToolError
 
+from live_read import strip
 from reflets import server
 
 REFERENCE = (Path(__file__).parent.parent / "research/encoding-tokens/chopin.n1.txt").read_text().strip()
@@ -43,7 +36,7 @@ async def refused(coro) -> str:
 
 
 async def unchanged(name: str) -> None:
-    check(name + ", score equals the reference", (await server.read_score("all")).strip() == REFERENCE)
+    check(name + ", score equals the reference", strip((await server.read_score("all")).strip()) == REFERENCE)
 
 
 def proposal(result: str) -> str:
@@ -62,8 +55,6 @@ async def main() -> None:
     check("discard", "Discarded" in await server.discard(proposal(first)))
     await unchanged("after discard")
 
-    # An undo step after the idea (here a second idea, standing in for a user edit elsewhere) must survive
-    # a discard of the older idea (spec 6.9).
     older = proposal(await server.propose(IDEA, "older", replace=True))
     newer = proposal(await server.propose(LATER, "newer"))
     error = await refused(server.discard(older))
@@ -81,7 +72,6 @@ async def main() -> None:
     await server.request("undo")
     await unchanged("after undoing keep and the idea")
 
-    # A plugin failure mid-write must roll the whole step back (spec 3.9): a tie on a note that is not there.
     tick = (await server.load_info()).ticks[5]
     error = await refused(server.request(f"write {tick} {tick + 2880} rollback\nv 0 {tick}\nd 3/2\nn {tick} 67:15\n~ 0 {tick} 99"))
     check("a failing write reports write-failed", "write-failed" in error, error)
