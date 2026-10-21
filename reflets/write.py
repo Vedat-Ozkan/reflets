@@ -1269,12 +1269,6 @@ def recast_view(text: str, info: ScoreInfo, pre: list[str], division: int) -> Re
         raise IdeaError(f"m{changed[0].number}: ts={meter} keeps the bar's length, so it needs no recast; leave recast=True out")
     written = sorted(numbers.index(bar.number) for bar in idea.bars)
     positions = range(first, ends[0] if ends else written[-1] + 1)
-    shorter = [numbers[position] for position in positions if info.lengths[position] > length]
-    if shorter:
-        raise IdeaError(
-            f"m{shorter[0]}: ts={meter} is shorter than the bar, and a recast can only lengthen bars: MuseScore splits a bar "
-            "into a shorter meter, and removing the extra bars crashes it from a plugin. Recast into a meter at least as long"
-        )
     if any(position not in written for position in positions):
         raise IdeaError(f"m{changed[0].number}: a recast idea starts at the bar with ts= and writes every bar it recasts, in order, without gaps")
     ticks = info.ticks
@@ -1345,7 +1339,8 @@ def recast_view(text: str, info: ScoreInfo, pre: list[str], division: int) -> Re
         if line.name not in LINE_KINDS:
             raise IdeaError(f"The {line.kind} in these bars cannot be written again in the new meter; remove it first")
         removals.append(f"z {line.tick} {line.track} {line.end} {line.kind}")
-    anchors = [f"b {ticks[j]} meter {info.measures[j].meter.replace('/', ' ')}" for j in range(first + 1, positions[-1] + 2) if j < len(ticks)]
+    after_position = positions[-1] + 1
+    anchors = [f"b {ticks[after_position]} meter {info.measures[after_position].meter.replace('/', ' ')}"] if after_position < len(ticks) else []
     empties = []
     for position in positions:
         end = ticks[position] + round(info.lengths[position] * division)
@@ -1353,6 +1348,5 @@ def recast_view(text: str, info: ScoreInfo, pre: list[str], division: int) -> Re
             empties += [f"x {track} {ticks[position]} {end} 1", f"v {track} {ticks[position]}"]
             for chunk in pieces(info.lengths[position], f"m{numbers[position]}"):
                 empties += [f"d {chunk.numerator}/{chunk.denominator}", "r"]
-    meters = [f"b {start_of(position)} meter {count} {unit}" for position in positions]
-    meters += [f"b {start_of(position)} meter-" for position in positions[1:]]
+    meters = [f"b {start_of(position)} len {count} {unit}" for position in positions] + [f"b {ticks[first]} meter {count} {unit}"]
     return Recast(positions, meter, after, delta, projected, mapped, removals + anchors + empties + meters)

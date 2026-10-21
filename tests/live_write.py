@@ -28,6 +28,12 @@ GROUPS = {
     ),
     "references": ("N1x div=48\nm10 len=288\n1.2: 48 C4 D4 E4 F4 G4 A4\nm11 len=288\n1.2 = m10", "1.2 = m10"),
 }
+RECAST = """N1x div=3 ts=12/8 ks=3f
+m1 len=12 ts=4/4
+1.1: q40 3 G5~ 3:2{ 1 G5 F5 G5 } 3 F5 3:2{ 2 Eb5 1 Bb4 }
+2.1: 3:2{ 1 Eb2 G3+Eb4 Bb3+Eb4+G4 } 3:2{ Eb3 Ab3+D4 Cb4+D4+Ab4 } 3:2{ Eb2 G3+Eb4 Bb3+Eb4+G4 } 3:2{ D2 G3+Eb4 Bb3+Eb4+G4 }
+m2 len=18 ts=12/8
+1.1: q60@0"""
 MARKS = {
     "marks with notes": ("N1x div=4\nm5 len=24\n1.1: !f \"Eb\" x\"dolce\" 6 G5 ) q50 Ab5 !p 12 Bb5", "5", ['x"dolce"', "!f", '"Eb"', "q50", "!p"]),
     "a marks-only line": ("N1x div=4\nm10 len=24\n2.1: s\"marks only\"@4 clef=treble@12", "10", ['s"marks only"', "clef=treble"]),
@@ -133,6 +139,12 @@ async def main() -> None:
     error = await refused(server.propose("N1x div=4\nm10 len=24 -ks=3f", "no key change"))
     check("removing a key change the bar does not have is refused", "removes nothing" in error, error)
     await unchanged("after the keys")
+    result = await server.propose(RECAST, "recast", replace=True, recast=True)
+    text = await server.read_score("0-2")
+    check("12/8 recast as 4/4 bar for bar", "Read-back matched" in result and re.search(r"^m1 len=\d+ ts=4/4", text, re.M) and re.search(r"^m2 len=\d+ ts=12/8", text, re.M), f"{result}\n{text}")
+    check("the recast keeps fingering, staccatos and pedal lines", "G5'5~" in text and "Eb2[stacc]" in text and text.count("ped(") >= 4, text)
+    await server.discard(proposal(result))
+    await unchanged("after the recast")
     error = await refused(server.propose("N1x div=48\nm11 len=288\n1.2 = m10", "bad"))
     check("a reference to a bar outside the idea is refused", "written out earlier" in error, error)
     error = await refused(server.propose("N1x div=48\nm10 len=288\n1.2: <( 288 r", "unclosed"))

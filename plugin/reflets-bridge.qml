@@ -5,10 +5,10 @@ import FileIO 3.0
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.20.0"
+    version: "0.21.0"
     requiresScore: false
 
-    readonly property int proto: 20
+    readonly property int proto: 21
     readonly property int port: 8731
     readonly property string ideaColor: "#1565c0"
     property string token: ""
@@ -759,6 +759,10 @@ MuseScore {
                         bl.barlineType = parseInt(w[1])
                 }
             }
+            return
+        }
+        if (what === "len") {
+            m.timesigActual = fraction(parseInt(w[1]), parseInt(w[2]))
             return
         }
         if (what === "meter" || what === "meter-") {
