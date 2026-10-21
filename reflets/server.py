@@ -2,11 +2,18 @@ from __future__ import annotations
 
 import asyncio
 import itertools
+import json
 import re
+import tempfile
+import uuid
 from dataclasses import dataclass
+from pathlib import Path
 
-from engine import notes
-from engine.score import PositionError
+from engine import annotate, draft, notes, part_writing, reduce
+from engine.annotate import AnnotationError
+from engine.annotations import AnnotationList
+from engine.render import ScoreError
+from engine.score import PositionError, ScoreIndex
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
@@ -57,6 +64,8 @@ mcp = MCPServer(
         "A 'staff.voice Ln:' line under a voice line gives verse n's lyrics, one syllable per note, graces and rests "
         "skipped: a trailing '-' continues the word, '_' holds the syllable over the note, '*' marks a note without one. "
         "'m9 = m1' means bar 9 is bar 1 again, every line and field; '2.1 = m1' means this voice line is bar 1's. "
+        "check lists part-writing faults such as parallel fifths in chorale-style bars, analyze drafts the harmony, "
+        "render shows bars as an image, with check's findings drawn on it if asked. "
         "To try an idea, write it in the same form with propose; it lands in the score in colour as one undo step. "
         "The user listens in MuseScore, then you call keep or discard as they decide. Before you say which note "
         "sounds where, find the bar and count through its voice line from the start of the bar; answers given "
@@ -80,6 +89,7 @@ class Proposal:
 
 proposals: dict[str, Proposal] = {}
 proposal_numbers = itertools.count(1)
+render_numbers = itertools.count(1)
 
 
 def read_only(title: str) -> ToolAnnotations:
@@ -139,6 +149,79 @@ async def score_info() -> str:
     structured_output=False,
 )
 async def read_score(bars: str = "all") -> str:
+    info, index, first, last, whole = await read_bars(bars)
+    numbers = [measure.number for measure in info.measures]
+    try:
+        text = n1x.encode(info, index, first, last)
+        if whole and len(text) / 3.5 > WHOLE_SCORE_TOKENS:
+            cut = numbers[min(len(numbers) - 1, numbers.index(first) + FIRST_BARS - 1)]
+            text = n1x.encode(info, index, first, cut) + (
+                f"\n(The score has bars {numbers[0]}-{numbers[-1]}; this is bars {first}-{cut}. "
+                "Call read_score with a range for more.)"
+            )
+    except (notes.NotesError, PositionError) as error:
+        raise ToolError(f"Could not encode bars {first}-{last}: {error}") from None
+    return text
+
+
+@mcp.tool(
+    title="Check the voice leading",
+    description=(
+        "Use this to check bars against the classroom part-writing rules: parallel and direct fifths and octaves, "
+        "voice crossing and overlap, spacing, range, a doubled or unresolved leading tone, an unresolved seventh. "
+        'bars is a range like "5-12" or "all". The result is a beat-by-beat table of the notes sounding, then each '
+        "finding with its bars, beats and voices (staff.voice). The rules apply to two to four voices of single "
+        "notes moving mostly together, as in a chorale; for other textures the result says they do not apply. "
+        "Findings are what a strict teacher would mark, not verdicts on the music."
+    ),
+    annotations=read_only("Check the voice leading"),
+    meta={"anthropic/alwaysLoad": True},
+    structured_output=False,
+)
+async def check(bars: str = "all") -> str:
+    _, index, first, last, _ = await read_bars(bars)
+    table = await asyncio.to_thread(reduce.as_text, index, first, last)
+    if not part_writing.applies(index):
+        return table + (
+            f"\n\nThe voice-leading rules do not apply to bars {first}-{last}: they need two to four voices of single "
+            "notes, no chords, on at most four staves, with at least 60% of their notes starting together."
+        )
+    findings = await asyncio.to_thread(part_writing.check, index)
+    lines = [f"\n\nVoice-leading check of bars {first}-{last} (classroom rules, not verdicts on the music):"]
+    for number, finding in enumerate(findings, 1):
+        where = " to ".join(f"m{bar} b{beat:g}" for bar, beat in zip(finding.bars, finding.beats))
+        voices = " and ".join(f"{staff}.{layer}" for staff, layer in finding.voices)
+        lines.append(f"{number}. {where}, {voices}, {finding.rule.replace('_', ' ')}: {finding.why}")
+    return table + "\n".join(lines if findings else lines + ["No rule broken."])
+
+
+@mcp.tool(
+    title="Analyze the harmony",
+    description=(
+        "Use this for a draft harmonic analysis of bars: a beat-by-beat table of the notes sounding, then chords "
+        "with key, Roman numeral and the model's confidence, cadences, phrase ends, pedal points and possible "
+        'non-chord tones. bars is a range like "5-12" or "all". The model reads the whole score for context. '
+        "Its labels are right only about half the time: check each against the notes before you rely on it."
+    ),
+    annotations=read_only("Analyze the harmony"),
+    structured_output=False,
+)
+async def analyze(bars: str = "all") -> str:
+    _, index, first, last, _ = await read_bars(bars, whole_score=True)
+    table = reduce.as_text(index, first, last)
+    if not Path(draft.ANALYSISGNN_PYTHON).exists() or not Path(draft.ANALYSISGNN_CHECKPOINT).exists():
+        return table + (
+            f"\n\nNo harmony draft: the AnalysisGNN model is not installed (ANALYSISGNN_PYTHON {draft.ANALYSISGNN_PYTHON}, "
+            f"ANALYSISGNN_CHECKPOINT {draft.ANALYSISGNN_CHECKPOINT}). Analyse from the table."
+        )
+    try:
+        result = await asyncio.to_thread(draft.draft, index)
+    except draft.DraftError as error:
+        return table + f"\n\nNo harmony draft: {error}. Analyse from the table."
+    return table + "\n\n" + draft.as_text(result, first, last)
+
+
+async def read_bars(bars: str, whole_score: bool = False) -> tuple[ScoreInfo, ScoreIndex, int, int, bool]:
     info = await load_info()
     numbers = [measure.number for measure in info.measures]
     if bars.strip().lower() == "all":
@@ -152,25 +235,80 @@ async def read_score(bars: str = "all") -> str:
     for number in (first, last):
         if number not in numbers:
             raise ToolError(f"Bar {number} does not exist; the score has bars {numbers[0]} to {numbers[-1]}")
-    start_tick = info.ticks[0 if first == 1 and numbers[0] == 0 else numbers.index(first)]
-    end_index = numbers.index(last) + 1
+    start_tick = info.ticks[0 if whole_score or first == 1 and numbers[0] == 0 else numbers.index(first)]
+    end_index = len(numbers) if whole_score else numbers.index(last) + 1
     end_tick = info.ticks[end_index] if end_index < len(info.ticks) else 2**31 - 1
     try:
         _, lines = await bridge.request(f"read {start_tick} {end_tick}")
     except BridgeError as error:
         raise ToolError(str(error)) from None
-    index = build_index(info, lines, int(bridge.hello["division"]))
+    return info, build_index(info, lines, int(bridge.hello["division"])), first, last, whole
+
+
+@mcp.tool(
+    title="Render bars",
+    description=(
+        'Use this to see bars engraved: bars is a range like "5-12", at most 32 bars. With check=True the '
+        "voice-leading findings are drawn on the notes in red, numbered as listed in the result. The result gives "
+        "the path of a PNG image of the bars as they are in MuseScore now, unsaved changes and ideas included; "
+        "open it to look at it."
+    ),
+    annotations=read_only("Render bars"),
+    structured_output=False,
+)
+async def render(bars: str, check: bool = False) -> str:
+    _, index, first, last, _ = await read_bars(bars)
+    found = await asyncio.to_thread(part_writing.as_text, index) if check else ""
+    marks, spots = drawings(found)
+    export = token_file().parent / f"reflets-export-{uuid.uuid4().hex}.musicxml"
     try:
-        text = n1x.encode(info, index, first, last)
-        if whole and len(text) / 3.5 > WHOLE_SCORE_TOKENS:
-            cut = numbers[min(len(numbers) - 1, numbers.index(first) + FIRST_BARS - 1)]
-            text = n1x.encode(info, index, first, cut) + (
-                f"\n(The score has bars {numbers[0]}-{numbers[-1]}; this is bars {first}-{cut}. "
-                "Call read_score with a range for more.)"
-            )
-    except (notes.NotesError, PositionError) as error:
-        raise ToolError(f"Could not encode bars {first}-{last}: {error}") from None
+        await bridge.request(f"export {windows_path(export)}")
+        score = export.read_bytes()
+    except BridgeError as error:
+        raise ToolError(str(error)) from None
+    finally:
+        export.unlink(missing_ok=True)
+    try:
+        engraving = await asyncio.to_thread(annotate.render, score, AnnotationList(annotations=marks), (first, last))
+    except (PositionError, AnnotationError, ScoreError) as error:
+        raise ToolError(f"Could not render bars {first}-{last}: {error}") from None
+    folder = Path(tempfile.gettempdir()) / "reflets"
+    folder.mkdir(exist_ok=True)
+    paths = []
+    for page in range(1, engraving.page_count + 1):
+        paths.append(folder / f"bars-{first}-{last}-{next(render_numbers)}.png")
+        paths[-1].write_bytes(await asyncio.to_thread(engraving.png, page))
+    text = "Bars {}-{}: {}".format(first, last, ", ".join(str(path) for path in paths))
+    if check and not found:
+        text += "\nThe voice-leading rules do not apply to these bars, so nothing is drawn."
+    elif check:
+        text += f"\n{sum(not spot.startswith(' ') for spot in spots)} numbered spot(s) drawn:\n" + "\n".join(spots) if spots else "\nNo rule broken."
     return text
+
+
+def drawings(report: str) -> tuple[list[dict], list[str]]:
+    marks, spots, number = [], [], 0
+    for line in report.splitlines():
+        spot = re.match(r"(\d+)\. m(\d+) b([\d.]+), callout at", line)
+        draw = re.match(r'   draw (\w+) (\{[^}]*\})(?: -> (\{[^}]*\}))?(?: label "([^"]*)")?(?: direction "(\w+)")?$', line)
+        if spot:
+            number = int(spot[1])
+            marks.append({"type": "callout", "at": {"measure": int(spot[2]), "beat": float(spot[3])}, "number": number})
+            spots.append(line.split(", callout at")[0])
+        elif draw:
+            marks.append({
+                "type": "voice_leading", "kind": draw[1], "from_note": json.loads(draw[2]),
+                "to_note": json.loads(draw[3]) if draw[3] else None, "label": draw[4] or "",
+                "direction": draw[5], "callout": number,
+            })
+        elif number and line.startswith("   "):
+            spots.append(line)
+    return marks, spots
+
+
+def windows_path(path: Path) -> str:
+    found = re.fullmatch(r"/mnt/([a-z])/(.*)", path.as_posix())
+    return f"{found[1].upper()}:/{found[2]}" if found else str(path)
 
 
 async def request(line: str) -> list[str]:
@@ -360,8 +498,8 @@ async def keep(proposal_id: str) -> str:
     title="Diagnose the connection",
     description=(
         "Use this when score_info cannot reach MuseScore or a tool fails in a way you cannot explain: "
-        "a checklist of the plugin file, its token file, the port, the bridge's answer, MuseScore's version and "
-        "the open score, each passed or failed with what to do."
+        "a checklist of the plugin file, its token file, the harmony model, the port, the bridge's answer, "
+        "MuseScore's version and the open score, each passed or failed with what to do."
     ),
     annotations=read_only("Diagnose the connection"),
     structured_output=False,
@@ -384,6 +522,11 @@ async def doctor() -> str:
         check(False, f"No plugin file at {plugin}. Copy plugin/reflets-bridge.qml there, or {where}.")
     token = token_file()
     check(token.exists(), f"Token file {token}." if token.exists() else f"No token file at {token}: run Plugins > Reflets Bridge, or {where}.")
+    model = Path(draft.ANALYSISGNN_PYTHON).exists() and Path(draft.ANALYSISGNN_CHECKPOINT).exists()
+    checks.append(f"PASS AnalysisGNN model {draft.ANALYSISGNN_CHECKPOINT}." if model else (
+        f"NOTE No AnalysisGNN model at {draft.ANALYSISGNN_PYTHON} and {draft.ANALYSISGNN_CHECKPOINT}: analyze gives the "
+        "notes table without a harmony draft. Set ANALYSISGNN_PYTHON and ANALYSISGNN_CHECKPOINT to install it."
+    ))
     host, port = bridge.url.removeprefix("ws://").rsplit(":", 1)
     try:
         _, writer = await asyncio.wait_for(asyncio.open_connection(host, int(port)), 5)

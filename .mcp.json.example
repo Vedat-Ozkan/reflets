@@ -4,7 +4,9 @@
       "command": "uv",
       "args": ["run", "--project", "/path/to/reflets", "reflets"],
       "env": {
-        "REFLETS_TOKEN_FILE": "/path/to/Documents/MuseScore4/Plugins/reflets-bridge/reflets-token.txt"
+        "REFLETS_TOKEN_FILE": "/path/to/Documents/MuseScore4/Plugins/reflets-bridge/reflets-token.txt",
+        "ANALYSISGNN_PYTHON": "/path/to/sheet-music-plugin/.venv-agnn/bin/python",
+        "ANALYSISGNN_CHECKPOINT": "/path/to/sheet-music-plugin/artifacts/models/model.ckpt"
       }
     }
   }

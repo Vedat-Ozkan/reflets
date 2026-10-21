@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 
 import websockets
+from engine import draft
 
 from reflets import server
 from reflets.bridge import Bridge
@@ -25,7 +26,7 @@ async def silent(socket) -> None:
 
 async def main() -> None:
     report = await server.doctor()
-    check("a running bridge passes every line", "FAIL" not in report and "Score open" in report, report)
+    check("a running bridge passes every line", "FAIL" not in report and "NOTE" not in report and "Score open" in report, report)
 
     token = os.environ.get("REFLETS_TOKEN_FILE")
     os.environ["REFLETS_TOKEN_FILE"] = "/nonexistent/reflets-token.txt"
@@ -38,6 +39,12 @@ async def main() -> None:
     check("a plugin file of another protocol is named", f"protocol 20; this server speaks {server.PROTO}" in report, report)
     if token:
         os.environ["REFLETS_TOKEN_FILE"] = token
+
+    python = draft.ANALYSISGNN_PYTHON
+    draft.ANALYSISGNN_PYTHON = "/nonexistent/python"
+    report = await server.doctor()
+    check("a missing model is a note, not a failure", "NOTE No AnalysisGNN model at /nonexistent/python" in report and "FAIL" not in report, report)
+    draft.ANALYSISGNN_PYTHON = python
 
     os.environ["REFLETS_PORT"] = "8739"
     server.bridge = Bridge()

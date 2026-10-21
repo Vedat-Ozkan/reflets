@@ -5,10 +5,10 @@ import FileIO 3.0
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.21.0"
+    version: "0.22.0"
     requiresScore: false
 
-    readonly property int proto: 21
+    readonly property int proto: 22
     readonly property int port: 8731
     readonly property string ideaColor: "#1565c0"
     property string token: ""
@@ -1091,6 +1091,8 @@ MuseScore {
             recolor(parseInt(head[2]), parseInt(head[3]), head[4].split(",").map(Number), head[5], head.slice(6).join(" "))
             return id + " ok"
         }
+        if (verb === "export")
+            return id + (writeScore(curScore, head.slice(2).join(" "), "musicxml") ? " ok" : " err export-failed writeScore returned false")
         if (verb === "undo" || verb === "redo") {
             cmd("action://notation/" + verb)
             return id + " ok"
