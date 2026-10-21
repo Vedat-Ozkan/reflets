@@ -39,6 +39,8 @@ async def main() -> None:
     check("a plugin file of another protocol is named", f"protocol 20; this server speaks {server.PROTO}" in report, report)
     if token:
         os.environ["REFLETS_TOKEN_FILE"] = token
+    else:
+        del os.environ["REFLETS_TOKEN_FILE"]
 
     python = draft.ANALYSISGNN_PYTHON
     draft.ANALYSISGNN_PYTHON = "/nonexistent/python"

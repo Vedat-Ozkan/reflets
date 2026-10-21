@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import os
+import subprocess
 from pathlib import Path
 
 import websockets
@@ -22,7 +24,17 @@ class BridgeError(Exception):
 def token_file() -> Path:
     if "REFLETS_TOKEN_FILE" in os.environ:
         return Path(os.environ["REFLETS_TOKEN_FILE"])
-    return Path.home() / "Documents" / "MuseScore4" / "Plugins" / "reflets-bridge" / "reflets-token.txt"
+    return documents() / "MuseScore4" / "Plugins" / "reflets-bridge" / "reflets-token.txt"
+
+
+@functools.cache
+def documents() -> Path:
+    if "WSL_DISTRO_NAME" not in os.environ:
+        return Path.home() / "Documents"
+    folder = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-Command", "[Environment]::GetFolderPath('MyDocuments')"], capture_output=True, text=True
+    ).stdout.strip()
+    return Path(subprocess.run(["wslpath", "-u", folder], capture_output=True, text=True).stdout.strip())
 
 
 class Bridge:

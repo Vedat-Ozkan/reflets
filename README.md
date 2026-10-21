@@ -15,7 +15,7 @@ Status: slices 3 and 4 done. The server reads the open score (`score_info`, `rea
 
 1. Copy `plugin/reflets-bridge.qml` to `Documents/MuseScore4/Plugins/reflets-bridge/reflets-bridge.qml`.
 2. In MuseScore, enable Reflets Bridge under Home > Plugins.
-3. Copy `.mcp.json.example` to `.mcp.json` and fill in the path to this repository, the path to the token file and, if you have them, the AnalysisGNN paths. The plugin writes the token file next to itself (`reflets-token.txt`). From WSL, that is a path under `/mnt/c/Users/<you>/Documents/...`.
+3. Copy `.mcp.json.example` to `.mcp.json` and fill in the path to this repository and, if you have them, the AnalysisGNN paths. The plugin writes a token file next to itself (`reflets-token.txt`); the server looks for it in `Documents/MuseScore4/Plugins/reflets-bridge/`, from WSL in the Windows user's Documents folder. If MuseScore's plugin folder is elsewhere, add `REFLETS_TOKEN_FILE` with the token file's path to `env`.
 
 ## Use
 
