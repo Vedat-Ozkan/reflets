@@ -334,7 +334,7 @@ proposal id: p3
 
 **`analyze(bars)`** → notes table and harmony draft text (`engine:57`).
 
-**`doctor()`** → a checklist with pass or fail per line.
+**`doctor()`** → a checklist with pass or fail per line. As built (2026-10-20): deferred and read-only. It checks, in order: the plugin file next to the token file (`REFLETS_TOKEN_FILE`), and that its `proto` matches the server's; the token file; that something accepts a TCP connection on the port; that it answers `hello` and `info` as the bridge (a server that does not answer is named as another plugin holding the WebSocket server, 3.1); then the bridge's version and protocol, MuseScore's version and the open score. It stops at the first unreachable step. A missing WebSocket API cannot be told apart from a plugin that was not run, since both leave the port closed, so that line names both. Engine extras are not checked yet, because `render` and `analyze`, which need them, are not built. Live test: `tests/live_doctor.py`.
 
 ### 5.3 Server instructions
 

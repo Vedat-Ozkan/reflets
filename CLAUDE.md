@@ -13,6 +13,7 @@ MCP server (`reflets/`, Python) plus a MuseScore bridge plugin (`plugin/reflets-
 - `tests/live_write.py`: end-to-end check of the write path against a live MuseScore with the nocturne open
 - `tests/live_roundtrip.py`: writes every bar of whatever score is open, in the shortest range whose lines close in it, as read, with every mark, decoration and line that closes in the range removed and every lyric line emptied, and as read again, checking each read-back and the discard
 - `tests/live_recast.py`: end-to-end check of recasting bars in a longer and a shorter meter (`recast=True`) against a live MuseScore with `tests/data/recast.musicxml` open (as an import)
+- `tests/live_doctor.py`: end-to-end check of `doctor` against a live MuseScore running the bridge, plus a wrong plugin folder, a plugin file of another protocol, a closed port and another server on the port
 - `tests/live_read.py`: end-to-end check of N1x reading against a live MuseScore; `tests/data/bar-fields.mscz` is its score for bar fields and `tests/data/marks.mscz` and `tests/data/system-marks.mscz` for marks, `tests/data/decorations.mscz` for decorations, `tests/data/groups.mscz` for tuplets and groups, `tests/data/lines.mscz` for lines, `tests/data/lyrics.mscz` for lyrics, `tests/data/repeats.mscz` for repeated bars, `tests/data/keys.musicxml` (opened as an import) for a transposing staff's key. Scores for the owner to open go in `Documents/MuseScore4/Scores/reflets/` on Windows
 - `research/`, `spikes/`: research reports and throwaway spike code, kept as a record
 

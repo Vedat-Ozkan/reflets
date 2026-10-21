@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import itertools
+import re
 from dataclasses import dataclass
 
 from engine import notes
@@ -10,7 +12,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
 from reflets import n1x
-from reflets.bridge import Bridge, BridgeError
+from reflets.bridge import NOT_RUNNING, PROTO, Bridge, BridgeError, token_file
 from reflets.score import ScoreInfo, build_index, parse_info
 from reflets.write import (
     IdeaError,
@@ -352,6 +354,59 @@ async def keep(proposal_id: str) -> str:
     await request(f"color {p.start_tick} {p.end_tick} {tracks} #000000 keep {p.label}")
     del proposals[proposal_id]
     return f'Kept {proposal_id}: the notes in {p.bars} are black now (one undo step, "Reflets: keep {p.label}").'
+
+
+@mcp.tool(
+    title="Diagnose the connection",
+    description=(
+        "Use this when score_info cannot reach MuseScore or a tool fails in a way you cannot explain: "
+        "a checklist of the plugin file, its token file, the port, the bridge's answer, MuseScore's version and "
+        "the open score, each passed or failed with what to do."
+    ),
+    annotations=read_only("Diagnose the connection"),
+    structured_output=False,
+)
+async def doctor() -> str:
+    checks = []
+
+    def check(ok: bool, text: str) -> None:
+        checks.append(("PASS " if ok else "FAIL ") + text)
+
+    plugin = token_file().parent / "reflets-bridge.qml"
+    where = "set REFLETS_TOKEN_FILE to reflets-token.txt in MuseScore's plugin folder if the folder is elsewhere"
+    if plugin.exists():
+        found = re.search(r"property int proto: (\d+)", plugin.read_text())
+        proto = int(found[1]) if found else 0
+        check(proto == PROTO, f"Plugin file {plugin}, protocol {proto}" + (
+            "." if proto == PROTO else f"; this server speaks {PROTO}. Install the plugin file that came with this server and restart MuseScore."
+        ))
+    else:
+        check(False, f"No plugin file at {plugin}. Copy plugin/reflets-bridge.qml there, or {where}.")
+    token = token_file()
+    check(token.exists(), f"Token file {token}." if token.exists() else f"No token file at {token}: run Plugins > Reflets Bridge, or {where}.")
+    host, port = bridge.url.removeprefix("ws://").rsplit(":", 1)
+    try:
+        _, writer = await asyncio.wait_for(asyncio.open_connection(host, int(port)), 5)
+        writer.close()
+    except (OSError, asyncio.TimeoutError):
+        check(False, f"Nothing listens on {bridge.url}: run Plugins > Reflets Bridge in MuseScore Studio 4.7. "
+              "If it shows a message that the WebSocket API is missing, this MuseScore build cannot run Reflets.")
+        return "\n".join(checks)
+    check(True, f"Something listens on {bridge.url}.")
+    try:
+        _, lines = await bridge.request("info")
+    except BridgeError as error:
+        if str(error).startswith(NOT_RUNNING):
+            check(False, "What listens on the port does not answer as the Reflets bridge. Another plugin that uses "
+                  "the WebSocket server may have been run after the bridge: restart MuseScore and run only Plugins > Reflets Bridge.")
+        else:
+            check(False, str(error))
+        return "\n".join(checks)
+    version = bridge.hello.get("mscore", "0").rjust(5, "0")
+    check(True, f"Bridge {bridge.hello.get('plugin', '?')} answers on protocol {bridge.hello.get('proto')}.")
+    check(True, f"MuseScore {int(version[:-4])}.{int(version[-4:-2])}.{int(version[-2:])}.")
+    check(True, f'Score open: "{parse_info(lines).title}".')
+    return "\n".join(checks)
 
 
 def main() -> None:
