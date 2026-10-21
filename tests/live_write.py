@@ -68,6 +68,8 @@ def proposal(result: str) -> str:
 
 async def main() -> None:
     global start
+    folder = server.checkpoint_folder((await server.load_info()).title)
+    saved = set(folder.glob("*"))
     start = await server.read_score("all")
     await unchanged("start")
     error = await refused(server.propose(IDEA, "test"))
@@ -184,6 +186,8 @@ async def main() -> None:
     error = await refused(server.request(f"write {tick} {tick + 2880} rollback\nv 0 {tick}\nd 3/2\nn {tick} 67:15\n~ 0 {tick} 99"))
     check("a failing write reports write-failed", "write-failed" in error, error)
     await unchanged("after the failed write")
+    for path in set(folder.glob("*")) - saved:
+        path.unlink()
     sys.exit(1 if failures else 0)
 
 

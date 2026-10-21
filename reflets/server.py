@@ -7,6 +7,7 @@ import re
 import tempfile
 import uuid
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from engine import annotate, draft, notes, part_writing, reduce
@@ -65,7 +66,8 @@ mcp = MCPServer(
         "skipped: a trailing '-' continues the word, '_' holds the syllable over the note, '*' marks a note without one. "
         "'m9 = m1' means bar 9 is bar 1 again, every line and field; '2.1 = m1' means this voice line is bar 1's. "
         "check lists part-writing faults such as parallel fifths in chorale-style bars, analyze drafts the harmony, "
-        "render shows bars as an image, with check's findings drawn on it if asked. "
+        "render shows bars as an image, with check's findings drawn on it if asked. checkpoint saves the whole score "
+        "under a name, to come back to later; keep saves one too. "
         "To try an idea, write it in the same form with propose; it lands in the score in colour as one undo step. "
         "The user listens in MuseScore, then you call keep or discard as they decide. Before you say which note "
         "sounds where, find the bar and count through its voice line from the start of the bar; answers given "
@@ -495,7 +497,67 @@ async def keep(proposal_id: str) -> str:
     tracks = ",".join(map(str, p.tracks))
     await request(f"color {p.start_tick} {p.end_tick} {tracks} #000000 keep {p.label}")
     del proposals[proposal_id]
-    return f'Kept {proposal_id}: the notes in {p.bars} are black now (one undo step, "Reflets: keep {p.label}").'
+    try:
+        saved = await save_checkpoint(f"keep {p.label}")
+    except (ToolError, OSError) as error:
+        saved = f"No checkpoint was saved: {error}"
+    return f'Kept {proposal_id}: the notes in {p.bars} are black now (one undo step, "Reflets: keep {p.label}").\n{saved}'
+
+
+def checkpoint_folder(title: str) -> Path:
+    return token_file().parent / "checkpoints" / file_name(title or "untitled")
+
+
+def file_name(text: str) -> str:
+    return re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", " ".join(text.split())).strip(" .")[:80]
+
+
+async def save_checkpoint(name: str) -> str:
+    info_lines = await request("info")
+    info = parse_info(info_lines)
+    folder = checkpoint_folder(info.title)
+    folder.mkdir(parents=True, exist_ok=True)
+    number = 1 + max((int(path.stem.split(" ", 1)[0]) for path in folder.glob("*.json")), default=0)
+    stem = f"{number:03d} {file_name(name)}".rstrip()
+    score = folder / f"{stem}.musicxml"
+    await request(f"export {windows_path(score)}")
+    lines = await request(f"read {info.ticks[0]} {2**31 - 1}")
+    saved = datetime.now().strftime("%Y-%m-%d %H:%M")
+    (folder / f"{stem}.json").write_text(json.dumps({"name": name, "saved": saved, "info": info_lines, "read": lines}))
+    return f'Checkpoint {number} "{name}" saved: {windows_path(score)}'
+
+
+@mcp.tool(
+    title="Save a checkpoint",
+    description=(
+        "Use this when the user wants to mark the score as it is now, to come back to it later. It saves the whole "
+        "score, unsaved changes and open ideas included, as a MusicXML file the user can open in MuseScore, under a "
+        "name. keep saves one too, named after the idea kept."
+    ),
+    annotations=writes("Save a checkpoint", destructive=False),
+    structured_output=False,
+)
+async def checkpoint(name: str) -> str:
+    return await save_checkpoint(" ".join(name.split()) or "checkpoint")
+
+
+@mcp.tool(
+    title="List the checkpoints",
+    description="Use this to see the checkpoints saved for the open score, by number, name and time, with their files.",
+    annotations=read_only("List the checkpoints"),
+    structured_output=False,
+)
+async def checkpoints() -> str:
+    info = await load_info()
+    folder = checkpoint_folder(info.title)
+    found = sorted(folder.glob("*.json")) if folder.exists() else []
+    if not found:
+        return f'No checkpoints for "{info.title}" yet.'
+    lines = [f'Checkpoints for "{info.title}":']
+    for path in found:
+        saved = json.loads(path.read_text())
+        lines.append(f'{int(path.stem.split(" ", 1)[0])}. "{saved["name"]}", {saved["saved"]}: {windows_path(path.with_suffix(".musicxml"))}')
+    return "\n".join(lines)
 
 
 @mcp.tool(

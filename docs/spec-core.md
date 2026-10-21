@@ -299,7 +299,7 @@ Constraints from the research: fewer than ten compact tools, three to five marke
 | `analyze` | no | yes | Notes table and, when the optional model environment is installed, the harmony draft (`engine:22`, `engine:57`). |
 | `doctor` | no | yes | Diagnostics: plugin file present in the plugin folder (`api:113`), port reachable, MuseScore version, WebSocket API present (`deep:17`), engine extras installed. |
 
-Four always loaded, within the three-to-five guidance (`deep:112`). `_meta["anthropic/alwaysLoad"]: true` on those four (`hosts:42`). Tool annotations set `readOnlyHint` on the six read tools so Codex's `writes` approval mode prompts only for `propose` and `discard` (`hosts:10`). `anthropic/requiresUserInteraction` is not set on any tool, since it forces a prompt on every call (`hosts:43`).
+Four always loaded, within the three-to-five guidance (`deep:112`). `_meta["anthropic/alwaysLoad"]: true` on those four (`hosts:42`). Tool annotations set `readOnlyHint` on the read tools so Codex's `writes` approval mode prompts only for `propose` and `discard` (`hosts:10`). `anthropic/requiresUserInteraction` is not set on any tool, since it forces a prompt on every call (`hosts:43`).
 
 Results are plain text, not `structuredContent`, because structured output is validated against a schema and costs tokens for keys (`hosts:50`); the N1x text is the structure. Errors the model should act on are raised as `ToolError` (`hosts:50`).
 
@@ -328,7 +328,7 @@ proposal id: p3
 
 **`discard(proposal_id)`** → confirms the undo, or refuses with the reason (6.9).
 
-**`keep(proposal_id)`** → turns the idea's notes black as their own undo step, `Reflets: keep <label>`, and closes the proposal (7.1). Added in slice 2, owner decision 2026-10-18; nine tools in all. As built, `propose`, `read_score`, `score_info` and (since 2026-10-21) `check` are always loaded; `discard`, `keep`, `analyze`, `render` and `doctor` are deferred.
+**`keep(proposal_id)`** → turns the idea's notes black as their own undo step, `Reflets: keep <label>`, and closes the proposal (7.1). Added in slice 2, owner decision 2026-10-18; nine tools in all. As built, `propose`, `read_score`, `score_info` and (since 2026-10-21) `check` are always loaded; `discard`, `keep`, `analyze`, `render`, `doctor`, `checkpoint` and `checkpoints` are deferred: eleven tools, above the fewer-than-ten guidance, but the extra ones are deferred and cost nothing until searched (6.13).
 
 **`render(bars, parts=None, annotations=None)`** → path to a PNG the harness can open, plus one line of text. Large outputs go to a file anyway (`plan:69`). As built (2026-10-21): `render(bars, check=False)`, deferred (11.42). The plugin exports the score as it is, unsaved edits and ideas included, to a file next to the token file, which the server reads and deletes; the engine engraves the range (at most 32 bars, `annotate.MAX_BARS`). With `check=True`, the engine's `part_writing.as_text` spots become callouts and voice-leading marks, drawn in red and listed in the result with the same numbers. PNGs go to the system temp folder under `reflets/`. Live test: `tests/live_render.py`, with the same scores as `check`.
 
@@ -463,7 +463,7 @@ Slurs and hairpins, which fall through `cursor.add` with no spanner handling (`a
 
 Superseded 2026-10-19 by open question 17: everything in 4.2 is written in v1 except the kinds listed there as read only. Each kind's write path (properties, `newElement` plus `cursor.add`, `Chord.add`/`Note.add`, or an action over a list selection) is in `research/musescore-4.7.5-element-coverage.md`; parts and staves stay reserved for layout A.
 
-### 6.13 Checkpoints and restore (first release, not built)
+### 6.13 Checkpoints and restore (first release, checkpoint files built)
 
 Decided 2026-10-18 (open question 16). MuseScore's undo history is linear, interleaves the user's edits with ideas, and is lost when the score closes, so it cannot take the user back to a chosen state after many rounds. Three parts:
 
@@ -471,7 +471,7 @@ Decided 2026-10-18 (open question 16). MuseScore's undo history is linear, inter
 2. **Restore bars from a checkpoint.** The server reads the checkpoint, compares it bar by bar with the current score, and writes the chosen bars back through the write path (section 6) as one undo step verified by read-back. Bars outside the request keep the user's later edits. It restores only what the write path can write; the checkpoint file covers the rest.
 3. **Proposals and checkpoints persist on disk** next to the score, so a restart of the harness does not lose open ideas.
 
-Open: whether checkpoints are named by the user, made automatically at each `keep`, or both. Comes after `check`, because restore is only as faithful as the write path (slice 3).
+Decided 2026-10-21 (open question 44): both, named checkpoints on request and an automatic one at each `keep`. Comes after `check`, because restore is only as faithful as the write path (slice 3). As built (2026-10-21), part 1: `checkpoint(name)` saves one and `keep` saves one named `keep <label>` after recolouring (a failure is named in keep's result, the keep stands); `checkpoints()` lists them by number, name and time. The plugin API has no score path (`Score` exposes only `scoreName`) and `writeScore` cannot write .mscz in 4.7.5 (`MscNotationWriter::writeList` is not supported), so each checkpoint is a MusicXML export in `checkpoints/<title>/` in the plugin folder, `NNN <name>.musicxml`, with `NNN <name>.json` holding the name, the time and the bridge's `info` and `read` lines for the whole score, from which restore encodes the checkpoint's bars as N1x. A checkpoint holds whatever the score has, open ideas in blue included.
 
 ## 7. Ideas into MuseScore
 
@@ -580,3 +580,4 @@ These are the **[spike]** marks above. Each is a short experiment on the owner's
 41. **Recasting music in another meter.** Decided 2026-10-20: `propose(..., recast=True)` rewrites bars in a meter of another length bar for bar (4/4 with triplets as 12/8: four beats each, split in three), in one proposal; without the flag such a meter change over notes is refused as in decision 39. The marks, lines and lyrics of those bars move to the same place in the beat, as close to the original as the new notes allow. Recasting into a shorter meter (12/8 to 4/4) was first refused, MuseScore having crashed on deleting bars; asked whether to try again, the owner said yes ("crashes and restarts are fine"), and it works through the bars' actual length. Original questions: how a recast is asked for so it never happens by default (an explicit flag, or allowed whenever the idea rewrites every voice), and what happens to the marks, lines and lyrics in the recast bars (the idea rewrites them, or the recast is refused while there are any). The owner: an explicit flag; marks "rewrites as close to the original places as possible". The owner had asked why 12/8 to 4/4 could not be done, "still four beats, just divided into 3s instead of 2s", and wants such switches possible, not default behaviour.
 42. **Findings on the rendered bars.** Decided 2026-10-21: `render` draws the check's findings now, with `check=True`. Original question: should render draw the check's findings on the image (rings and lines on the notes) in this first version, or show the plain engraved bars?
 43. **A fermata whose note an idea replaces.** Decided 2026-10-21, after before-and-after pictures (`Documents/MuseScore4/Scores/reflets-scrap/case11-…` to `case13-…`): it moves onto the note or rest sounding at its moment, as a syllable does (36). Original question: remove a fermata whose note is replaced (case 11), or move it onto the sounding note (case 13)?
+44. **Named or automatic checkpoints.** Decided 2026-10-21: both, a checkpoint the user names on request and an automatic one at each `keep` (6.13). Original question: should checkpoints be named by the user, made automatically at each `keep`, or both?

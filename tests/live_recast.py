@@ -42,6 +42,8 @@ async def refused(coro) -> str:
 
 
 async def main() -> None:
+    folder = server.checkpoint_folder((await server.load_info()).title)
+    saved = set(folder.glob("*"))
     start = await server.read_score("all")
     error = await refused(server.propose(IDEA, "no flag", replace=True))
     check("a meter of another length over notes without recast=True is refused", "recast=True" in error, error)
@@ -66,6 +68,8 @@ async def main() -> None:
     error = await refused(server.propose(IDEA.replace("m3 len=12\n1.1: 1 D5 E5 G4 A4 B4 C5 D5 E5 G4 [stacc]{ A4 B4 C5 }\n", ""), "gap", replace=True, recast=True))
     check("a recast must write every bar up to its end", "without gaps" in error, error)
     check("the score is as at the start", await server.read_score("all") == start)
+    for path in set(folder.glob("*")) - saved:
+        path.unlink()
     sys.exit(1 if failures else 0)
 
 
