@@ -65,6 +65,7 @@ class Plan:
     cleared: int = 0
     expected_lyrics: dict[tuple[int, tuple[int, int]], dict[Fraction, dict[int, tuple[str, bool] | None]]] = field(default_factory=dict)
     dropped: list[str] = field(default_factory=list)
+    dropped_marks: list[str] = field(default_factory=list)
     expected_bars: dict[int, Bar] = field(default_factory=dict)
     meters: dict[int, str] = field(default_factory=dict)
     keys: dict[int, str] = field(default_factory=dict)
@@ -567,7 +568,17 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
                         raise IdeaError(f"{where}: a rest takes only a fermata or a breath, not [{name}]")
                     at = onset + (duration if kind == "breath" else 0)
                     entries.append((at, f"[{n1x.decoration(classify(name.removeprefix('-'), where)[1])}]", name.startswith("-")))
-            gone, added, kept = match_marks(olds.get(cell, []), entries, where)
+            old = olds.get(cell, [])
+            if voice.timed:
+                starts = {chord.onset for chord in voice.chords if not chord.grace} | {onset for onset, _, _ in voice.rests}
+                lost = [mark for mark in old if mark[1] and standalone(mark[1][1:-1]) == "fermata" and mark[0] not in starts]
+                old = [mark for mark in old if mark not in lost]
+                for entry in [entry for entry in entries if entry[2] and any(mark[1] == entry[1] for mark in lost)]:
+                    if all(mark[1] != entry[1] for mark in old):
+                        entries.remove(entry)
+                        lost.remove(min((mark for mark in lost if mark[1] == entry[1]), key=lambda mark: abs(mark[0] - entry[0])))
+                plan.dropped_marks += [f"{where} {mark[1]} at {mark[0] * idea.div}" for mark in lost]
+            gone, added, kept = match_marks(old, entries, where)
             if position in recast:
                 added += [(onset, token, False) for onset, token, _ in kept if token]
                 kept = []
