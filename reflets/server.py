@@ -421,7 +421,9 @@ async def propose(idea: str, label: str = "idea", replace: bool = False, recast:
     if plan.dropped:
         note += f" These syllables had no note left and were removed: {'; '.join(plan.dropped)}."
     if plan.dropped_marks:
-        note += f" These fermatas had no note or rest left at their moment and were removed: {'; '.join(plan.dropped_marks)}."
+        note += f" These fermatas lost their note and were removed, as the note or rest sounding at their moment has its own or none sounds there: {'; '.join(plan.dropped_marks)}."
+    if plan.moved_marks:
+        note += f" These fermatas lost their note and moved onto the note or rest sounding at their moment: {'; '.join(plan.moved_marks)}."
     return (
         f'Written: {bars}, voices {voices}, {counts}, as one undo step "Reflets: {label}". Read-back matched.{note}\n'
         f"The new notes are blue. The user listens with Play in MuseScore; then keep(\"{proposal_id}\") turns them "

@@ -66,6 +66,7 @@ class Plan:
     expected_lyrics: dict[tuple[int, tuple[int, int]], dict[Fraction, dict[int, tuple[str, bool] | None]]] = field(default_factory=dict)
     dropped: list[str] = field(default_factory=list)
     dropped_marks: list[str] = field(default_factory=list)
+    moved_marks: list[str] = field(default_factory=list)
     expected_bars: dict[int, Bar] = field(default_factory=dict)
     meters: dict[int, str] = field(default_factory=dict)
     keys: dict[int, str] = field(default_factory=dict)
@@ -568,17 +569,24 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
                         raise IdeaError(f"{where}: a rest takes only a fermata or a breath, not [{name}]")
                     at = onset + (duration if kind == "breath" else 0)
                     entries.append((at, f"[{n1x.decoration(classify(name.removeprefix('-'), where)[1])}]", name.startswith("-")))
-            old = olds.get(cell, [])
+            old, lost = olds.get(cell, []), []
             if voice.timed:
-                starts = {chord.onset for chord in voice.chords if not chord.grace} | {onset for onset, _, _ in voice.rests}
-                lost = [mark for mark in old if mark[1] and standalone(mark[1][1:-1]) == "fermata" and mark[0] not in starts]
+                spans = [(chord.onset, chord.onset + chord.duration) for chord in voice.chords if not chord.grace]
+                spans += [(onset, onset + duration) for onset, duration, _ in voice.rests]
+                lost = [mark for mark in old if mark[1] and standalone(mark[1][1:-1]) == "fermata" and mark[0] not in {start for start, _ in spans}]
                 old = [mark for mark in old if mark not in lost]
                 for entry in [entry for entry in entries if entry[2] and any(mark[1] == entry[1] for mark in lost)]:
                     if all(mark[1] != entry[1] for mark in old):
                         entries.remove(entry)
                         lost.remove(min((mark for mark in lost if mark[1] == entry[1]), key=lambda mark: abs(mark[0] - entry[0])))
-                plan.dropped_marks += [f"{where} {mark[1]} at {mark[0] * idea.div}" for mark in lost]
             gone, added, kept = match_marks(old, entries, where)
+            for mark in lost:
+                home = next((start for start, end in spans if start < mark[0] < end), None)
+                if home is None or any(other[0] == home and other[1] and standalone(other[1][1:-1]) == "fermata" for other in kept + added):
+                    plan.dropped_marks.append(f"{where} {mark[1]} at {mark[0] * idea.div}")
+                else:
+                    added.append((home, mark[1], False))
+                    plan.moved_marks.append(f"{where} {mark[1]} from {mark[0] * idea.div} to {home * idea.div}")
             if position in recast:
                 added += [(onset, token, False) for onset, token, _ in kept if token]
                 kept = []

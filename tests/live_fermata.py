@@ -5,8 +5,10 @@ import sys
 from reflets import server
 
 CASES = {
-    "a held note over the fermata's beat names the fermata it removes": ("1.1: 8 C5", "1.1: 8 C5", "[fermata] at 4"),
-    "a fermata the idea writes elsewhere is written": ("1.1: 8 C5[fermata]", "1.1: 8 C5[fermata]", "[fermata] at 4"),
+    "a held note over the fermata's beat takes the fermata": ("1.1: 8 C5", "1.1: 8 C5[fermata]", "moved onto the note or rest sounding at their moment: m1 1.1 [fermata] from 4 to 0"),
+    "a held note from a later beat takes it too": ("1.1: 2 C5 6 D5", "1.1: 2 C5 6 D5[fermata]", "[fermata] from 4 to 2"),
+    "a fermata the idea writes on that note is not doubled": ("1.1: 8 C5[fermata]", "1.1: 8 C5[fermata]", "were removed, as the note or rest sounding at their moment has its own or none sounds there: m1 1.1 [fermata] at 4"),
+    "a fermata over the filled silence at the end is removed and named": ("1.1: 2 C5", "1.1: 2 C5", "none sounds there: m1 1.1 [fermata] at 4"),
     "a fermata the idea removes is not named": ("1.1: 8 C5 -[fermata]@4", "1.1: 8 C5", None),
     "a note on the fermata's beat keeps it": ("1.1: 4 C5 C5", "1.1: 4 C5 C5[fermata]", None),
     "a removal on a kept fermata removes it": ("1.1: 4 C5 C5 -[fermata]@4", "1.1: 4 C5 C5", None),
