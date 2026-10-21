@@ -490,7 +490,7 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
     written_bars = sorted(numbers.index(bar.number) for bar in idea.bars)
     olds = old_marks(pre, info, division)
     old_notes = old_chords([line for line in pre if line[0] in "CR"] if recast else pre, info, division, numbers[written_bars[0]], numbers[written_bars[-1]]) if written_bars else {}
-    ops, graces, ties, clears, marks, decorations, removals, field_ops, meter_ops = [], [], [], [], [], [], [], [], []
+    ops, graces, ties, clears, marks, decorations, removals, field_ops, meter_ops, empties = [], [], [], [], [], [], [], [], [], []
     voltas: dict[int, str] = {}
     plan = Plan(0, 0, ops, set(), idea, recast=bool(recast))
     voices: dict[int, list[tuple[int, Fraction, list[tuple[int, int, bool]], tuple[int, int]]]] = {}
@@ -532,6 +532,8 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
             end_tick = info.ticks[position + 1] if position + 1 < len(info.ticks) else 2**31 - 1
             if voice.timed:
                 clears.append(f"x {track} {bar_tick} {end_tick} 1")
+            if voice.timed and layer > 1 and not voice.chords and not voice.marks and not any(names for _, _, names in voice.rests) and not olds.get(cell):
+                empties.append(f"k {track} {bar_tick} {end_tick}")
             entries: list[tuple[Fraction, str, bool]] = []
             for number, (onset, token) in enumerate(voice.marks):
                 if line := n1x.LINE_TOKEN.fullmatch(token.removeprefix("-")):
@@ -715,7 +717,7 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
                 plan.tied_back.add((track, tick, int(parts[0])))
             else:
                 plan.cut_ties.add(numbers[position - 1])
-    plan.ops = meter_ops + clears + removals + ops + graces + marks + decorations + ties + field_ops
+    plan.ops = meter_ops + clears + removals + ops + graces + marks + decorations + ties + field_ops + empties
     plan.cleared = len(meter_ops) + len(clears) + len(removals)
     positions = sorted(plan.expected_bars)
     plan.start_tick = info.ticks[positions[0]]

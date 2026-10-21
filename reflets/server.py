@@ -6,7 +6,7 @@ import json
 import re
 import tempfile
 import uuid
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -88,11 +88,10 @@ class Proposal:
     pre: list[str]
     post: list[str]
     pre_end: int
+    title: str
     steps: int = 1
 
 
-proposals: dict[str, Proposal] = {}
-proposal_numbers = itertools.count(1)
 render_numbers = itertools.count(1)
 
 
@@ -415,9 +414,8 @@ async def propose(idea: str, label: str = "idea", replace: bool = False, recast:
         raise ToolError(f"The idea did not land as written ({mismatch}). {state}")
     positions = sorted(plan.expected_bars)
     bars = f"bars {numbers[positions[0]]}-{numbers[positions[-1]]}" if len(positions) > 1 else f"bar {numbers[positions[0]]}"
-    proposal_id = f"p{next(proposal_numbers)}"
     tracks = sorted({t for _, t in plan.cells})
-    proposals[proposal_id] = Proposal(label, plan.start_tick, plan.end_tick, tracks, bars, original, reply, end_tick)
+    proposal_id = opened(Proposal(label, plan.start_tick, plan.end_tick, tracks, bars, original, reply, end_tick, info.title))
     counts = ", ".join(f"{n} {what if n > 1 else what[:-1]}" for what, n in plan.counts.items() if n)
     voices = ", ".join(f"{t // 4 + 1}.{t % 4 + 1}" for t in tracks)
     cut = sorted(set(cut) | plan.cut_ties)
@@ -451,11 +449,40 @@ def beyond(lines: list[str], tick: int) -> list[str]:
     return sorted(line for line in lines if int(line.split(" ")[1]) >= tick)
 
 
-def find(proposal_id: str) -> Proposal:
-    if proposal_id not in proposals:
-        open_ids = ", ".join(proposals) or "none"
+def proposals_file() -> Path:
+    return token_file().parent / "proposals.json"
+
+
+def stored() -> dict:
+    path = proposals_file()
+    return json.loads(path.read_text()) if path.exists() else {"next": 1, "open": {}}
+
+
+def opened(proposal: Proposal) -> str:
+    data = stored()
+    proposal_id = f"p{data['next']}"
+    data["next"] += 1
+    data["open"][proposal_id] = asdict(proposal)
+    proposals_file().write_text(json.dumps(data))
+    return proposal_id
+
+
+def closed(proposal_id: str) -> Proposal:
+    data = stored()
+    proposal = Proposal(**data["open"].pop(proposal_id))
+    proposals_file().write_text(json.dumps(data))
+    return proposal
+
+
+async def find(proposal_id: str) -> Proposal:
+    found = stored()["open"]
+    if proposal_id not in found:
+        open_ids = ", ".join(found) or "none"
         raise ToolError(f"There is no open proposal {proposal_id!r} (open: {open_ids}).")
-    return proposals[proposal_id]
+    p, title = Proposal(**found[proposal_id]), (await load_info()).title
+    if p.title != title:
+        raise ToolError(f'{proposal_id} was written in "{p.title}", but "{title}" is open in MuseScore. Nothing was done.')
+    return p
 
 
 @mcp.tool(
@@ -468,7 +495,7 @@ def find(proposal_id: str) -> Proposal:
     structured_output=False,
 )
 async def discard(proposal_id: str) -> str:
-    p = find(proposal_id)
+    p = await find(proposal_id)
     span = f"read {p.start_tick} {p.end_tick}"
     if sorted(await request(span)) != sorted(p.post):
         raise ToolError(
@@ -486,7 +513,7 @@ async def discard(proposal_id: str) -> str:
             + (", so it was redone and nothing changed." if restored else ", and redoing it did not restore the bars; ask the user to check them.")
             + " The user can remove the idea with Edit > Undo."
         )
-    del proposals[proposal_id]
+    closed(proposal_id)
     return f"Discarded {proposal_id}: the score is back as it was in {p.bars}."
 
 
@@ -497,10 +524,10 @@ async def discard(proposal_id: str) -> str:
     structured_output=False,
 )
 async def keep(proposal_id: str) -> str:
-    p = find(proposal_id)
+    p = await find(proposal_id)
     tracks = ",".join(map(str, p.tracks))
     await request(f"color {p.start_tick} {p.end_tick} {tracks} #000000 keep {p.label}")
-    del proposals[proposal_id]
+    closed(proposal_id)
     try:
         saved = await save_checkpoint(f"keep {p.label}")
     except (ToolError, OSError) as error:
@@ -604,9 +631,8 @@ async def restore(checkpoint: int, bars: str) -> str:
     except ToolError as error:
         await discard(cleared)
         raise ToolError(f"Bars {first}-{last} could not be restored, and nothing changed: {error}") from None
-    a, b = proposals.pop(cleared), proposals.pop(re.search(r"proposal id: (p\d+)", result)[1])
-    proposal_id = f"p{next(proposal_numbers)}"
-    proposals[proposal_id] = Proposal(label, b.start_tick, b.end_tick, sorted(set(a.tracks) | set(b.tracks)), b.bars, a.pre, b.post, a.pre_end, 2)
+    a, b = closed(cleared), closed(re.search(r"proposal id: (p\d+)", result)[1])
+    proposal_id = opened(Proposal(label, b.start_tick, b.end_tick, sorted(set(a.tracks) | set(b.tracks)), b.bars, a.pre, b.post, a.pre_end, b.title, 2))
     note = result.split("Read-back matched.", 1)[1].split("\n", 1)[0]
     if body(then) != writable(then):
         note += " Glissandos cannot be written, so the checkpoint's are left out; they are in its file."

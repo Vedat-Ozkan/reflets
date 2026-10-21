@@ -33,6 +33,8 @@ async def main() -> None:
     saved = set(folder.glob("*"))
     bar, length = info.measures[1].number, int(info.lengths[1] * 4)
     start, whole = await server.read_score(str(bar)), await server.read_score("all")
+    span = f"read {info.ticks[1]} {info.ticks[2]}"
+    rests = sorted(line for line in await server.request(span) if line.startswith("R "))
     number = int(re.search(r"Checkpoint (\d+)", await server.checkpoint("restore test"))[1])
     idea = f"N1x div=4\nm{bar} len={length}\n1.1: !ff\n1.2: {length // 2} ( C5[stacc] D5 )\n1.2 L1: la la"
     await server.keep(proposal(await server.propose(idea, "restore test", replace=True)))
@@ -46,6 +48,8 @@ async def main() -> None:
     await server.keep(proposal(result))
     result = await server.restore(number, str(bar))
     check("restore brings the bar back as it was at the checkpoint", await server.read_score(str(bar)) == start, f"{result}\n{await server.read_score(str(bar))}")
+    left = sorted(line for line in await server.request(span) if line.startswith("R "))
+    check("a voice the checkpoint does not have leaves no rests", left == rests, f"{rests} vs {left}")
     await server.discard(proposal(result))
     check("discarding the restore takes the bar back to the kept idea", await server.read_score(str(bar)) == changed, await server.read_score(str(bar)))
     everything = f"{info.measures[0].number}-{info.measures[-1].number}"

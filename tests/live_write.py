@@ -183,8 +183,12 @@ async def main() -> None:
     check("a tempo outside 1.1 is refused", "system mark" in error, error)
 
     tick = (await server.load_info()).ticks[5]
+    earlier = proposal(await server.propose(LATER, "before a failed write"))
     error = await refused(server.request(f"write {tick} {tick + 2880} rollback\nv 0 {tick}\nd 3/2\nn {tick} 67:15\n~ 0 {tick} 99"))
     check("a failing write reports write-failed", "write-failed" in error, error)
+    error = await refused(server.request(f"write {tick} {tick + 2880} rollback\ny 0 {tick} DYNAMIC 10 fff"))
+    check("a write failing before any change reports write-failed", "write-failed" in error, error)
+    check("a failed write leaves no undo step, so the idea before it discards", "Discarded" in await server.discard(earlier))
     await unchanged("after the failed write")
     for path in set(folder.glob("*")) - saved:
         path.unlink()

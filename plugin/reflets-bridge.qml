@@ -5,10 +5,10 @@ import FileIO 3.0
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.22.0"
+    version: "0.23.0"
     requiresScore: false
 
-    readonly property int proto: 22
+    readonly property int proto: 23
     readonly property int port: 8731
     readonly property string ideaColor: "#1565c0"
     property string token: ""
@@ -430,6 +430,19 @@ MuseScore {
         throw "no note or rest at tick " + tick
     }
 
+    function deleteRests(track, startTick, endTick) {
+        var doomed = []
+        for (var m = curScore.firstMeasure; m && m.firstSegment.tick < endTick; m = m.nextMeasure) {
+            for (var seg = m.firstSegment; seg; seg = seg.nextInMeasure) {
+                var el = seg.tick >= startTick && seg.tick < endTick ? seg.elementAt(track) : null
+                if (el && el.type === Element.REST)
+                    doomed.push(el)
+            }
+        }
+        for (var k = 0; k < doomed.length; k++)
+            removeElement(doomed[k])
+    }
+
     function clearVoice(track, startTick, endTick, notes) {
         var doomed = []
         for (var m = curScore.firstMeasure; m; m = m.nextMeasure) {
@@ -451,11 +464,12 @@ MuseScore {
         for (var left = notes ? 1000 : 0; left > 0; left--) {
             var top = firstTuplet(track, startTick, endTick)
             if (!top)
-                return
+                return doomed.length > 0 || left < 1000
             removeElement(top)
         }
         if (notes)
             throw "the tuplets in track " + track + " could not be removed"
+        return false
     }
 
     function firstTuplet(track, startTick, endTick) {
@@ -877,7 +891,7 @@ MuseScore {
     }
 
     function write(id, startTick, endTick, label, ops) {
-        var c = null, track = 0, step = 0, chords = [], rests = []
+        var c = null, track = 0, step = 0, chords = [], rests = [], changed = false
         curScore.startCmd("Reflets: " + label)
         try {
             for (; step < ops.length; step++) {
@@ -902,7 +916,7 @@ MuseScore {
                     if (w.length > 1)
                         rests.push([track, parseInt(w[1])])
                 } else if (w[0] === "x") {
-                    clearVoice(parseInt(w[1]), parseInt(w[2]), parseInt(w[3]), w[4] === "1")
+                    changed = clearVoice(parseInt(w[1]), parseInt(w[2]), parseInt(w[3]), w[4] === "1") || changed
                 } else if (w[0] === "t") {
                     var ratio = w[1].split(":"), total = w[2].split("/")
                     c.addTuplet(fraction(parseInt(ratio[0]), parseInt(ratio[1])), fraction(parseInt(total[0]), parseInt(total[1])))
@@ -917,6 +931,7 @@ MuseScore {
                 } else {
                     break
                 }
+                changed = changed || "vdx".indexOf(w[0]) < 0
             }
             for (var j = 0; j < chords.length; j++) {
                 for (var k = 0; k < chords[j][2].length; k++) {
@@ -996,12 +1011,17 @@ MuseScore {
                     }
                     if (!n.tieForward)
                         throw "tie not made"
+                } else if (o[0] === "k") {
+                    deleteRests(otrack, otick, parseInt(o[3]))
                 } else {
                     throw "unknown op " + o[0]
                 }
+                changed = true
             }
         } catch (e) {
             curScore.endCmd(true)
+            if (changed)
+                cmd("action://notation/undo")
             return id + " err write-failed " + step + " " + escapeText(e)
         }
         curScore.endCmd(false)
