@@ -8,6 +8,7 @@ MCP server (`reflets/`, Python) plus a MuseScore bridge plugin (`plugin/reflets-
 - `reflets/score.py`: parses the plugin's `info`/`read` lines into the engine's index
 - `reflets/n1x.py`: encodes the score as N1x and decodes N1x ideas (spec 4.2)
 - `reflets/write.py`: compiles a decoded N1x idea into the plugin's write ops and checks the read-back
+- `reflets/restore.py`: builds the two ideas `restore` writes: the current bars cleared of their details, then the checkpoint's bars
 - `reflets/server.py`: MCP tools
 - `plugin/reflets-bridge.qml`: the bridge, a macro plugin with no dialog (spec 2.1)
 - `tests/live_write.py`: end-to-end check of the write path against a live MuseScore with the nocturne open
@@ -18,6 +19,7 @@ MCP server (`reflets/`, Python) plus a MuseScore bridge plugin (`plugin/reflets-
 - `tests/live_render.py`: end-to-end check of `render` (plugin export, engraving, findings drawn, an idea in colour) against the same scores as `tests/live_check.py`
 - `tests/live_analyze.py`: end-to-end check of `analyze` against any open score, with and without the AnalysisGNN model (`ANALYSISGNN_PYTHON`, `ANALYSISGNN_CHECKPOINT`)
 - `tests/live_checkpoint.py`: end-to-end check of `checkpoint`, the checkpoint `keep` saves, and `checkpoints`, against any open score; it removes the checkpoint files it made, as `live_write` and `live_recast` do
+- `tests/live_restore.py`: end-to-end check of `restore` against any open score: a dynamic, staccato, slur, lyric and new notes are taken back to a checkpoint, discard and keep of a restore, a restore of every bar, an unknown checkpoint
 - `tests/live_fermata.py`: end-to-end check of ideas that rewrite a voice holding a fermata, against a live MuseScore with `tests/data/bwv66.6.musicxml` open (as an import)
 - `tests/live_read.py`: end-to-end check of N1x reading against a live MuseScore; `tests/data/bar-fields.mscz` is its score for bar fields and `tests/data/marks.mscz` and `tests/data/system-marks.mscz` for marks, `tests/data/decorations.mscz` for decorations, `tests/data/groups.mscz` for tuplets and groups, `tests/data/lines.mscz` for lines, `tests/data/lyrics.mscz` for lyrics, `tests/data/repeats.mscz` for repeated bars, `tests/data/keys.musicxml` (opened as an import) for a transposing staff's key. Scores for the owner to open go in `Documents/MuseScore4/Scores/reflets/` on Windows
 - `research/`, `spikes/`: research reports and throwaway spike code, kept as a record

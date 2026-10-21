@@ -20,6 +20,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
 from reflets import n1x
+from reflets.restore import bare_idea, body, marks, target_idea, writable
 from reflets.bridge import NOT_RUNNING, PROTO, Bridge, BridgeError, token_file
 from reflets.score import ScoreInfo, build_index, parse_info
 from reflets.write import (
@@ -67,7 +68,7 @@ mcp = MCPServer(
         "'m9 = m1' means bar 9 is bar 1 again, every line and field; '2.1 = m1' means this voice line is bar 1's. "
         "check lists part-writing faults such as parallel fifths in chorale-style bars, analyze drafts the harmony, "
         "render shows bars as an image, with check's findings drawn on it if asked. checkpoint saves the whole score "
-        "under a name, to come back to later; keep saves one too. "
+        "under a name, to come back to later; keep saves one too; restore writes chosen bars back as a checkpoint has them. "
         "To try an idea, write it in the same form with propose; it lands in the score in colour as one undo step. "
         "The user listens in MuseScore, then you call keep or discard as they decide. Before you say which note "
         "sounds where, find the bar and count through its voice line from the start of the bar; answers given "
@@ -87,6 +88,7 @@ class Proposal:
     pre: list[str]
     post: list[str]
     pre_end: int
+    steps: int = 1
 
 
 proposals: dict[str, Proposal] = {}
@@ -473,9 +475,11 @@ async def discard(proposal_id: str) -> str:
             f"{p.bars.capitalize()} changed since {proposal_id} was written, so undoing would remove the user's edit. "
             "Nothing was undone; the user can use Ctrl+Z in MuseScore."
         )
-    await request("undo")
+    for _ in range(p.steps):
+        await request("undo")
     if sorted(await request(f"read {p.start_tick} {p.pre_end}")) != sorted(p.pre):
-        await request("redo")
+        for _ in range(p.steps):
+            await request("redo")
         restored = sorted(await request(span)) == sorted(p.post)
         raise ToolError(
             f"The last step in MuseScore's undo history was not {proposal_id}"
@@ -558,6 +562,60 @@ async def checkpoints() -> str:
         saved = json.loads(path.read_text())
         lines.append(f'{int(path.stem.split(" ", 1)[0])}. "{saved["name"]}", {saved["saved"]}: {windows_path(path.with_suffix(".musicxml"))}')
     return "\n".join(lines)
+
+
+@mcp.tool(
+    title="Restore bars from a checkpoint",
+    description=(
+        "Use this when the user wants bars back as they were at a checkpoint (see checkpoints): it writes them as "
+        'the checkpoint has them, notes, marks, decorations, lines and lyrics, as a proposal. bars is a range like "5-12". '
+        "Bars outside it keep the user's later edits. Refused when a bar's length changed since; then the user can "
+        "open the checkpoint's file."
+    ),
+    annotations=writes("Restore bars from a checkpoint", destructive=True),
+    structured_output=False,
+)
+async def restore(checkpoint: int, bars: str) -> str:
+    info, index, first, last, _ = await read_bars(bars, whole_score=True)
+    folder = checkpoint_folder(info.title)
+    found = [path for path in folder.glob(f"{checkpoint:03d}*.json") if path.stem.split(" ", 1)[0] == f"{checkpoint:03d}"]
+    if not found:
+        raise ToolError(f"There is no checkpoint {checkpoint}. " + await checkpoints())
+    saved = json.loads(found[0].read_text())
+    then_info = parse_info(saved["info"])
+    numbers, then_numbers = [m.number for m in info.measures], [m.number for m in then_info.measures]
+    for number in numbers[numbers.index(first) : numbers.index(last) + 1]:
+        if number not in then_numbers or then_info.lengths[then_numbers.index(number)] != info.lengths[numbers.index(number)]:
+            raise ToolError(
+                f"Bar {number} is not the same length as in checkpoint {checkpoint}, so it cannot be restored in place. "
+                f"The user can open {windows_path(found[0].with_suffix('.musicxml'))}."
+            )
+    then_index = build_index(then_info, saved["read"], int(bridge.hello["division"]))
+    try:
+        now, then = n1x.encode(info, index, first, last), n1x.encode(then_info, then_index, first, last)
+    except (notes.NotesError, PositionError) as error:
+        raise ToolError(f"Could not encode bars {first}-{last}: {error}") from None
+    if body(now) == body(then):
+        return f'Bars {first}-{last} are as in checkpoint {checkpoint} "{saved["name"]}" already.'
+    label = f"restore {checkpoint}"
+    cleared = re.search(r"proposal id: (p\d+)", await propose(bare_idea(body(now), now.splitlines()[0], marks(writable(then), then.splitlines()[0])), label, replace=True))[1]
+    try:
+        result = await propose(target_idea(body(now), writable(then), then.splitlines()[0]), label, replace=True)
+    except ToolError as error:
+        await discard(cleared)
+        raise ToolError(f"Bars {first}-{last} could not be restored, and nothing changed: {error}") from None
+    a, b = proposals.pop(cleared), proposals.pop(re.search(r"proposal id: (p\d+)", result)[1])
+    proposal_id = f"p{next(proposal_numbers)}"
+    proposals[proposal_id] = Proposal(label, b.start_tick, b.end_tick, sorted(set(a.tracks) | set(b.tracks)), b.bars, a.pre, b.post, a.pre_end, 2)
+    note = result.split("Read-back matched.", 1)[1].split("\n", 1)[0]
+    if body(then) != writable(then):
+        note += " Glissandos cannot be written, so the checkpoint's are left out; they are in its file."
+    return (
+        f'Restored {b.bars} from checkpoint {checkpoint} "{saved["name"]}" ({saved["saved"]}), in two undo steps '
+        f'"Reflets: {label}". Read-back matched.{note}\nThe restored notes are blue. The user listens with Play in '
+        f'MuseScore; then keep("{proposal_id}") turns them black, or discard("{proposal_id}") takes the bars back as '
+        f"they were before.\nproposal id: {proposal_id}"
+    )
 
 
 @mcp.tool(
