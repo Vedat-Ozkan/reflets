@@ -55,7 +55,7 @@ the open score in MuseScore Studio 4 (GUI only)                 deep:28
 - Lifecycle: a macro plugin is created by `component.create()` and then never deleted (`src/framework/extensions/internal/legacy/extpluginrunner.cpp:49-61` at v4.7.5), so its object, and the server it started in `onRun`, live until MuseScore quits. The plugin is started once per session from the Plugins menu and cannot be stopped except by quitting MuseScore. This relies on the runner not deleting the object, which is unspecified behaviour; recheck on each new MuseScore release.
 - One server per MuseScore: all v1 plugins share one `WebSocketServerApi` object (`src/framework/network/api/websocketserverapi.cpp` at v4.7.5). A second `listen()` on another port fails silently but replaces the new-connection callback, so the most recently started plugin answers new connections. Running the bridge twice is harmless (the new instance takes over); running another bridge plugin (mcp-score, ghchen99) in the same session steals the connection, which `hello` detects.
 - Qt 6 and QtQuick.Controls 2 idioms only, because a plugin not written for Qt 6 is silently not listed (`deep:49`, `deep:56`).
-- No status window. Status is reported through `hello` and the server's tool errors; `api.log.info` lines go to MuseScore's log file.
+- No status window. Status is reported through `hello` and the server's tool errors; `api.log.info` lines go to MuseScore's log file. As built 2026-10-22 (plugin 0.24.0, decision 45): a status toast, a frameless `Window` with `Qt.Tool | Qt.WindowDoesNotAcceptFocus | Qt.WindowStaysOnTopHint`, shows "Reflets · <what happened> · hh:mm" at the bottom right of the screen for 6 seconds when the bridge starts listening, when a client says `hello`, after each `write` (the label, or "could not write"), each `color` (keep) and each `undo` or `redo`. It is not a plugin dialog: ties, grace notes and every other action still dispatch with it showing (`live_write` passed with it on screen). It cannot stay up only while MuseScore is active: `Qt.application.state` stays active in the plugin engine while MuseScore is minimized (tried 2026-10-22), so it shows briefly over whatever is in front.
 
 ### 2.2 The plugin listens, the server connects
 
@@ -451,7 +451,7 @@ As built in slice 2: when step 3 fails, the last undo step was something else, s
 
 ### 6.10 Highlighting
 
-After `endCmd`, `select <startTick> <endTick> <startStaff> <endStaff>` runs `selectRange` (`api:81`) so the user sees where the idea landed. Done after the command, since inside one it is deferred (`api:81`). Not part of correctness.
+After `endCmd`, `select <startTick> <endTick> <startStaff> <endStaff>` runs `selectRange` (`api:81`) so the user sees where the idea landed. Done after the command, since inside one it is deferred (`api:81`). Not part of correctness. As built 2026-10-22 (plugin 0.24.0): there is no `select` verb; `write` itself, after `endCmd`, runs `selectRange` over the written ticks and the staves of its `v` ops, dispatches `notation-move-left` so MuseScore scrolls to the range and puts the playback cursor on the note just before it (Play then starts at the idea), and selects the range again. Undo does not restore a selection.
 
 ### 6.11 Appending bars
 
@@ -481,7 +481,7 @@ Three layouts were sketched: A extra staves, B in place, C separate tab (`notes:
 
 UX additions decided with B: the idea's notes are coloured (writable `color`, in the same undo step) and set back to black on keep, in addition to the selection of 6.10; `discard` goes through Reflets, which refuses when the bars changed since the write (6.9), so a user edit made after the idea is never undone by mistake; "next idea" is a discard plus a new write.
 
-As built in slice 2: idea notes, rests and grace notes are `#1565c0`; keep is the `keep` tool (5.2); the selection of 6.10 is not built.
+As built in slice 2: idea notes, rests and grace notes are `#1565c0`; keep is the `keep` tool (5.2); the selection of 6.10 is not built. Built 2026-10-22, plugin 0.24.0.
 
 `propose(mode="in_place")` → section 6 → the user presses Play (there is no playback API, `api:109`; the notes already assume the user presses play, `notes:184`) → keep by doing nothing, or `discard` (6.9), which is the one Ctrl+Z (`notes:146`).
 
@@ -581,3 +581,4 @@ These are the **[spike]** marks above. Each is a short experiment on the owner's
 42. **Findings on the rendered bars.** Decided 2026-10-21: `render` draws the check's findings now, with `check=True`. Original question: should render draw the check's findings on the image (rings and lines on the notes) in this first version, or show the plain engraved bars?
 43. **A fermata whose note an idea replaces.** Decided 2026-10-21, after before-and-after pictures (`Documents/MuseScore4/Scores/reflets-scrap/case11-…` to `case13-…`): it moves onto the note or rest sounding at its moment, as a syllable does (36). Original question: remove a fermata whose note is replaced (case 11), or move it onto the sounding note (case 13)?
 44. **Named or automatic checkpoints.** Decided 2026-10-21: both, a checkpoint the user names on request and an automatic one at each `keep` (6.13). Original question: should checkpoints be named by the user, made automatically at each `keep`, or both?
+45. **A visible sign in MuseScore that Reflets is working.** Decided 2026-10-22 by the owner's request: show it if it is possible without breaking writes. Built as the status toast of 2.1 and the selection of 6.10. Original request: "Try to find a way to maybe show visually that our plugin is working in MuseScore somewhere. I don't know. Maybe that's not possible."

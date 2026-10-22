@@ -1,11 +1,12 @@
 import QtQuick 2.15
 import MuseScore 3.0
 import FileIO 3.0
+import QtQuick.Window 2.15
 
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.23.0"
+    version: "0.24.0"
     requiresScore: false
 
     readonly property int proto: 23
@@ -16,6 +17,35 @@ MuseScore {
     property var symNames: null
 
     FileIO { id: tokenFile }
+
+    Window {
+        id: badge
+        title: "Reflets status"
+        width: badgeText.implicitWidth + 24
+        height: 28
+        x: Screen.width - width - 24
+        y: Screen.height - height - 72
+        flags: Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.WindowDoesNotAcceptFocus
+        color: ideaColor
+        Text {
+            id: badgeText
+            anchors.centerIn: parent
+            color: "white"
+            font.pixelSize: 13
+        }
+    }
+
+    Timer {
+        id: badgeTimer
+        interval: 6000
+        onTriggered: badge.hide()
+    }
+
+    function status(text) {
+        badgeText.text = "Reflets · " + text + " · " + Qt.formatTime(new Date(), "hh:mm")
+        badge.show()
+        badgeTimer.restart()
+    }
 
     function escapeText(s) {
         return String(s).replace(/\\/g, "\\\\").replace(/\n/g, "\\n")
@@ -1025,7 +1055,14 @@ MuseScore {
             return id + " err write-failed " + step + " " + escapeText(e)
         }
         curScore.endCmd(false)
-        curScore.selection.clear()
+        var staves = ops.filter(function(op) { return op[0] === "v" }).map(function(op) { return Math.floor(parseInt(op.split(" ")[1]) / 4) })
+        if (staves.length) {
+            var first = Math.min.apply(null, staves), last = Math.max.apply(null, staves) + 1
+            curScore.selection.selectRange(startTick, endTick, first, last)
+            cmd("notation-move-left")
+            curScore.selection.selectRange(startTick, endTick, first, last)
+        } else
+            curScore.selection.clear()
         return [id + " ok"].concat(read(startTick, endTick)).join("\n")
     }
 
@@ -1091,6 +1128,7 @@ MuseScore {
             if (f.token !== token)
                 return id + " err unauthorized token does not match the plugin's token file"
             authed[clientId] = true
+            status("Claude connected")
             return id + " ok proto=" + proto + " plugin=reflets-bridge/" + version + " mscore=" + mscoreVersion
                 + " division=" + division + " score=" + (curScore ? 1 : 0)
                 + " title=" + escapeText(curScore ? (curScore.title || curScore.scoreName) : "")
@@ -1105,16 +1143,21 @@ MuseScore {
             return [id + " ok"].concat(info()).join("\n")
         if (verb === "read")
             return [id + " ok"].concat(read(parseInt(head[2]), parseInt(head[3]))).join("\n")
-        if (verb === "write")
-            return write(id, parseInt(head[2]), parseInt(head[3]), head.slice(4).join(" "), lines.slice(1))
+        if (verb === "write") {
+            var reply = write(id, parseInt(head[2]), parseInt(head[3]), head.slice(4).join(" "), lines.slice(1))
+            status((reply.indexOf(id + " ok") === 0 ? "wrote " : "could not write ") + head.slice(4).join(" "))
+            return reply
+        }
         if (verb === "color") {
             recolor(parseInt(head[2]), parseInt(head[3]), head[4].split(",").map(Number), head[5], head.slice(6).join(" "))
+            status("kept " + head.slice(6).join(" "))
             return id + " ok"
         }
         if (verb === "export")
             return id + (writeScore(curScore, head.slice(2).join(" "), "musicxml") ? " ok" : " err export-failed writeScore returned false")
         if (verb === "undo" || verb === "redo") {
             cmd("action://notation/" + verb)
+            status(verb)
             return id + " ok"
         }
         return id + " err bad-request unknown verb " + escapeText(verb)
@@ -1141,6 +1184,7 @@ MuseScore {
         tokenFile.source = localPath(Qt.resolvedUrl("reflets-token.txt"))
         var written = tokenFile.write(token)
         api.websocketserver.listen(port, onClient)
+        status("listening")
         api.log.info("reflets-bridge " + version + ": listening on " + port + ", token file " + tokenFile.source
             + (written ? "" : " (WRITE FAILED)"))
     }
