@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import os
+import platform
 import subprocess
 from pathlib import Path
 
@@ -29,7 +30,7 @@ def token_file() -> Path:
 
 @functools.cache
 def documents() -> Path:
-    if "WSL_DISTRO_NAME" not in os.environ:
+    if "microsoft" not in platform.uname().release.lower():
         return Path.home() / "Documents"
     folder = subprocess.run(
         ["powershell.exe", "-NoProfile", "-Command", "[Environment]::GetFolderPath('MyDocuments')"], capture_output=True, text=True
