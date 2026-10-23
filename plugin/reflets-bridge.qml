@@ -6,7 +6,7 @@ import QtQuick.Window 2.15
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.24.1"
+    version: "0.24.3"
     requiresScore: false
 
     readonly property int proto: 24
@@ -21,29 +21,75 @@ MuseScore {
     Window {
         id: badge
         title: "Reflets status"
-        width: badgeText.implicitWidth + 24
-        height: 28
-        x: Screen.width - width - 24
-        y: Screen.height - height - 72
+        width: badgeRow.implicitWidth + 36
+        height: 36
+        x: (Screen.width - width) / 2
+        y: 106
         flags: Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.WindowDoesNotAcceptFocus
-        color: ideaColor
-        Text {
-            id: badgeText
-            anchors.centerIn: parent
-            color: "white"
-            font.pixelSize: 13
+        color: "transparent"
+        Rectangle {
+            id: pill
+            anchors.fill: parent
+            radius: height / 2
+            color: ideaColor
+            opacity: 0
+            Behavior on opacity { NumberAnimation { duration: 200 } }
+            Row {
+                id: badgeRow
+                anchors.centerIn: parent
+                spacing: 10
+                Rectangle {
+                    width: 6
+                    height: 6
+                    radius: 3
+                    color: "white"
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Text {
+                    text: "Reflets"
+                    color: "white"
+                    font.family: "Inter"
+                    font.pixelSize: 14
+                    font.weight: Font.DemiBold
+                }
+                Text {
+                    id: badgeText
+                    color: "white"
+                    font.family: "Inter"
+                    font.pixelSize: 14
+                }
+                Text {
+                    id: badgeTime
+                    color: "white"
+                    opacity: 0.6
+                    font.family: "Inter"
+                    font.pixelSize: 14
+                }
+            }
         }
     }
 
     Timer {
         id: badgeTimer
         interval: 6000
+        onTriggered: {
+            pill.opacity = 0
+            badgeHide.restart()
+        }
+    }
+
+    Timer {
+        id: badgeHide
+        interval: 250
         onTriggered: badge.hide()
     }
 
     function status(text) {
-        badgeText.text = "Reflets · " + text + " · " + Qt.formatTime(new Date(), "hh:mm")
+        badgeText.text = text
+        badgeTime.text = Qt.formatTime(new Date(), "hh:mm")
+        badgeHide.stop()
         badge.show()
+        pill.opacity = 1
         badgeTimer.restart()
     }
 
