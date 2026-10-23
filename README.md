@@ -19,7 +19,7 @@ Status: slices 3 and 4 done. The server reads the open score (`score_info`, `rea
 
 ## Use
 
-1. Open a score in MuseScore and run Plugins > Reflets Bridge once per session. It keeps running until MuseScore quits. A small blue pill at the top middle of the screen says "Reflets listening" when it starts, and for a few seconds after each thing Reflets does (connected, wrote an idea, kept it, undo). After each idea is written, MuseScore scrolls to it and selects it, so Play starts just before it.
+1. Open a score in MuseScore and run Plugins > Reflets Bridge once per session. It keeps running until MuseScore quits. A small blue pill at the top middle of the screen says "Reflets listening" when it starts, and for a few seconds after each thing Reflets does (connected, wrote an idea, kept it, undo). It shows only over MuseScore: if you are in another app, it waits until you switch back. After each idea is written, MuseScore scrolls to it and selects it, so Play starts just before it.
 2. Start Claude Code in this directory and ask about the score.
 
 ## Docs

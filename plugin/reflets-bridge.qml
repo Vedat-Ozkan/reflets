@@ -6,7 +6,7 @@ import QtQuick.Window 2.15
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.24.3"
+    version: "0.24.4"
     requiresScore: false
 
     readonly property int proto: 24
@@ -15,6 +15,7 @@ MuseScore {
     property string token: ""
     property var authed: ({})
     property var symNames: null
+    property bool badgeWaiting: false
 
     FileIO { id: tokenFile }
 
@@ -84,9 +85,26 @@ MuseScore {
         onTriggered: badge.hide()
     }
 
+    Connections {
+        target: Qt.application
+        function onStateChanged() {
+            if (Qt.application.state !== Qt.ApplicationActive)
+                badge.hide()
+            else if (badgeWaiting)
+                showBadge()
+        }
+    }
+
     function status(text) {
         badgeText.text = text
         badgeTime.text = Qt.formatTime(new Date(), "hh:mm")
+        badgeWaiting = Qt.application.state !== Qt.ApplicationActive
+        if (!badgeWaiting)
+            showBadge()
+    }
+
+    function showBadge() {
+        badgeWaiting = false
         badgeHide.stop()
         badge.show()
         pill.opacity = 1
