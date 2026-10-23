@@ -1624,7 +1624,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "mcp", specifier = ">=2.2" },
-    { name = "sheet-music-analysis", editable = "../sheet-music-engine" },
+    { name = "sheet-music-analysis", git = "https://github.com/Vedat-Ozkan/sheet-music-analysis?tag=v0.1.0" },
     { name = "websockets", specifier = ">=13" },
 ]
 
@@ -1848,8 +1848,8 @@ wheels = [
 
 [[package]]
 name = "sheet-music-analysis"
-version = "0.0.1"
-source = { editable = "../sheet-music-engine" }
+version = "0.1.0"
+source = { git = "https://github.com/Vedat-Ozkan/sheet-music-analysis?tag=v0.1.0#7a8e03b24cb04d864333637ace2850d6c7fbee96" }
 dependencies = [
     { name = "fonttools" },
     { name = "music21" },
@@ -1857,34 +1857,6 @@ dependencies = [
     { name = "pydantic" },
     { name = "resvg-py" },
     { name = "verovio" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "cairosvg", marker = "extra == 'pdf'", specifier = ">=2.7" },
-    { name = "fonttools", specifier = ">=4.50" },
-    { name = "music21", specifier = ">=10.5" },
-    { name = "pikepdf", marker = "extra == 'pdf'", specifier = ">=9" },
-    { name = "pillow", specifier = ">=11" },
-    { name = "pydantic", specifier = ">=2.8" },
-    { name = "resvg-py", specifier = ">=0.5" },
-    { name = "verovio", specifier = ">=6.3" },
-]
-provides-extras = ["pdf"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pypdf", specifier = ">=5" },
-    { name = "pytest", specifier = ">=8" },
-]
-server = [
-    { name = "cairosvg", specifier = ">=2.7" },
-    { name = "google-cloud-storage", specifier = ">=3.16.0" },
-    { name = "httpx", specifier = ">=0.28" },
-    { name = "mcp", specifier = ">=2.2" },
-    { name = "pikepdf", specifier = ">=9" },
-    { name = "python-multipart", specifier = ">=0.0.20" },
-    { name = "uvicorn", specifier = ">=0.30" },
 ]
 
 [[package]]

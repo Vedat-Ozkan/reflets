@@ -8,7 +8,7 @@ Status: slices 3 and 4 done. The server reads the open score (`score_info`, `rea
 
 - MuseScore Studio 4.7 or later
 - Python 3.11+ and [uv](https://docs.astral.sh/uv/)
-- The engine from `sheet-music-plugin`, as a worktree of its `main` next to this repository: `git -C ../sheet-music-plugin worktree add --detach ../sheet-music-engine main` (see `[tool.uv.sources]` in `pyproject.toml`). To take newer engine changes: `git -C ../sheet-music-engine switch --detach main`, then `uv sync`.
+- Git, for the engine: `uv sync` installs it from [sheet-music-analysis](https://github.com/Vedat-Ozkan/sheet-music-analysis) at the tag `[tool.uv.sources]` in `pyproject.toml` names.
 - Optional, for the harmony draft in `analyze`: the AnalysisGNN environment and checkpoint from `sheet-music-plugin` (`.venv-agnn`, `artifacts/models/model.ckpt`; see its README), named by `ANALYSISGNN_PYTHON` and `ANALYSISGNN_CHECKPOINT` in `.mcp.json`. Without them `analyze` gives the notes table only.
 
 ## Install

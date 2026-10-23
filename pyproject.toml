@@ -23,6 +23,5 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["reflets"]
 
-# During development the engine comes from a worktree of sheet-music-plugin's main (spec open question 1; README).
 [tool.uv.sources]
-sheet-music-analysis = { path = "../sheet-music-engine", editable = true }
+sheet-music-analysis = { git = "https://github.com/Vedat-Ozkan/sheet-music-analysis", tag = "v0.1.0" }
