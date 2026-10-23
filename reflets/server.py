@@ -3,7 +3,10 @@ from __future__ import annotations
 import asyncio
 import itertools
 import json
+import os
 import re
+import shutil
+import sys
 import tempfile
 import uuid
 from dataclasses import asdict, dataclass
@@ -718,8 +721,10 @@ async def doctor() -> str:
     token = token_file()
     check(token.exists(), f"Token file {token}." if token.exists() else f"No token file at {token}: run Plugins > Reflets Bridge, or {where}.")
     model = Path(draft.ANALYSISGNN_PYTHON).exists() and Path(draft.ANALYSISGNN_CHECKPOINT).exists()
+    named = "ANALYSISGNN_PYTHON" in os.environ or "ANALYSISGNN_CHECKPOINT" in os.environ
+    where = f"at {draft.ANALYSISGNN_PYTHON} and {draft.ANALYSISGNN_CHECKPOINT}" if named else "(ANALYSISGNN_PYTHON and ANALYSISGNN_CHECKPOINT are not set)"
     checks.append(f"PASS AnalysisGNN model {draft.ANALYSISGNN_CHECKPOINT}." if model else (
-        f"NOTE No AnalysisGNN model at {draft.ANALYSISGNN_PYTHON} and {draft.ANALYSISGNN_CHECKPOINT}: analyze gives the "
+        f"NOTE No AnalysisGNN model {where}: analyze gives the "
         "notes table without a harmony draft. Set ANALYSISGNN_PYTHON and ANALYSISGNN_CHECKPOINT to install it."
     ))
     host, port = bridge.url.removeprefix("ws://").rsplit(":", 1)
@@ -747,8 +752,21 @@ async def doctor() -> str:
     return "\n".join(checks)
 
 
+def install_plugin() -> None:
+    here = Path(__file__).parent
+    plugin = next(path for path in (here / "reflets-bridge.qml", here.parent / "plugin" / "reflets-bridge.qml") if path.exists())
+    folder = token_file().parent
+    folder.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(plugin, folder / plugin.name)
+    print(f"Copied the Reflets Bridge plugin to {folder}. In MuseScore, enable Reflets Bridge under Home > Plugins, "
+          "then open a score and run Plugins > Reflets Bridge.")
+
+
 def main() -> None:
-    mcp.run("stdio")
+    if sys.argv[1:] == ["install-plugin"]:
+        install_plugin()
+    else:
+        mcp.run("stdio")
 
 
 if __name__ == "__main__":

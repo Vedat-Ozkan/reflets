@@ -1608,7 +1608,7 @@ wheels = [
 
 [[package]]
 name = "reflets"
-version = "0.3.0"
+version = "0.3.1"
 source = { editable = "." }
 dependencies = [
     { name = "mcp" },
@@ -1624,7 +1624,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "mcp", specifier = ">=2.2" },
-    { name = "sheet-music-analysis", git = "https://github.com/Vedat-Ozkan/sheet-music-analysis?tag=v0.1.0" },
+    { name = "sheet-music-analysis", git = "https://github.com/Vedat-Ozkan/sheet-music-analysis?rev=v0.1.0" },
     { name = "websockets", specifier = ">=13" },
 ]
 
@@ -1849,7 +1849,7 @@ wheels = [
 [[package]]
 name = "sheet-music-analysis"
 version = "0.1.0"
-source = { git = "https://github.com/Vedat-Ozkan/sheet-music-analysis?tag=v0.1.0#7a8e03b24cb04d864333637ace2850d6c7fbee96" }
+source = { git = "https://github.com/Vedat-Ozkan/sheet-music-analysis?rev=v0.1.0#7a8e03b24cb04d864333637ace2850d6c7fbee96" }
 dependencies = [
     { name = "fonttools" },
     { name = "music21" },

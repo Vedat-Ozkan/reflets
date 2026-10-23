@@ -42,11 +42,15 @@ async def main() -> None:
     else:
         del os.environ["REFLETS_TOKEN_FILE"]
 
-    python = draft.ANALYSISGNN_PYTHON
-    draft.ANALYSISGNN_PYTHON = "/nonexistent/python"
+    python, named = draft.ANALYSISGNN_PYTHON, os.environ.get("ANALYSISGNN_PYTHON")
+    draft.ANALYSISGNN_PYTHON = os.environ["ANALYSISGNN_PYTHON"] = "/nonexistent/python"
     report = await server.doctor()
     check("a missing model is a note, not a failure", "NOTE No AnalysisGNN model at /nonexistent/python" in report and "FAIL" not in report, report)
     draft.ANALYSISGNN_PYTHON = python
+    if named is None:
+        del os.environ["ANALYSISGNN_PYTHON"]
+    else:
+        os.environ["ANALYSISGNN_PYTHON"] = named
 
     os.environ["REFLETS_PORT"] = "8739"
     server.bridge = Bridge()

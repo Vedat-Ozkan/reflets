@@ -30,11 +30,14 @@ def token_file() -> Path:
 
 @functools.cache
 def documents() -> Path:
-    if "microsoft" not in platform.uname().release.lower():
+    wsl = "microsoft" in platform.uname().release.lower()
+    if os.name != "nt" and not wsl:
         return Path.home() / "Documents"
     folder = subprocess.run(
         ["powershell.exe", "-NoProfile", "-Command", "[Environment]::GetFolderPath('MyDocuments')"], capture_output=True, text=True
     ).stdout.strip()
+    if not wsl:
+        return Path(folder)
     return Path(subprocess.run(["wslpath", "-u", folder], capture_output=True, text=True).stdout.strip())
 
 
