@@ -6,7 +6,7 @@ import QtQuick.Window 2.15
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.24.4"
+    version: "0.24.6"
     requiresScore: false
 
     readonly property int proto: 24
@@ -16,21 +16,27 @@ MuseScore {
     property var authed: ({})
     property var symNames: null
     property bool badgeWaiting: false
+    property bool badgeInMain: false
 
     FileIO { id: tokenFile }
 
     Window {
         id: badge
         title: "Reflets status"
-        width: badgeRow.implicitWidth + 36
-        height: 36
+        width: pill.width
+        height: pill.height
         x: (Screen.width - width) / 2
         y: 106
         flags: Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.WindowDoesNotAcceptFocus
         color: "transparent"
         Rectangle {
             id: pill
-            anchors.fill: parent
+            width: badgeRow.implicitWidth + 36
+            height: 36
+            x: (parent.width - width) / 2
+            y: badgeInMain ? 106 : 0
+            z: 1000000
+            visible: opacity > 0
             radius: height / 2
             color: ideaColor
             opacity: 0
@@ -88,9 +94,10 @@ MuseScore {
     Connections {
         target: Qt.application
         function onStateChanged() {
-            if (Qt.application.state !== Qt.ApplicationActive)
+            if (Qt.application.state !== Qt.ApplicationActive) {
+                pill.opacity = 0
                 badge.hide()
-            else if (badgeWaiting)
+            } else if (badgeWaiting)
                 showBadge()
         }
     }
@@ -106,7 +113,8 @@ MuseScore {
     function showBadge() {
         badgeWaiting = false
         badgeHide.stop()
-        badge.show()
+        if (!badgeInMain)
+            badge.show()
         pill.opacity = 1
         badgeTimer.restart()
     }
@@ -1263,6 +1271,10 @@ MuseScore {
         tokenFile.source = localPath(Qt.resolvedUrl("reflets-token.txt"))
         var written = tokenFile.write(token)
         api.websocketserver.listen(port, onClient)
+        if (typeof ui !== "undefined" && ui && ui.rootItem) {
+            pill.parent = ui.rootItem
+            badgeInMain = true
+        }
         status("listening")
         api.log.info("reflets-bridge " + version + ": listening on " + port + ", token file " + tokenFile.source
             + (written ? "" : " (WRITE FAILED)"))
