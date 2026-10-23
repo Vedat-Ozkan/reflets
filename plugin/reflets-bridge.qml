@@ -6,7 +6,7 @@ import QtQuick.Window 2.15
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.24.0"
+    version: "0.24.1"
     requiresScore: false
 
     readonly property int proto: 24
@@ -622,9 +622,14 @@ MuseScore {
         if (track2 !== track)
             el.spannerTrack2 = track2
         var c = curScore.newCursor()
+        c.filter = Segment.EndBarLine
         c.track = track - track % 4
-        c.rewindToTick(measureStart(tick))
+        c.rewind(Cursor.SCORE_START)
+        while (c.segment && c.tick <= tick)
+            c.next()
         c.track = track
+        if (!c.segment)
+            throw "no bar line at the end of the bar at tick " + tick
         c.add(el)
         el.color = ideaColor
     }
