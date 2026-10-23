@@ -390,7 +390,8 @@ async def write_idea(idea: str, label: str, replace: bool, recast: bool = False,
         except (n1x.DecodeError, ValueError):
             past = 0
         if past > 0:
-            info = appended(info, past, division)
+            closing = info.bars[-1].user_barline_type if info.bars[-1].user_barline_type not in n1x.REPEAT_BARLINES else None
+            info = appended(info, past, division, closing)
             numbers = [measure.number for measure in info.measures]
         start_tick, end_tick = idea_range(idea, info)
         original = pre = await request(f"read {start_tick} {end_tick}")
@@ -414,7 +415,7 @@ async def write_idea(idea: str, label: str, replace: bool, recast: bool = False,
         plan.ops[0:0] = view.ops
         plan.meters = dict.fromkeys(view.positions, view.meter)
     if past > 0:
-        plan.ops.insert(0, f"m {past}")
+        plan.ops[0:0] = [f"m {past}"] + ([] if info.bars[-past - 1].repeat_end else [f"b {info.ticks[-past - 1]} bar 1"]) + ([f"b {info.ticks[-1]} bar {closing}"] if closing else [])
     taken = occupied(plan, cells(pre, info))
     if taken and not replace:
         where = ", ".join(f"bar {numbers[p]} {t // 4 + 1}.{t % 4 + 1}" for p, t in taken)

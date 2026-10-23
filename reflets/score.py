@@ -79,7 +79,7 @@ class ScoreInfo:
     lyrics: dict[tuple[int, int, int], dict[Fraction, dict[int, tuple[str, bool] | None]]] = field(default_factory=dict)
 
 
-def appended(info: ScoreInfo, count: int, division: int) -> ScoreInfo:
+def appended(info: ScoreInfo, count: int, division: int, closing: int | None) -> ScoreInfo:
     last = info.measures[-1]
     length = 4 * Fraction(last.meter)
     measures, ticks, lengths, bars = list(info.measures), list(info.ticks), list(info.lengths), list(info.bars)
@@ -90,6 +90,9 @@ def appended(info: ScoreInfo, count: int, division: int) -> ScoreInfo:
         lengths.append(length)
         bars.append(Bar())
         end += int(length * division)
+    if closing:
+        bars[len(info.bars) - 1] = replace(bars[len(info.bars) - 1], user_barline_type=None)
+        bars[-1] = replace(bars[-1], user_barline_type=closing)
     return replace(info, measures=measures, ticks=ticks, lengths=lengths, bars=bars)
 
 
