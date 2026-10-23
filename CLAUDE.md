@@ -12,7 +12,7 @@ MCP server (`reflets/`, Python) plus a MuseScore bridge plugin (`plugin/reflets-
 - `reflets/server.py`: MCP tools
 - `plugin/reflets-bridge.qml`: the bridge, a macro plugin with no dialog (spec 2.1)
 - `tests/live_write.py`: end-to-end check of the write path against a live MuseScore with the nocturne open
-- `tests/live_roundtrip.py`: writes every bar of whatever score is open, in the shortest range whose lines close in it, as read, with every mark, decoration and line that closes in the range removed and every lyric line emptied, and as read again, checking each read-back and the discard
+- `tests/live_roundtrip.py`: writes every bar of whatever score is open, in the shortest range whose lines close in it, as read, with every mark, decoration and line that closes in the range removed and every lyric line emptied, and as read again, checking each read-back and the discard, and that stem directions and beam modes stay as read
 - `tests/live_recast.py`: end-to-end check of recasting bars in a longer and a shorter meter (`recast=True`) against a live MuseScore with `tests/data/recast.musicxml` open (as an import)
 - `tests/live_doctor.py`: end-to-end check of `doctor` against a live MuseScore running the bridge, plus a wrong plugin folder, a missing harmony model, a plugin file of another protocol, a closed port and another server on the port
 - `tests/live_check.py`: end-to-end check of `check` against a live MuseScore, by the open score's title: `tests/data/part_writing_motion.musicxml` (planted errors), `tests/data/bwv66.6.musicxml` (a chorale with a pickup), or any other score, where the rules must say they do not apply; each opened as an import

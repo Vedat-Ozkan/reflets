@@ -15,6 +15,10 @@ def check(name: str, ok: bool, detail: str = "") -> None:
         failures.append(name)
 
 
+def looks(lines: list[str]) -> list[tuple[str, ...]]:
+    return sorted(tuple(line.split()[1:3] + [word for word in line.split()[4:-1] if word[0] in "SB"]) for line in lines if line.startswith("C "))
+
+
 def proposal(result: str) -> str:
     return re.search(r"proposal id: (p\d+)", result)[1]
 
@@ -35,6 +39,7 @@ async def main() -> None:
     start, whole = await server.read_score(str(bar)), await server.read_score("all")
     span = f"read {info.ticks[1]} {info.ticks[2]}"
     rests = sorted(line for line in await server.request(span) if line.startswith("R "))
+    drawn = looks(await server.request(span))
     number = int(re.search(r"Checkpoint (\d+)", await server.checkpoint("restore test"))[1])
     idea = f"N1x div=4\nm{bar} len={length}\n1.1: !ff\n1.2: {length // 2} ( C5[stacc] D5 )\n1.2 L1: la la"
     await server.keep(proposal(await server.propose(idea, "restore test", replace=True)))
@@ -57,6 +62,12 @@ async def main() -> None:
     check("a kept restore of every bar leaves the score as at the checkpoint", await server.read_score("all") == whole)
     again = await server.restore(number, str(bar))
     check("restoring bars already as at the checkpoint changes nothing", "already" in again, again)
+    try:
+        await server.keep(proposal(await server.propose(f"N1x div=4\nm{bar} len={length}\n1.1: {length} r", "restore test", replace=True)))
+        await server.keep(proposal(await server.restore(number, str(bar))))
+        check("restore brings back the stem directions and beam modes the checkpoint has", looks(await server.request(span)) == drawn and await server.read_score(str(bar)) == start, f"{drawn}\n{looks(await server.request(span))}")
+    except ToolError as error:
+        print(f"SKIP stem directions and beam modes: {error}")
     error = await refused(server.restore(999, str(bar)))
     check("an unknown checkpoint is refused with the list", "no checkpoint 999" in error and '"restore test"' in error, error)
     for path in set(folder.glob("*")) - saved:

@@ -190,6 +190,16 @@ async def main() -> None:
     check("a write failing before any change reports write-failed", "write-failed" in error, error)
     check("a failed write leaves no undo step, so the idea before it discards", "Discarded" in await server.discard(earlier))
     await unchanged("after the failed write")
+
+    count = len((await server.load_info()).measures)
+    last = (await server.load_info()).measures[-1].number
+    written = proposal(await server.propose(f"N1x div=4\nm{last + 2} len=24\n1.1: 12 C5 E5", "past the end"))
+    grown = await server.load_info()
+    line = next(line for line in (await server.read_score(str(last + 2))).splitlines() if line.startswith("1.1:"))
+    check("an idea past the last bar appends the bars it needs", len(grown.measures) == count + 2 and line.split()[-2:] == ["C5", "E5"], line)
+    await server.discard(written)
+    check("discarding it removes the appended bars", len((await server.load_info()).measures) == count)
+    await unchanged("after the appended bars")
     for path in set(folder.glob("*")) - saved:
         path.unlink()
     sys.exit(1 if failures else 0)

@@ -5,7 +5,8 @@ it is read and written three times with propose: back as read, which must change
 decoration and bar field but the meter and key, which must remove them all; then as read again, which must bring them
 back. Each write is checked and the score must be as it was after the discards. The bare write empties every lyric
 line. Glissandos cannot be created through the plugin API, so they are left out of the comparison and removed
-explicitly ([-gliss]). A range with another element the plugin API cannot create is refused and skipped.
+explicitly ([-gliss]). Stem directions and beam modes, which N1x does not show, must stay as read. A range with
+another element the plugin API cannot create is refused and skipped.
 
     REFLETS_TOKEN_FILE=... uv run python tests/live_roundtrip.py
 """
@@ -32,6 +33,10 @@ def as_read(word: str) -> str:
     return re.sub(r"(?<=[\[,])(gliss[\w-]*)", r"-\1", word) if not word.startswith("g") else word
 
 
+def looks(lines: list[str]) -> list[tuple[str, ...]]:
+    return sorted(tuple(line.split()[1:3] + [word for word in line.split()[4:-1] if word[0] in "SB"]) for line in lines if line.startswith("C "))
+
+
 def bare(text: str) -> list[str]:
     left = []
     for bar in n1x.decode(text).bars:
@@ -47,13 +52,17 @@ def bare(text: str) -> list[str]:
 
 async def main() -> None:
     start = await server.read_score("all")
-    numbers = [measure.number for measure in (await server.load_info()).measures]
+    info = await server.load_info()
+    numbers = [measure.number for measure in info.measures]
     failures = []
     for first, number in enumerate(numbers):
         for last in numbers[first:]:
             bars = f"{number}-{last}"
             text = await server.read_score(bars)
             header, lines = text.splitlines()[0], writable(text)
+            last_index = numbers.index(last)
+            span = f"read {info.ticks[first]} {info.ticks[last_index + 1] if last_index + 1 < len(info.ticks) else 2**31 - 1}"
+            drawn = looks(await server.request(span))
             try:
                 same = await server.propose(idea(body(text), header, as_read), f"bars {bars} as read", replace=True)
             except ToolError as error:
@@ -68,11 +77,15 @@ async def main() -> None:
             try:
                 if writable(await server.read_score(bars)) != lines:
                     failures.append(f"bars {bars} changed when written back as read")
+                if looks(await server.request(span)) != drawn:
+                    failures.append(f"bars {bars}: stem directions or beam modes changed when written back as read")
                 written.append(await server.propose(bare_idea(lines, header), f"bars {bars} bare", replace=True))
                 left = [item for item in bare(await server.read_score(bars)) if not n1x.is_line(item.split(": ", 1)[1])]
                 if left:
                     failures.append(f"bars {bars}: the minuses left {left}")
                 written.append(await server.propose("\n".join([header, *lines]), f"bars {bars} restored", replace=True))
+                if looks(await server.request(span)) != drawn:
+                    failures.append(f"bars {bars}: stem directions or beam modes did not come back")
                 if writable(await server.read_score(bars)) != lines:
                     failures.append(f"bars {bars} did not come back:\n  {lines}\n  {writable(await server.read_score(bars))}")
             except ToolError as error:

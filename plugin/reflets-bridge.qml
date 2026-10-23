@@ -656,6 +656,14 @@ MuseScore {
             chord.staffMove = parseInt(value)
             return
         }
+        if (what === "stem") {
+            chord.stemDirection = parseInt(value)
+            return
+        }
+        if (what === "beam") {
+            chord.beamMode = parseInt(value)
+            return
+        }
         var el
         if (what === "art") {
             el = newElement(value.indexOf("ornament") === 0 ? Element.ORNAMENT : Element.ARTICULATION)
@@ -945,6 +953,8 @@ MuseScore {
                     c.addRest()
                     if (w.length > 1)
                         rests.push([track, parseInt(w[1])])
+                } else if (w[0] === "m") {
+                    curScore.appendMeasures(parseInt(w[1]))
                 } else if (w[0] === "x") {
                     changed = clearVoice(parseInt(w[1]), parseInt(w[2]), parseInt(w[3]), w[4] === "1") || changed
                 } else if (w[0] === "t") {

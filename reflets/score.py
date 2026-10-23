@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import bisect
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from fractions import Fraction
 
 from engine.score import Event, Measure, ScoreIndex, beat_length
@@ -77,6 +77,20 @@ class ScoreInfo:
     details: dict[str, tuple[list[str], list[str]]] = field(default_factory=dict)
     tuplets: dict[tuple[int, int, int], list[tuple[Fraction, Fraction, str]]] = field(default_factory=dict)
     lyrics: dict[tuple[int, int, int], dict[Fraction, dict[int, tuple[str, bool] | None]]] = field(default_factory=dict)
+
+
+def appended(info: ScoreInfo, count: int, division: int) -> ScoreInfo:
+    last = info.measures[-1]
+    length = 4 * Fraction(last.meter)
+    measures, ticks, lengths, bars = list(info.measures), list(info.ticks), list(info.lengths), list(info.bars)
+    end = ticks[-1] + int(lengths[-1] * division)
+    for _ in range(count):
+        measures.append(replace(last, id=f"m{len(measures) + 1}", number=measures[-1].number + 1, index=len(measures) + 1, declared_length=length))
+        ticks.append(end)
+        lengths.append(length)
+        bars.append(Bar())
+        end += int(length * division)
+    return replace(info, measures=measures, ticks=ticks, lengths=lengths, bars=bars)
 
 
 def parse_info(lines: list[str]) -> ScoreInfo:

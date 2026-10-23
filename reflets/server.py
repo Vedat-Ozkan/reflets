@@ -22,7 +22,7 @@ from mcp.types import ToolAnnotations
 from reflets import n1x
 from reflets.restore import bare_idea, body, marks, target_idea, writable
 from reflets.bridge import NOT_RUNNING, PROTO, Bridge, BridgeError, token_file
-from reflets.score import ScoreInfo, build_index, parse_info
+from reflets.score import ScoreInfo, appended, build_index, parse_info
 from reflets.write import (
     IdeaError,
     add_lines,
@@ -357,6 +357,7 @@ def writes(title: str, destructive: bool) -> ToolAnnotations:
         "under a voice line sets that verse in the bar, one syllable per note as read_score shows it, with '_' holding the "
         "syllable before and '*' a note without one; an empty one ('1.1 L1:') removes the verse there. To change only "
         "the lyrics, write the voice line empty ('1.1:') with the lyric line under it. "
+        "An idea may go past the last bar: the bars it needs are appended in the same undo step. "
         "replace=True is needed when a voice you write already has "
         "notes there. recast=True, only when the user asks to recast music in a meter of another length (4/4 triplets as "
         "12/8, say), rewrites bars in a new meter bar for bar: the idea's first bar has the new ts=, and it writes each "
@@ -371,13 +372,26 @@ def writes(title: str, destructive: bool) -> ToolAnnotations:
     structured_output=False,
 )
 async def propose(idea: str, label: str = "idea", replace: bool = False, recast: bool = False) -> str:
+    return await write_idea(idea, label, replace, recast)
+
+
+async def write_idea(idea: str, label: str, replace: bool, recast: bool = False, drawn: list[str] = ()) -> str:
     info = await load_info()
     division = int(bridge.hello["division"])
     staves = max(staff for _, part_staves in info.parts for staff in part_staves)
     numbers = [measure.number for measure in info.measures]
     try:
+        try:
+            past = max(bar.number for bar in n1x.decode(idea).bars) - numbers[-1] if not recast else 0
+        except (n1x.DecodeError, ValueError):
+            past = 0
+        if past > 0:
+            info = appended(info, past, division)
+            numbers = [measure.number for measure in info.measures]
         start_tick, end_tick = idea_range(idea, info)
         original = pre = await request(f"read {start_tick} {end_tick}")
+        if past > 0:
+            pre = pre + [f"R {info.ticks[p]} {staff * 4} {info.lengths[p] / 4}" for p in range(len(info.ticks) - past, len(info.ticks)) if info.ticks[p] >= start_tick for staff in range(staves)]
         view = recast_view(idea, info, pre, division) if recast else None
         if view:
             reach = meter_reach(info, view.positions[-1])
@@ -386,13 +400,15 @@ async def propose(idea: str, label: str = "idea", replace: bool = False, recast:
         else:
             span = meter_span(idea, info)
         later = await request(f"read {span[0]} {span[1]}") if span else []
-        plan = compile_idea(idea, info, division, staves, pre, later, view.positions if view else range(0))
+        plan = compile_idea(idea, info, division, staves, pre, later, view.positions if view else range(0), drawn)
         add_lines(plan, pre, info)
     except IdeaError as error:
         raise ToolError(str(error)) from None
     if view:
         plan.ops[0:0] = view.ops
         plan.meters = dict.fromkeys(view.positions, view.meter)
+    if past > 0:
+        plan.ops.insert(0, f"m {past}")
     taken = occupied(plan, cells(pre, info))
     if taken and not replace:
         where = ", ".join(f"bar {numbers[p]} {t // 4 + 1}.{t % 4 + 1}" for p, t in taken)
@@ -420,6 +436,9 @@ async def propose(idea: str, label: str = "idea", replace: bool = False, recast:
     voices = ", ".join(f"{t // 4 + 1}.{t % 4 + 1}" for t in tracks)
     cut = sorted(set(cut) | plan.cut_ties)
     note = f" The tie into or out of bar(s) {', '.join(map(str, cut))} was cut, as the idea replaced its note." if cut else ""
+    if past > 0:
+        added = f"Bar {numbers[-1]} was" if past == 1 else f"Bars {numbers[-past]}-{numbers[-1]} were"
+        note += f" {added} added at the end of the score; discard removes {'it' if past == 1 else 'them'} again."
     if plan.dropped:
         note += f" These syllables had no note left and were removed: {'; '.join(plan.dropped)}."
     if plan.dropped_marks:
@@ -431,6 +450,16 @@ async def propose(idea: str, label: str = "idea", replace: bool = False, recast:
         f"The new notes are blue. The user listens with Play in MuseScore; then keep(\"{proposal_id}\") turns them "
         f"black, or discard(\"{proposal_id}\") removes them.\nproposal id: {proposal_id}"
     )
+
+
+def moved(lines: list[str], then: ScoreInfo, now: ScoreInfo, first: int, last: int) -> list[str]:
+    result, numbers, then_numbers = [], [m.number for m in now.measures], [m.number for m in then.measures]
+    for number in numbers[numbers.index(first) : numbers.index(last) + 1]:
+        position, then_position = numbers.index(number), then_numbers.index(number)
+        start, end = then.ticks[then_position], then.ticks[then_position] + then.lengths[then_position] * int(bridge.hello["division"])
+        bar = [line for line in lines if line.startswith("C ") and start <= int(line.split(" ")[1]) < end]
+        result += shifted(bar, now.ticks[position] - start)
+    return result
 
 
 def shifted(lines: list[str], delta: int) -> list[str]:
@@ -627,7 +656,7 @@ async def restore(checkpoint: int, bars: str) -> str:
     label = f"restore {checkpoint}"
     cleared = re.search(r"proposal id: (p\d+)", await propose(bare_idea(body(now), now.splitlines()[0], marks(writable(then), then.splitlines()[0])), label, replace=True))[1]
     try:
-        result = await propose(target_idea(body(now), writable(then), then.splitlines()[0]), label, replace=True)
+        result = await write_idea(target_idea(body(now), writable(then), then.splitlines()[0]), label, True, drawn=moved(saved["read"], then_info, info, first, last))
     except ToolError as error:
         await discard(cleared)
         raise ToolError(f"Bars {first}-{last} could not be restored, and nothing changed: {error}") from None

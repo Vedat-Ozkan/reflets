@@ -389,6 +389,16 @@ def old_chords(pre: list[str], info: ScoreInfo, division: int, first: int, last:
     return result
 
 
+def old_looks(pre: list[str]) -> dict[tuple[int, int], tuple[str, list[str]]]:
+    result = {}
+    for line in pre:
+        words = line.split()
+        if words[0] == "C" and not any(word.startswith("G") for word in words[4:-1]):
+            looks = [f"stem {word[1:]}" if word[0] == "S" else f"beam {word[1:]}" for word in words[4:-1] if word[0] in "SB"]
+            result[(int(words[2]), int(words[1]))] = (words[3], looks)
+    return result
+
+
 def match_marks(old: list[OldMark], entries: list[tuple[Fraction, str, bool]], where: str) -> tuple[list[OldMark], list[tuple[Fraction, str, bool]], list[OldMark]]:
     pool, removed = list(old), []
     for onset, token, removal in entries:
@@ -476,7 +486,7 @@ def current_fields(info: ScoreInfo, position: int) -> dict[str, str]:
     return fields
 
 
-def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: list[str], later: list[str] = (), recast: range = range(0)) -> Plan:
+def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: list[str], later: list[str] = (), recast: range = range(0), drawn: list[str] = ()) -> Plan:
     try:
         idea = n1x.decode(text)
     except n1x.DecodeError as error:
@@ -489,6 +499,7 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
     idea_range(text, info)
     written_bars = sorted(numbers.index(bar.number) for bar in idea.bars)
     olds = old_marks(pre, info, division)
+    looks = {} if recast else old_looks(pre) | old_looks(drawn)
     old_notes = old_chords([line for line in pre if line[0] in "CR"] if recast else pre, info, division, numbers[written_bars[0]], numbers[written_bars[-1]]) if written_bars else {}
     ops, graces, ties, clears, marks, decorations, removals, field_ops, meter_ops, empties = [], [], [], [], [], [], [], [], [], []
     voltas: dict[int, str] = {}
@@ -672,6 +683,9 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
                                 plan.grace_ticks.add((track, tick))
                                 grace_notes += len(grace.notes)
                         ops.append(f"n {tick} " + ",".join(f"{pitch}:{tpc}" for pitch, tpc, _ in pitches))
+                        duration_text, look = looks.get((track, tick), ("", []))
+                        if duration_text == f"{chunk.numerator}/{chunk.denominator}":
+                            decorations += [f"e {track} {tick} - {kind}" for kind in look]
                         last = number == len(chunks) - 1
                         voices.setdefault(track, []).append((tick, chunk / scale, [(p, t, tie if last else True) for p, t, tie in pitches], cell))
                     cursor += chunk * 4 / scale
