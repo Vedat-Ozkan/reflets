@@ -9,7 +9,7 @@ MuseScore {
     version: "0.24.0"
     requiresScore: false
 
-    readonly property int proto: 23
+    readonly property int proto: 24
     readonly property int port: 8731
     readonly property string ideaColor: "#1565c0"
     property string token: ""
