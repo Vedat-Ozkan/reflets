@@ -1,0 +1,1701 @@
+{
+ "model": "claude-sonnet-5-5",
+ "results": [
+  {
+   "id": "chorale-1",
+   "score": "chorale",
+   "kind": "start",
+   "question": "In bar 4, voice 3.1 (staff 3, voice 1), which notes start exactly at beat 1? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "B3"
+   ],
+   "effort": "low",
+   "answer": [
+    "B3"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "4"
+   ],
+   "output_tokens": 221,
+   "stop": "end_turn",
+   "reply": "Voice 3.1 in bar 4 has these notes in order. The bar has div=2, so a quarter note is 2 divs.\n\n- B3 (2 divs) starts at beat 1.\n- B3 (2 divs) starts at beat 2.\n- B3 (1 div) starts at beat 3.\n- A3 (1 div) starts at beat 3.5.\n- G#3 (2 divs) starts at beat 4.\n\nThe only note that starts exactly at beat 1 is B3.\n\n{\"answer\": [\"B3\"]}"
+  },
+  {
+   "id": "chorale-2",
+   "score": "chorale",
+   "kind": "start",
+   "question": "In bar 4, voice 2.1 (staff 2, voice 1), which notes start exactly at beat 3? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "D#4"
+   ],
+   "effort": "low",
+   "answer": [
+    "D#4"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "4"
+   ],
+   "output_tokens": 275,
+   "stop": "end_turn",
+   "reply": "In bar 4, voice 2.1 has four notes, each lasting 2 divs (one quarter note): F#4 on beat 1, E4 on beat 2, D#4 on beat 3 and C#4 on beat 4. The note that starts exactly on beat 3 is D#4.\n\n{\"answer\": [\"D#4\"]}"
+  },
+  {
+   "id": "chorale-3",
+   "score": "chorale",
+   "kind": "start",
+   "question": "In bar 1, voice 1.1 (staff 1, voice 1), which notes start exactly at beat 4? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "E5"
+   ],
+   "effort": "low",
+   "answer": [
+    "E5"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "1"
+   ],
+   "output_tokens": 167,
+   "stop": "end_turn",
+   "reply": "Bar 1, voice 1.1, has div=2, so each quarter note is 2 units. The notes in order are A4 at beat 1, B4 at beat 2, C#5 at beat 3 and E5 at beat 4. Beat 4 therefore starts at offset 6, and E5 is the only note that starts there.\n\n{\"answer\": [\"E5\"]}"
+  },
+  {
+   "id": "chorale-4",
+   "score": "chorale",
+   "kind": "sound",
+   "question": "In bar 3, voice 2.1 (staff 2, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 2.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "E#4"
+   ],
+   "effort": "low",
+   "answer": [
+    "E#4"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "3"
+   ],
+   "output_tokens": 489,
+   "stop": "end_turn",
+   "reply": " is in 4/4 with div=2, so each quarter note is 2 units:\n\n- F#4 lasts 1 unit and starts at offset 0.\n- G#4 lasts 1 unit and starts at offset 1.\n- E#4 lasts 2 units and starts at offset 2, which is beat 2.\n- C#4 lasts 2 units and starts at offset 4.\n- F#4 lasts 2 units and starts at offset 6.\n\nBeat 2.5 is offset 3. E#4 covers offsets 2 to 4, so it is the only note sounding then.\n\n{\"answer\": [\"E#4\"]}"
+  },
+  {
+   "id": "chorale-5",
+   "score": "chorale",
+   "kind": "lowest",
+   "question": "In bar 1, voice 1.1 (staff 1, voice 1), which is the lowest note? Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "A4"
+   ],
+   "effort": "low",
+   "answer": [
+    "A4"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "1"
+   ],
+   "output_tokens": 103,
+   "stop": "end_turn",
+   "reply": "Bar 1, voice 1.1 has the notes A4, B4, C#5 and E5. A4 is the lowest.\n\n{\"answer\": [\"A4\"]}"
+  },
+  {
+   "id": "chorale-6",
+   "score": "chorale",
+   "kind": "start",
+   "question": "In bar 9, voice 4.1 (staff 4, voice 1), which notes start exactly at beat 1? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "D3"
+   ],
+   "effort": "low",
+   "answer": [
+    "D3"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "9"
+   ],
+   "output_tokens": 164,
+   "stop": "end_turn",
+   "reply": "Voice 4.1 in bar 9 has D3 on beat 1. The bar has div=2, so each quarter note is 2 units. The voice runs D3 (2 units), B2 (2 units), then F#3 (the last 2 units of the bar's 8). D3 is the only note that starts on beat 1.\n\n{\"answer\": [\"D3\"]}"
+  },
+  {
+   "id": "chorale-7",
+   "score": "chorale",
+   "kind": "sound",
+   "question": "In bar 1, voice 2.1 (staff 2, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 2.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "E4"
+   ],
+   "effort": "low",
+   "answer": [
+    "E4"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "1"
+   ],
+   "output_tokens": 300,
+   "stop": "end_turn",
+   "reply": "Bar 1, voice 2.1 has four quarter notes: F#4, E4, E4, E4. Each lasts 2 divs, since div=2 per quarter note.\n\nBeat 2.5 is 3 divs from the start of the bar. That falls inside the second note, E4, which runs from div 2 to div 4. Only E4 is sounding.\n\n{\"answer\": [\"E4\"]}"
+  },
+  {
+   "id": "chorale-8",
+   "score": "chorale",
+   "kind": "highest",
+   "question": "In bar 5, voice 3.1 (staff 3, voice 1), which is the highest note? Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "E4"
+   ],
+   "effort": "low",
+   "answer": [
+    "E4"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "5"
+   ],
+   "output_tokens": 113,
+   "stop": "end_turn",
+   "reply": "Bar 5, staff 3, voice 1 has these notes in order: F#3, D4, C#4, B3, A3, E4. The highest is E4.\n\n{\"answer\": [\"E4\"]}"
+  },
+  {
+   "id": "chorale-9",
+   "score": "chorale",
+   "kind": "sound",
+   "question": "In bar 6, voice 4.1 (staff 4, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 3.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "E#3"
+   ],
+   "effort": "low",
+   "answer": [
+    "E#3"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "6"
+   ],
+   "output_tokens": 165,
+   "stop": "end_turn",
+   "reply": "Voice 4.1 in bar 6 has four quarter notes: D4 on beat 1, B3 on beat 2, E#3 on beat 3 and F#3 on beat 4. Beat 3.5 falls halfway through the E#3 quarter note on beat 3. Nothing else is held at that point.\n\n{\"answer\": [\"E#3\"]}"
+  },
+  {
+   "id": "chorale-10",
+   "score": "chorale",
+   "kind": "sound",
+   "question": "In bar 2, voice 1.1 (staff 1, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 3.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "A4"
+   ],
+   "effort": "low",
+   "answer": [
+    "A4"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "1-2"
+   ],
+   "output_tokens": 212,
+   "stop": "end_turn",
+   "reply": "Bar 2 is the second \"m2\" bar (bar numbering has a pickup at 0, so m2 is as labeled). In voice 1.1, each note lasts 2 divs, which is one quarter note. The notes run C#5 (beat 1), B4 (beat 2), A4 (beat 3) and C#5 (beat 4). Beat 3.5 falls in the middle of A4, which starts on beat 3 and lasts through beat 4.\n\n{\"answer\": [\"A4\"]}"
+  },
+  {
+   "id": "nocturne-1",
+   "score": "nocturne",
+   "kind": "sound",
+   "question": "In bar 26, voice 2.1 (staff 2, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 1.5? Beats count from 1 at the start of the bar, a beat here is a dotted quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "Ab3",
+    "Cb4",
+    "Eb4"
+   ],
+   "effort": "low",
+   "answer": [
+    "Ab3",
+    "Cb4",
+    "Eb4"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "25-26"
+   ],
+   "output_tokens": 236,
+   "stop": "end_turn",
+   "reply": "Beat 1.5 is halfway through beat 1. A beat is a dotted quarter, which is 6 divs, so beat 1.5 falls at div 3 from the start of the bar.\n\nBar 26, voice 2.1 has notes of 2 divs each:\n- Div 0\u20132: Eb2\n- Div 2\u20134: Ab3+Cb4+Eb4\n\nDiv 3 falls inside the second note, so that chord is the one sounding. Eb2 has already ended.\n\n{\"answer\": [\"Ab3\", \"Cb4\", \"Eb4\"]}"
+  },
+  {
+   "id": "nocturne-2",
+   "score": "nocturne",
+   "kind": "highest",
+   "question": "In bar 21, voice 2.1 (staff 2, voice 1), which is the highest note? Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "Ab4"
+   ],
+   "effort": "low",
+   "answer": [
+    "Ab4"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "21"
+   ],
+   "output_tokens": 213,
+   "stop": "end_turn",
+   "reply": "Bar 21 \u306e voice 2.1 \u306e\u6700\u9ad8\u97f3\u306f\u30014 \u56de\u51fa\u3066\u304f\u308b\u548c\u97f3\u306e\u3046\u3061 2 \u3064\u76ee\u306e\u548c\u97f3\u306b\u3042\u308b Ab4 \u3067\u3059\u3002\n\n\u548c\u97f3\u306e\u6700\u9ad8\u97f3\u306f\u3001Eb4+G4 \u306e\u3068\u3053\u308d\u304c G4\u3001Ab3+D4 \u306e\u548c\u97f3\u306e\u6b21\u306e Bb3+D4+Ab4 \u304c Ab4 \u3067\u3059\u3002Bb3+Eb4+G4 \u306f G4 \u3067\u3059\u3002\u307b\u304b\u306e\u97f3\u306f\u3069\u308c\u3082 Ab4 \u3088\u308a\u4f4e\u304f\u306a\u3063\u3066\u3044\u307e\u3059\u3002\n\n{\"answer\": [\"Ab4\"]}"
+  },
+  {
+   "id": "nocturne-3",
+   "score": "nocturne",
+   "kind": "sound",
+   "question": "In bar 30, voice 2.1 (staff 2, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 3.5? Beats count from 1 at the start of the bar, a beat here is a dotted quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "Eb4",
+    "G3"
+   ],
+   "effort": "low",
+   "answer": [
+    "Eb4",
+    "G3"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "30"
+   ],
+   "output_tokens": 473,
+   "stop": "end_turn",
+   "reply": "Bar 30 is in 12/8 with div=8, so a beat (a dotted quarter) is 12 units. Beat 3.5 is 2.5 \u00d7 12 = 30 units from the start of the bar.\n\nEvery chord in voice 2.1 lasts 4 units, so they start at 0, 4, 8, 12, 16, 20, 24, 28 and so on. The chord starting at 28 is G3+Eb4, and it lasts until 32. That covers position 30. Nothing from an earlier chord is still held.\n\n{\"answer\": [\"G3\", \"Eb4\"]}"
+  },
+  {
+   "id": "nocturne-4",
+   "score": "nocturne",
+   "kind": "start",
+   "question": "In bar 33, voice 1.1 (staff 1, voice 1), which notes start exactly at beat 3.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "Cb7"
+   ],
+   "effort": "low",
+   "answer": [
+    "Cb7"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "33"
+   ],
+   "output_tokens": 515,
+   "stop": "end_turn",
+   "reply": "iv. The 6/4 bar has 6 beats, so the notes fill only 3 beats.\n\nBeat 3.5 is 2.5 beats after the bar start, which is 2.5 \u00d7 8 = 20 divs. The note starting there is the 21st note, at 0-based index 20.\n\nThe notes repeat in a four-note pattern: Cb7, Bb6, C7, A6. Index 20 is a multiple of 4, so it is the first note of the sixth group, which is Cb7.\n\nOnly one note starts at that point.\n\n{\"answer\": [\"Cb7\"]}"
+  },
+  {
+   "id": "nocturne-5",
+   "score": "nocturne",
+   "kind": "start",
+   "question": "In bar 22, voice 1.1 (staff 1, voice 1), which notes start exactly at beat 3? Beats count from 1 at the start of the bar, a beat here is a dotted quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "Bb5"
+   ],
+   "effort": "low",
+   "answer": [
+    "Bb5"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "22-22"
+   ],
+   "output_tokens": 539,
+   "stop": "end_turn",
+   "reply": "Bar 22 is in 12/8 with div=4, so a dotted-quarter beat is 6 units and beat 3 starts at unit 12.\n\nVoice 1.1 begins with twelve single-unit notes, which fill units 0\u201311: G5, B4, C5, Db5, C5, F5, E5, Ab5, G5, Db6, C6, G5. The grace G5 is skipped. Bb5 follows, lasting 6 units, so it starts at unit 12. Ab5 comes at unit 18 and G5 at unit 22.\n\nOnly Bb5 starts at beat 3.\n\n{\"answer\": [\"Bb5\"]}"
+  },
+  {
+   "id": "nocturne-6",
+   "score": "nocturne",
+   "kind": "start",
+   "question": "In bar 35, voice 1.1 (staff 1, voice 1), which notes start exactly at beat 2.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "Bb5"
+   ],
+   "effort": "low",
+   "answer": [
+    "Bb5"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "35-35"
+   ],
+   "output_tokens": 593,
+   "stop": "end_turn",
+   "reply": "he div is 8 per quarter note, so the bar is 16 divs long. Beat 2.5 falls at offset 8 + 4 = 12 divs.\n\nThe voice line has sixteen notes, each lasting 1 div. In order, they are:\n\n- Offsets 0\u20133: Cb7, Bb6, D7, C7\n- Offsets 4\u20137: Bb6, A6, Ab6, G6\n- Offsets 8\u201311: F6, D6, Eb6, C6\n- Offsets 12\u201315: Bb5, Ab5, C5, D5\n\nThe note at offset 12 is Bb5, and it is the only note that starts there.\n\n{\"answer\": [\"Bb5\"]}"
+  },
+  {
+   "id": "nocturne-7",
+   "score": "nocturne",
+   "kind": "sound",
+   "question": "In bar 18, voice 1.1 (staff 1, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 3.5? Beats count from 1 at the start of the bar, a beat here is a dotted quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "Eb5"
+   ],
+   "effort": "low",
+   "answer": [
+    "Eb5"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "18-18"
+   ],
+   "output_tokens": 585,
+   "stop": "end_turn",
+   "reply": " 30 units from the start of the bar.\n\nCounting through voice 1.1:\n- The four Eb5 triplet-feel notes take 3 units each, so they fill units 0\u201312.\n- Eb5 (4) fills 12\u201316.\n- D5 (2) fills 16\u201318.\n- Eb5 (2) fills 18\u201320.\n- F5 (3) fills 20\u201323.\n- Eb5 (1) fills 23\u201324.\n- Eb5 (12) fills 24\u201336.\n- Bb4 (12) fills 36\u201348.\n\nUnit 30 falls inside the long Eb5, which started at 24 and is still held.\n\n{\"answer\": [\"Eb5\"]}"
+  },
+  {
+   "id": "nocturne-8",
+   "score": "nocturne",
+   "kind": "lowest",
+   "question": "In bar 31, voice 2.1 (staff 2, voice 1), which is the lowest note? Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "A2"
+   ],
+   "effort": "low",
+   "answer": [
+    "A2"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "31"
+   ],
+   "output_tokens": 256,
+   "stop": "end_turn",
+   "reply": "The notes in staff 2, voice 1 of bar 31 are:\n\n- Bb2\n- F3+Bb3+Eb4\n- Bb3+Eb4+Ab4\n- B2\n- G3+F4\n- D4+F4+G4\n- C3\n- G3+Eb4\n- C4+G4\n- A2\n- F3+C4+Eb4\n- C4+Eb4+F4\n\nThe lowest pitches are Bb2, B2, C3 and A2. A2 is the lowest of these, because A2 is a semitone below Bb2. B2 and C3 are higher than Bb2.\n\n{\"answer\": [\"A2\"]}"
+  },
+  {
+   "id": "nocturne-9",
+   "score": "nocturne",
+   "kind": "sound",
+   "question": "In bar 6, voice 2.1 (staff 2, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 2.5? Beats count from 1 at the start of the bar, a beat here is a dotted quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "E4",
+    "G3"
+   ],
+   "effort": "low",
+   "answer": [
+    "E4",
+    "G3"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "5-6"
+   ],
+   "output_tokens": 306,
+   "stop": "end_turn",
+   "reply": " at 0 and beat 2 at 6. Beat 2.5 is at 6+3 = 9 div.\n- The notes come in groups of three, each 2 div long.\n\nStart times:\n- C3 at 0\n- G3+E4 at 2\n- Bb3+E4+G4 at 4\n- C3 at 6\n- G3+E4 at 8\n- C4+E4+Bb4 at 10\n\nThe note at 9 is the G3+E4 chord, which starts at 8 and lasts until 10. Each chord is 2 div long, so nothing from earlier is still held. The C3 that started at 6 ended at 8.\n\n{\"answer\": [\"G3\", \"E4\"]}"
+  },
+  {
+   "id": "nocturne-10",
+   "score": "nocturne",
+   "kind": "start",
+   "question": "In bar 4, voice 2.1 (staff 2, voice 1), which notes start exactly at beat 4? Beats count from 1 at the start of the bar, a beat here is a dotted quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "Eb3"
+   ],
+   "effort": "low",
+   "answer": [
+    "Eb3"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "4"
+   ],
+   "output_tokens": 548,
+   "stop": "end_turn",
+   "reply": " quarter) is 6 units. Beat 4 therefore starts at unit 18.\n\nVoice 2.1 has a duration of 2 units for every note. The onsets are:\n\n| Unit | Note or chord |\n|---|---|\n| 0 | Bb2 |\n| 2 | F3+Eb4 |\n| 4 | Bb3+Eb4+Ab4 |\n| 6 | Bb1 |\n| 8 | F3+D4 |\n| 10 | Bb3+Ab4 |\n| 12 | Eb2 |\n| 14 | G3+Eb4 |\n| 16 | Bb3+Eb4+G4 |\n| 18 | Eb3 |\n| 20 | G3+Eb4 |\n| 22 | Bb3+Eb4+G4 |\n\nOnly Eb3 starts at unit 18.\n\n{\"answer\": [\"Eb3\"]}"
+  },
+  {
+   "id": "groups-1",
+   "score": "groups",
+   "kind": "start",
+   "question": "In bar 4, voice 1.1 (staff 1, voice 1), which notes start exactly at beat 3? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "C5"
+   ],
+   "effort": "low",
+   "answer": [
+    "C5"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "4"
+   ],
+   "output_tokens": 454,
+   "stop": "end_turn",
+   "reply": "Bar 4 has 6 divisions per quarter note, so beat 3 starts at offset 12.\n\n- The first triplet (C5, D5, E5) is 3 notes of 4 units each, so it fills offsets 0\u201312.\n- The next group, `3:2{ 2 C5 4 r }`, starts at offset 12. Its first note is C5, so C5 starts exactly on beat 3.\n- The rest then takes 4 units, and the following `3 r` rest and D5 fall later in the bar (D5 at offset 21).\n\n{\"answer\": [\"C5\"]}"
+  },
+  {
+   "id": "groups-2",
+   "score": "groups",
+   "kind": "lowest",
+   "question": "In bar 3, voice 1.1 (staff 1, voice 1), which is the lowest note? Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "C5"
+   ],
+   "effort": "low",
+   "answer": [
+    "C5"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "3"
+   ],
+   "output_tokens": 172,
+   "stop": "end_turn",
+   "reply": "I read bar 3, voice 1.1 and found no grace notes. The pitches in order are C5, D5, E5, F5, G5, A5, C5, D5, E5, F5, G5, A5, C5, D5, E5, F5, G5 and C6. The lowest pitch is C5. It appears several times, and no note goes below it.\n\n{\"answer\": [\"C5\"]}"
+  },
+  {
+   "id": "groups-3",
+   "score": "groups",
+   "kind": "highest",
+   "question": "In bar 3, voice 1.1 (staff 1, voice 1), which is the highest note? Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "C6"
+   ],
+   "effort": "low",
+   "answer": [
+    "C6"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "3"
+   ],
+   "output_tokens": 192,
+   "stop": "end_turn",
+   "reply": "The highest note in bar 3, voice 1.1, is C6, the last note of the bar. The other notes in the bar are the C5\u2013A5 tuplet notes, which all sit below it.\n\n{\"answer\": [\"C6\"]}"
+  },
+  {
+   "id": "groups-4",
+   "score": "groups",
+   "kind": "sound",
+   "question": "In bar 6, voice 1.1 (staff 1, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 1.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "D5"
+   ],
+   "effort": "low",
+   "answer": [
+    "D5"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "6"
+   ],
+   "output_tokens": 341,
+   "stop": "end_turn",
+   "reply": "Bar 6 is in 4/4 with 3 div units per quarter note, so beat 1.5 falls at offset 1.5 units from the start of the bar.\n\nThe voice line opens with a tuplet in which each note lasts 1 unit:\n- The rest covers offsets 0\u20131.\n- D5 covers offsets 1\u20132.\n- E5 covers offsets 2\u20133.\n\nOffset 1.5 falls inside D5, so D5 is the only note sounding.\n\n{\"answer\": [\"D5\"]}"
+  },
+  {
+   "id": "groups-5",
+   "score": "groups",
+   "kind": "start",
+   "question": "In bar 1, voice 1.1 (staff 1, voice 1), which notes start exactly at beat 2.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "G5"
+   ],
+   "effort": "low",
+   "answer": [
+    "G5"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "1"
+   ],
+   "output_tokens": 371,
+   "stop": "end_turn",
+   "reply": "divisions per quarter note, so beat 2.5 falls at offset 6 + 3 = 9 divisions from the start of the bar.\n\nCounting through voice 1.1 from the start of the bar:\n- The triplet C5, D5 and E5 starts at offsets 0, 2 and 4.\n- F5 starts at offset 6, which is beat 2.\n- G5 starts at offset 9, which is beat 2.5.\n- A5 starts at offset 12, B5 at 15, and C6 at 18.\n\nOnly G5 starts at beat 2.5.\n\n{\"answer\": [\"G5\"]}"
+  },
+  {
+   "id": "groups-6",
+   "score": "groups",
+   "kind": "sound",
+   "question": "In bar 2, voice 1.1 (staff 1, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 4.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "A5"
+   ],
+   "effort": "low",
+   "answer": [
+    "A5"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "2"
+   ],
+   "output_tokens": 351,
+   "stop": "end_turn",
+   "reply": "At beat 4.5, only A5 is sounding in bar 2, voice 1.1.\n\nThe bar has 6 div units per quarter note, so 24 units in total. Beat 4.5 is 3.5 \u00d7 6 = 21 units from the start of the bar.\n\nCounting through the voice line:\n- The triplet C5, rest, E5 takes units 0\u20136.\n- F5 takes units 6\u20139.\n- G5 takes units 9\u201312.\n- The rest takes units 12\u201318.\n- A5 takes units 18\u201324, which includes unit 21.\n\n{\"answer\": [\"A5\"]}"
+  },
+  {
+   "id": "groups-7",
+   "score": "groups",
+   "kind": "sound",
+   "question": "In bar 1, voice 1.1 (staff 1, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 4.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "C6"
+   ],
+   "effort": "low",
+   "answer": [
+    "C6"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "1"
+   ],
+   "output_tokens": 364,
+   "stop": "end_turn",
+   "reply": "At beat 4.5, only C6 is sounding.\n\nBar 1 has 6 div units per quarter note, so beat 4.5 is 21 units from the start of the bar. The notes fall as follows:\n\n- The triplet C5, D5 and E5 takes 2 units each and fills units 0\u20136.\n- F5, G5, A5 and B5 take 3 units each and fill units 6\u201318.\n- C6 lasts 6 units, from unit 18 to unit 24, which covers unit 21.\n\n{\"answer\": [\"C6\"]}"
+  },
+  {
+   "id": "groups-8",
+   "score": "groups",
+   "kind": "start",
+   "question": "In bar 4, voice 1.1 (staff 1, voice 1), which notes start exactly at beat 1? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "C5"
+   ],
+   "effort": "low",
+   "answer": [
+    "C5"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "4"
+   ],
+   "output_tokens": 195,
+   "stop": "end_turn",
+   "reply": "Bar 4, voice 1.1 opens with a triplet of C5, D5 and E5, each 4 divs long. The C5 is therefore the only note that starts exactly on beat 1.\n\n{\"answer\": [\"C5\"]}"
+  },
+  {
+   "id": "groups-9",
+   "score": "groups",
+   "kind": "start",
+   "question": "In bar 2, voice 1.1 (staff 1, voice 1), which notes start exactly at beat 1? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "C5"
+   ],
+   "effort": "low",
+   "answer": [
+    "C5"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "2"
+   ],
+   "output_tokens": 147,
+   "stop": "end_turn",
+   "reply": "Bar 2, voice 1.1 begins with a triplet. Its first note is C5, which sounds at beat 1. The triplet's other two slots are a rest and E5. They fall at later offsets within the beat. The notes after the triplet come later in the bar.\n\n{\"answer\": [\"C5\"]}"
+  },
+  {
+   "id": "groups-10",
+   "score": "groups",
+   "kind": "lowest",
+   "question": "In bar 5, voice 1.1 (staff 1, voice 1), which is the lowest note? Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "C5"
+   ],
+   "effort": "low",
+   "answer": [
+    "C5"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "5"
+   ],
+   "output_tokens": 106,
+   "stop": "end_turn",
+   "reply": "Bar 5, voice 1.1 has these notes: C5, D5, E5, a rest, and C6. The lowest is C5.\n\n{\"answer\": [\"C5\"]}"
+  },
+  {
+   "id": "lyrics-1",
+   "score": "lyrics",
+   "kind": "sound",
+   "question": "In bar 1, voice 1.1 (staff 1, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 1.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "C5"
+   ],
+   "effort": "low",
+   "answer": [
+    "C5"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "1"
+   ],
+   "output_tokens": 162,
+   "stop": "end_turn",
+   "reply": "Bar 1 has four quarter notes, because div=1 and each note lasts 1 unit. They are C5 on beat 1, D5 on beat 2, E5 on beat 3 and F5 on beat 4.\n\nBeat 1.5 is halfway through beat 1, so the note sounding is C5.\n\n{\"answer\": [\"C5\"]}"
+  },
+  {
+   "id": "lyrics-2",
+   "score": "lyrics",
+   "kind": "sound",
+   "question": "In bar 4, voice 1.1 (staff 1, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 2.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "F5"
+   ],
+   "effort": "low",
+   "answer": [
+    "F5"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "4"
+   ],
+   "output_tokens": 301,
+   "stop": "end_turn",
+   "reply": "F5 is the only note sounding at beat 2.5.\n\nBar 4 has a half note F5 starting on beat 1, so it is held through beats 1 and 2 and ends at beat 3. The grace note A5 and the quarter note G5 both come at beat 3, after beat 2.5.\n\n{\"answer\": [\"F5\"]}"
+  },
+  {
+   "id": "lyrics-3",
+   "score": "lyrics",
+   "kind": "sound",
+   "question": "In bar 3, voice 1.1 (staff 1, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 4.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "F5"
+   ],
+   "effort": "low",
+   "answer": [
+    "F5"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "3"
+   ],
+   "output_tokens": 176,
+   "stop": "end_turn",
+   "reply": "Bar 3, voice 1.1 has four quarter notes. They are C5 on beat 1, D5 on beat 2, E5 on beat 3 and F5 on beat 4. The F5 is tied forward, so it carries past the end of the bar.\n\nBeat 4.5 is halfway through beat 4, and the F5 is still sounding there.\n\n{\"answer\": [\"F5\"]}"
+  },
+  {
+   "id": "lyrics-4",
+   "score": "lyrics",
+   "kind": "start",
+   "question": "In bar 2, voice 1.1 (staff 1, voice 1), which notes start exactly at beat 2? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "A5"
+   ],
+   "effort": "low",
+   "answer": [
+    "A5"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "2"
+   ],
+   "output_tokens": 187,
+   "stop": "end_turn",
+   "reply": "Bar 2, voice 1.1 has three quarter notes: G5 on beat 1, A5 on beat 2 and B5 on beat 3. The only note that starts exactly on beat 2 is A5.\n\n{\"answer\": [\"A5\"]}"
+  },
+  {
+   "id": "lyrics-5",
+   "score": "lyrics",
+   "kind": "start",
+   "question": "In bar 5, voice 1.1 (staff 1, voice 1), which notes start exactly at beat 1? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "C5"
+   ],
+   "effort": "low",
+   "answer": [
+    "C5"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "5"
+   ],
+   "output_tokens": 193,
+   "stop": "end_turn",
+   "reply": "In bar 5, voice 1.1 has two notes: C5 and D5. The line reads `2 C5 D5`, and the duration of 2 carries over to both. With div=1, that is two quarter notes each. C5 starts at beat 1 and D5 starts at beat 3.\n\nVoice 1.2 has an A4 that also starts at beat 1, but it is in a different voice, so I left it out.\n\n{\"answer\": [\"C5\"]}"
+  },
+  {
+   "id": "lyrics-6",
+   "score": "lyrics",
+   "kind": "sound",
+   "question": "In bar 3, voice 1.1 (staff 1, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 2.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "D5"
+   ],
+   "effort": "low",
+   "answer": [
+    "D5"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "3"
+   ],
+   "output_tokens": 199,
+   "stop": "end_turn",
+   "reply": "Bar 3, voice 1.1 has four quarter notes: C5 on beat 1, D5 on beat 2, E5 on beat 3 and F5 on beat 4. The F5 is tied forward, which doesn't matter here.\n\nBeat 2.5 is halfway through beat 2, which is when D5 is sounding. C5 ended at the start of beat 2, and E5 doesn't start until beat 3.\n\n{\"answer\": [\"D5\"]}"
+  },
+  {
+   "id": "lyrics-7",
+   "score": "lyrics",
+   "kind": "highest",
+   "question": "In bar 1, voice 1.1 (staff 1, voice 1), which is the highest note? Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "F5"
+   ],
+   "effort": "low",
+   "answer": [
+    "F5"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "1"
+   ],
+   "output_tokens": 114,
+   "stop": "end_turn",
+   "reply": "In bar 1, voice 1.1 has four quarter notes: C5, D5, E5 and F5. The highest is F5. The bar has no grace notes.\n\n{\"answer\": [\"F5\"]}"
+  },
+  {
+   "id": "lyrics-8",
+   "score": "lyrics",
+   "kind": "start",
+   "question": "In bar 1, voice 1.1 (staff 1, voice 1), which notes start exactly at beat 3? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "E5"
+   ],
+   "effort": "low",
+   "answer": [
+    "E5"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "1"
+   ],
+   "output_tokens": 146,
+   "stop": "end_turn",
+   "reply": "Bar 1 has four quarter notes, with div=1 per quarter note. They are C5 on beat 1, D5 on beat 2, E5 on beat 3 and F5 on beat 4. The only note that starts exactly on beat 3 is E5.\n\n{\"answer\": [\"E5\"]}"
+  },
+  {
+   "id": "lyrics-9",
+   "score": "lyrics",
+   "kind": "start",
+   "question": "In bar 2, voice 1.1 (staff 1, voice 1), which notes start exactly at beat 3? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "B5"
+   ],
+   "effort": "low",
+   "answer": [
+    "B5"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "2"
+   ],
+   "output_tokens": 263,
+   "stop": "end_turn",
+   "reply": "Bar 2, voice 1.1 has three quarter notes: G5 on beat 1, A5 on beat 2 and B5 on beat 3. The bar is 4/4, but the voice line stops after B5, so nothing is written on beat 4. Only B5 starts exactly on beat 3.\n\n{\"answer\": [\"B5\"]}"
+  },
+  {
+   "id": "lyrics-10",
+   "score": "lyrics",
+   "kind": "sound",
+   "question": "In bar 5, voice 1.1 (staff 1, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 3.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "D5"
+   ],
+   "effort": "low",
+   "answer": [
+    "D5"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "5"
+   ],
+   "output_tokens": 211,
+   "stop": "end_turn",
+   "reply": "Bar 5, voice 1.1 has two notes, and each lasts 2 divs. With div=1, a div is one quarter note.\n\n- C5 starts at beat 1 and lasts through beat 2.\n- D5 starts at beat 3 and lasts through beat 4.\n\nBeat 3.5 is halfway through D5, so D5 is the only note sounding in voice 1.1 then. The A4 is in voice 1.2, so it doesn't count.\n\n{\"answer\": [\"D5\"]}"
+  },
+  {
+   "id": "chorale-1",
+   "score": "chorale",
+   "kind": "start",
+   "question": "In bar 4, voice 3.1 (staff 3, voice 1), which notes start exactly at beat 1? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "B3"
+   ],
+   "effort": "medium",
+   "answer": [
+    "B3"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "4"
+   ],
+   "output_tokens": 348,
+   "stop": "end_turn",
+   "reply": "Bar 4, voice 3.1 reads `2 B3 B3 1 B3 A3 2 G#3`, with div=2 per quarter note.\n\n- B3 is a quarter note starting at beat 1.\n- B3 is a quarter note starting at beat 2.\n- B3 is an eighth note starting at beat 3.\n- A3 is an eighth note starting at beat 3.5.\n- G#3 is a quarter note starting at beat 4.\n\nOnly the first B3 starts exactly at beat 1.\n\n{\"answer\": [\"B3\"]}"
+  },
+  {
+   "id": "chorale-2",
+   "score": "chorale",
+   "kind": "start",
+   "question": "In bar 4, voice 2.1 (staff 2, voice 1), which notes start exactly at beat 3? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "D#4"
+   ],
+   "effort": "medium",
+   "answer": [
+    "D#4"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "4"
+   ],
+   "output_tokens": 235,
+   "stop": "end_turn",
+   "reply": "Voice 2.1 in bar 4 is the Alto line. Its notes are F#4, E4, D#4 and C#4, each one quarter note long (2 divs). They start on beats 1, 2, 3 and 4. The note on beat 3 is D#4.\n\n{\"answer\": [\"D#4\"]}"
+  },
+  {
+   "id": "chorale-3",
+   "score": "chorale",
+   "kind": "start",
+   "question": "In bar 1, voice 1.1 (staff 1, voice 1), which notes start exactly at beat 4? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "E5"
+   ],
+   "effort": "medium",
+   "answer": [
+    "E5"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "1"
+   ],
+   "output_tokens": 162,
+   "stop": "end_turn",
+   "reply": "Bar 1, voice 1.1, has div=2, so each quarter note is 2 units. The notes are A4, B4, C#5 and E5, and each lasts one quarter note. A4 starts on beat 1, B4 on beat 2, C#5 on beat 3 and E5 on beat 4.\n\n{\"answer\": [\"E5\"]}"
+  },
+  {
+   "id": "chorale-4",
+   "score": "chorale",
+   "kind": "sound",
+   "question": "In bar 3, voice 2.1 (staff 2, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 2.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "E#4"
+   ],
+   "effort": "medium",
+   "answer": [
+    "E#4"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "3"
+   ],
+   "output_tokens": 417,
+   "stop": "end_turn",
+   "reply": "At beat 2.5 (offset 3 in div units), the only note sounding in staff 2, voice 1 is E#4. It started at offset 2 and lasts until offset 4.\n\nCounting through the bar at div=2, the voice line is:\n- F#4 at offset 0, one div long.\n- G#4 at offset 1, one div long.\n- E#4 at offset 2, two divs long.\n- C#4 at offset 4, two divs long.\n- F#4 at offset 6, two divs long.\n\n{\"answer\": [\"E#4\"]}"
+  },
+  {
+   "id": "chorale-5",
+   "score": "chorale",
+   "kind": "lowest",
+   "question": "In bar 1, voice 1.1 (staff 1, voice 1), which is the lowest note? Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "A4"
+   ],
+   "effort": "medium",
+   "answer": [
+    "A4"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "1"
+   ],
+   "output_tokens": 107,
+   "stop": "end_turn",
+   "reply": "Bar 1, voice 1.1 reads: A4, B4, C#5 (fermata), E5. The lowest of these is A4.\n\n{\"answer\": [\"A4\"]}"
+  },
+  {
+   "id": "chorale-6",
+   "score": "chorale",
+   "kind": "start",
+   "question": "In bar 9, voice 4.1 (staff 4, voice 1), which notes start exactly at beat 1? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "D3"
+   ],
+   "effort": "medium",
+   "answer": [
+    "D3"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "9"
+   ],
+   "output_tokens": 192,
+   "stop": "end_turn",
+   "reply": "Voice 4.1 in bar 9 has three notes: D3, B2 and F#3. Each lasts 2 divs, which is one quarter note, since div=2.\n\n- D3 starts at div 0, which is beat 1.\n- B2 starts at div 2, which is beat 2.\n- F#3 starts at div 4, which is beat 3.\n\nOnly D3 starts exactly on beat 1.\n\n{\"answer\": [\"D3\"]}"
+  },
+  {
+   "id": "chorale-7",
+   "score": "chorale",
+   "kind": "sound",
+   "question": "In bar 1, voice 2.1 (staff 2, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 2.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "E4"
+   ],
+   "effort": "medium",
+   "answer": [
+    "E4"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "1"
+   ],
+   "output_tokens": 245,
+   "stop": "end_turn",
+   "reply": "In bar 1, voice 2.1 holds four quarter notes: F#4 on beat 1, then E4 on beats 2, 3 and 4. Beat 2.5 falls halfway through the E4 that starts on beat 2, so E4 is the only note sounding.\n\n{\"answer\": [\"E4\"]}"
+  },
+  {
+   "id": "chorale-8",
+   "score": "chorale",
+   "kind": "highest",
+   "question": "In bar 5, voice 3.1 (staff 3, voice 1), which is the highest note? Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "E4"
+   ],
+   "effort": "medium",
+   "answer": [
+    "E4"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "5"
+   ],
+   "output_tokens": 111,
+   "stop": "end_turn",
+   "reply": "Bar 5 in staff 3, voice 1 reads: F#3 D4 C#4 B3 A3 E4. The highest note is E4.\n\n{\"answer\": [\"E4\"]}"
+  },
+  {
+   "id": "chorale-9",
+   "score": "chorale",
+   "kind": "sound",
+   "question": "In bar 6, voice 4.1 (staff 4, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 3.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "E#3"
+   ],
+   "effort": "medium",
+   "answer": [
+    "E#3"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "6"
+   ],
+   "output_tokens": 155,
+   "stop": "end_turn",
+   "reply": "Bar 6 in voice 4.1 has four quarter notes: D4 on beat 1, B3 on beat 2, E#3 on beat 3 and F#3 on beat 4. Beat 3.5 falls halfway through beat 3, so E#3 is still sounding.\n\n{\"answer\": [\"E#3\"]}"
+  },
+  {
+   "id": "chorale-10",
+   "score": "chorale",
+   "kind": "sound",
+   "question": "In bar 2, voice 1.1 (staff 1, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 3.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "A4"
+   ],
+   "effort": "medium",
+   "answer": [
+    "A4"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "1-2"
+   ],
+   "output_tokens": 174,
+   "stop": "end_turn",
+   "reply": "Bar 2 voice 1.1 has four notes, and each lasts 2 divs, which is one quarter note. The notes are C#5 on beat 1, B4 on beat 2, A4 on beat 3 and C#5 on beat 4. Beat 3.5 falls halfway through beat 3, so A4 is still sounding.\n\n{\"answer\": [\"A4\"]}"
+  },
+  {
+   "id": "nocturne-1",
+   "score": "nocturne",
+   "kind": "sound",
+   "question": "In bar 26, voice 2.1 (staff 2, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 1.5? Beats count from 1 at the start of the bar, a beat here is a dotted quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "Ab3",
+    "Cb4",
+    "Eb4"
+   ],
+   "effort": "medium",
+   "answer": [
+    "Ab3",
+    "Cb4",
+    "Eb4"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "25-26"
+   ],
+   "output_tokens": 321,
+   "stop": "end_turn",
+   "reply": "at is 6 divs. Beat 1.5 is therefore at offset 3 divs, which is halfway through beat 1.\n\nVoice 2.1 in bar 26 has these notes:\n- Eb2 starts at offset 0 and lasts 2 divs, so it ends at offset 2.\n- Ab3+Cb4+Eb4 starts at offset 2 and lasts until offset 4.\n- Cb4+Eb4+Ab4 starts at offset 4.\n\nOffset 3 falls inside the Ab3+Cb4+Eb4 chord, so that chord is the one sounding.\n\n{\"answer\": [\"Ab3\", \"Cb4\", \"Eb4\"]}"
+  },
+  {
+   "id": "nocturne-2",
+   "score": "nocturne",
+   "kind": "highest",
+   "question": "In bar 21, voice 2.1 (staff 2, voice 1), which is the highest note? Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "Ab4"
+   ],
+   "effort": "medium",
+   "answer": [
+    "Ab4"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "21-21"
+   ],
+   "output_tokens": 237,
+   "stop": "end_turn",
+   "reply": "Staff 2, voice 1 in bar 21 has four chords that include the high notes. In order they are G3+Eb4, Bb3+Eb4+G4, Ab3+D4, Bb3+D4+Ab4, G3+Eb4, Bb3+Eb4+G4, G3+Eb4 and Bb3+Eb4+G4. The highest note is Ab4, in the Bb3+D4+Ab4 chord. G4 is the top of the other three-note chords, and Ab4 is above it.\n\n{\"answer\": [\"Ab4\"]}"
+  },
+  {
+   "id": "nocturne-3",
+   "score": "nocturne",
+   "kind": "sound",
+   "question": "In bar 30, voice 2.1 (staff 2, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 3.5? Beats count from 1 at the start of the bar, a beat here is a dotted quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "Eb4",
+    "G3"
+   ],
+   "effort": "medium",
+   "answer": [
+    "Eb4",
+    "G3"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "29-30"
+   ],
+   "output_tokens": 436,
+   "stop": "end_turn",
+   "reply": "\nThe bar is 12/8 with div=16, so a beat (a dotted quarter) is 24 units. Beat 3 starts at unit 48, and beat 3.5 is halfway through that beat, at unit 60.\n\nVoice 2.1 is all eighth notes of 8 units each. The one that starts at unit 56 is the eighth-note chord G3+Eb4, which runs to unit 64. It is the only note sounding at unit 60, because the Eb2 at unit 48 ended at unit 56.\n\n{\"answer\": [\"G3\", \"Eb4\"]}"
+  },
+  {
+   "id": "nocturne-4",
+   "score": "nocturne",
+   "kind": "start",
+   "question": "In bar 33, voice 1.1 (staff 1, voice 1), which notes start exactly at beat 3.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "Cb7"
+   ],
+   "effort": "medium",
+   "answer": [
+    "Cb7"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "33"
+   ],
+   "output_tokens": 525,
+   "stop": "end_turn",
+   "reply": "At div=8 that is 3 quarter notes, so I counted from the notes as written.\n\nThe bar is 24 notes of 1 unit each (an eighth of a quarter note). The notes repeat in the pattern Cb7, Bb6, C7, A6.\n\nBeat 3.5 is 2.5 quarter notes after the bar starts, which is 20 units. The note that starts there is the 21st note, which is the first note of the sixth four-note group. That note is Cb7.\n\n{\"answer\": [\"Cb7\"]}"
+  },
+  {
+   "id": "nocturne-5",
+   "score": "nocturne",
+   "kind": "start",
+   "question": "In bar 22, voice 1.1 (staff 1, voice 1), which notes start exactly at beat 3? Beats count from 1 at the start of the bar, a beat here is a dotted quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "Bb5"
+   ],
+   "effort": "medium",
+   "answer": [
+    "Bb5"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "22-22"
+   ],
+   "output_tokens": 588,
+   "stop": "end_turn",
+   "reply": "Bar 22 is in 12/8 with div=4, so a dotted-quarter beat is 6 div units and beat 3 starts at offset 12.\n\nCounting through voice 1.1, the first twelve notes (G5, B4, C5, Db5, C5, F5, E5, Ab5, G5, Db6, C6, G5) each last 1 div. That takes us to offset 12. The grace G5 sits just before that point and isn't counted. The note that starts at offset 12 is Bb5, which lasts 6 div.\n\n{\"answer\": [\"Bb5\"]}"
+  },
+  {
+   "id": "nocturne-6",
+   "score": "nocturne",
+   "kind": "start",
+   "question": "In bar 35, voice 1.1 (staff 1, voice 1), which notes start exactly at beat 2.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "Bb5"
+   ],
+   "effort": "medium",
+   "answer": [
+    "Bb5"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "35"
+   ],
+   "output_tokens": 498,
+   "stop": "end_turn",
+   "reply": "Bar 35 is in 2/4 with 8 divs per quarter note, so beat 2.5 falls at offset 12 divs. Every note in the bar lasts 1 div, because the \"1\" carries across the tempo marks. The offsets run as follows:\n\n- 0\u20137: Cb7, Bb6, D7, C7, Bb6, A6, Ab6, G6\n- 8\u201311: F6, D6, Eb6, C6\n- 12\u201315: Bb5, Ab5, C5, D5\n\nThe only note starting at offset 12 is Bb5.\n\n{\"answer\": [\"Bb5\"]}"
+  },
+  {
+   "id": "nocturne-7",
+   "score": "nocturne",
+   "kind": "sound",
+   "question": "In bar 18, voice 1.1 (staff 1, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 3.5? Beats count from 1 at the start of the bar, a beat here is a dotted quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "Eb5"
+   ],
+   "effort": "medium",
+   "answer": [
+    "Eb5"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "17-18"
+   ],
+   "output_tokens": 614,
+   "stop": "end_turn",
+   "reply": "ice 1.1 in bar 18:\n- The four tuplet Eb5s (3 units each) fill units 0\u201312.\n- Eb5 (4 units) fills 12\u201316.\n- D5 (2 units) fills 16\u201318.\n- Eb5 (2 units) fills 18\u201320.\n- F5 (3 units) fills 20\u201323.\n- Eb5 (1 unit) fills 23\u201324.\n- The long Eb5 (12 units) fills 24\u201336.\n- Bb4 starts at unit 36.\n\nUnit 30 falls inside the long Eb5, which runs from unit 24 to unit 36. Only that note is sounding.\n\n{\"answer\": [\"Eb5\"]}"
+  },
+  {
+   "id": "nocturne-8",
+   "score": "nocturne",
+   "kind": "lowest",
+   "question": "In bar 31, voice 2.1 (staff 2, voice 1), which is the lowest note? Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "A2"
+   ],
+   "effort": "medium",
+   "answer": [
+    "A2"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "31-31"
+   ],
+   "output_tokens": 232,
+   "stop": "end_turn",
+   "reply": "Staff 2, voice 1 in bar 31 has these notes, in order: Bb2, F3+Bb3+Eb4, Bb3+Eb4+Ab4, B2, G3+F4, D4+F4+G4, C3, G3+Eb4, C4+G4, A2, F3+C4+Eb4, C4+Eb4+F4.\n\nThe lowest pitches are Bb2, B2, C3 and A2. A2 is the lowest of these. Bb2 sits a semitone above it.\n\n{\"answer\": [\"A2\"]}"
+  },
+  {
+   "id": "nocturne-9",
+   "score": "nocturne",
+   "kind": "sound",
+   "question": "In bar 6, voice 2.1 (staff 2, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 2.5? Beats count from 1 at the start of the bar, a beat here is a dotted quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "E4",
+    "G3"
+   ],
+   "effort": "medium",
+   "answer": [
+    "E4",
+    "G3"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "5-6"
+   ],
+   "output_tokens": 299,
+   "stop": "end_turn",
+   "reply": "6 divs long. Beat 2 starts at div 6, which makes beat 2.5 fall at div 9.\n\nStaff 2 voice 1 has 12 notes of 2 divs each:\n- Divs 0\u20136: C3, G3+E4, Bb3+E4+G4.\n- Divs 6\u201312: C3 (div 6), G3+E4 (div 8), C4+E4+Bb4 (div 10).\n\nDiv 9 is inside the second note of that group, G3+E4, which runs from div 8 to div 10. Nothing from earlier is still held, because every note lasts only 2 divs.\n\n{\"answer\": [\"G3\", \"E4\"]}"
+  },
+  {
+   "id": "nocturne-10",
+   "score": "nocturne",
+   "kind": "start",
+   "question": "In bar 4, voice 2.1 (staff 2, voice 1), which notes start exactly at beat 4? Beats count from 1 at the start of the bar, a beat here is a dotted quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "Eb3"
+   ],
+   "effort": "medium",
+   "answer": [
+    "Eb3"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "4"
+   ],
+   "output_tokens": 615,
+   "stop": "end_turn",
+   "reply": " at offset 18.\n\nVoice 2.1 is a run of 2-unit notes, so each beat holds three of them:\n- Beat 1 (0\u20136): Bb2, F3+Eb4, Bb3+Eb4+Ab4\n- Beat 2 (6\u201312): Bb1, F3+D4, Bb3+Ab4\n- Beat 3 (12\u201318): Eb2, G3+Eb4, Bb3+Eb4+G4\n- Beat 4 (18\u201324): Eb3, G3+Eb4, Bb3+Eb4+G4\n\nThe first note of beat 4 is the single note Eb3, which starts exactly on the beat. The chords after it start at offsets 20 and 22.\n\n{\"answer\": [\"Eb3\"]}"
+  },
+  {
+   "id": "groups-1",
+   "score": "groups",
+   "kind": "start",
+   "question": "In bar 4, voice 1.1 (staff 1, voice 1), which notes start exactly at beat 3? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "C5"
+   ],
+   "effort": "medium",
+   "answer": [
+    "C5"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "4"
+   ],
+   "output_tokens": 428,
+   "stop": "end_turn",
+   "reply": "ons per quarter note, so beat 3 falls at offset 12.\n\n- The first triplet is C5, D5 and E5. Each lasts 4 divisions, so they start at offsets 0, 4 and 8.\n- The next triplet starts at offset 12, which is beat 3. Its first note is C5 (2 divisions), followed by a 4-division rest.\n- After that come a 3-division rest at offset 18 and D5 at offset 21.\n\nOnly C5 starts exactly on beat 3.\n\n{\"answer\": [\"C5\"]}"
+  },
+  {
+   "id": "groups-2",
+   "score": "groups",
+   "kind": "lowest",
+   "question": "In bar 3, voice 1.1 (staff 1, voice 1), which is the lowest note? Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "C5"
+   ],
+   "effort": "medium",
+   "answer": [
+    "C5"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "3"
+   ],
+   "output_tokens": 159,
+   "stop": "end_turn",
+   "reply": "The notes in bar 3, voice 1, are C5, D5, E5, F5, G5, A5, C5, D5, E5, F5, G5, A5, C5, D5, E5, F5, G5 and C6. There are no grace notes. The lowest pitch is C5, which appears in several places.\n\n{\"answer\": [\"C5\"]}"
+  },
+  {
+   "id": "groups-3",
+   "score": "groups",
+   "kind": "highest",
+   "question": "In bar 3, voice 1.1 (staff 1, voice 1), which is the highest note? Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "C6"
+   ],
+   "effort": "medium",
+   "answer": [
+    "C6"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "3"
+   ],
+   "output_tokens": 196,
+   "stop": "end_turn",
+   "reply": "The highest note in bar 3, voice 1.1, is C6. It is the last note of the bar, and it is not a grace note. The other notes in the bar top out at A5.\n\n{\"answer\": [\"C6\"]}"
+  },
+  {
+   "id": "groups-4",
+   "score": "groups",
+   "kind": "sound",
+   "question": "In bar 6, voice 1.1 (staff 1, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 1.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "D5"
+   ],
+   "effort": "medium",
+   "answer": [
+    "D5"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "6"
+   ],
+   "output_tokens": 354,
+   "stop": "end_turn",
+   "reply": "In bar 6, beat 1.5 falls 1.5 div units into the bar, because div=3 per quarter note.\n\nThe bar opens with a triplet of eighth notes, each 1 div unit long:\n- The rest covers offsets 0\u20131.\n- D5 covers offsets 1\u20132.\n- E5 covers offsets 2\u20133.\n\nOffset 1.5 falls inside D5, so D5 is the only note sounding.\n\n{\"answer\": [\"D5\"]}"
+  },
+  {
+   "id": "groups-5",
+   "score": "groups",
+   "kind": "start",
+   "question": "In bar 1, voice 1.1 (staff 1, voice 1), which notes start exactly at beat 2.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "G5"
+   ],
+   "effort": "medium",
+   "answer": [
+    "G5"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "1"
+   ],
+   "output_tokens": 359,
+   "stop": "end_turn",
+   "reply": "Beat 2.5 is 9 div units from the start of the bar, because one quarter note is 6 divs and beat 2.5 is 1.5 quarters in.\n\nCounting through bar 1, voice 1:\n- The triplet C5, D5, E5 starts at offsets 0, 2 and 4.\n- F5 starts at 6, which is beat 2.\n- G5 starts at 9, which is beat 2.5.\n- A5 starts at 12, B5 at 15 and C6 at 18.\n\nOnly G5 starts at beat 2.5.\n\n{\"answer\": [\"G5\"]}"
+  },
+  {
+   "id": "groups-6",
+   "score": "groups",
+   "kind": "sound",
+   "question": "In bar 2, voice 1.1 (staff 1, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 4.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "A5"
+   ],
+   "effort": "medium",
+   "answer": [
+    "A5"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "2"
+   ],
+   "output_tokens": 386,
+   "stop": "end_turn",
+   "reply": " bar has 6 div units per quarter note, so 24 in total. Reading the voice line from the start of the bar:\n\n- **Beat 1 (units 0\u20136):** the triplet is C5, a rest, then E5, each 2 units long.\n- **Beat 2 (units 6\u201312):** F5 and G5, each 3 units long.\n- **Beat 3 (units 12\u201318):** a 6-unit rest.\n- **Beat 4 (units 18\u201324):** A5, 6 units long.\n\nBeat 4.5 falls at unit 21, which is inside A5.\n\n{\"answer\": [\"A5\"]}"
+  },
+  {
+   "id": "groups-7",
+   "score": "groups",
+   "kind": "sound",
+   "question": "In bar 1, voice 1.1 (staff 1, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 4.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "C6"
+   ],
+   "effort": "medium",
+   "answer": [
+    "C6"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "1"
+   ],
+   "output_tokens": 393,
+   "stop": "end_turn",
+   "reply": "r note, so the bar is 24 divs long.\n\n- The triplet C5, D5 and E5 takes 2 divs per note and fills divs 0\u20136 (beat 1).\n- F5, G5, A5 and B5 take 3 divs each and start at divs 6, 9, 12 and 15. B5 ends at div 18.\n- C6 lasts 6 divs and fills divs 18\u201324, which is beat 4.\n\nBeat 4.5 is 3.5 quarters into the bar, which is div 21. That falls inside C6, and no other note is still held then.\n\n{\"answer\": [\"C6\"]}"
+  },
+  {
+   "id": "groups-8",
+   "score": "groups",
+   "kind": "start",
+   "question": "In bar 4, voice 1.1 (staff 1, voice 1), which notes start exactly at beat 1? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "C5"
+   ],
+   "effort": "medium",
+   "answer": [
+    "C5"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "4"
+   ],
+   "output_tokens": 267,
+   "stop": "end_turn",
+   "reply": "Bar 4, voice 1.1 opens with a triplet whose first note is C5. It starts at the very beginning of the bar, which is beat 1. It is a single note, not a chord, so C5 is the only note on beat 1.\n\n{\"answer\": [\"C5\"]}"
+  },
+  {
+   "id": "groups-9",
+   "score": "groups",
+   "kind": "start",
+   "question": "In bar 2, voice 1.1 (staff 1, voice 1), which notes start exactly at beat 1? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "C5"
+   ],
+   "effort": "medium",
+   "answer": [
+    "C5"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "2"
+   ],
+   "output_tokens": 159,
+   "stop": "end_turn",
+   "reply": "Bar 2 in voice 1.1 opens with a triplet. It has three slots of 2 divs each, which are C5, a rest and E5. The first slot is C5, so it is the only note that starts on beat 1. The rest in the second slot isn't a note, and E5 starts later in the bar.\n\n{\"answer\": [\"C5\"]}"
+  },
+  {
+   "id": "groups-10",
+   "score": "groups",
+   "kind": "lowest",
+   "question": "In bar 5, voice 1.1 (staff 1, voice 1), which is the lowest note? Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "C5"
+   ],
+   "effort": "medium",
+   "answer": [
+    "C5"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "5"
+   ],
+   "output_tokens": 146,
+   "stop": "end_turn",
+   "reply": "The lowest note in bar 5, voice 1.1, is C5. The voice plays C5, D5, E5 and C6, with no grace notes. C5 is the lowest of those.\n\n{\"answer\": [\"C5\"]}"
+  },
+  {
+   "id": "lyrics-1",
+   "score": "lyrics",
+   "kind": "sound",
+   "question": "In bar 1, voice 1.1 (staff 1, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 1.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "C5"
+   ],
+   "effort": "medium",
+   "answer": [
+    "C5"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "1"
+   ],
+   "output_tokens": 185,
+   "stop": "end_turn",
+   "reply": "Bar 1 has div=1, so each note lasts one quarter note. The notes are C5 on beat 1, D5 on beat 2, E5 on beat 3 and F5 on beat 4.\n\nBeat 1.5 is halfway through beat 1. C5 started at beat 1 and lasts until beat 2, so it is still sounding. No other note is sounding at that point.\n\n{\"answer\": [\"C5\"]}"
+  },
+  {
+   "id": "lyrics-2",
+   "score": "lyrics",
+   "kind": "sound",
+   "question": "In bar 4, voice 1.1 (staff 1, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 2.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "F5"
+   ],
+   "effort": "medium",
+   "answer": [
+    "F5"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "4-4"
+   ],
+   "output_tokens": 277,
+   "stop": "end_turn",
+   "reply": "In bar 4, voice 1.1 has an F5 lasting 2 beats, from beat 1 to beat 3. After it come a grace note A5, which isn't counted, and a G5 that starts on beat 3. At beat 2.5 only the F5 is sounding.\n\n{\"answer\": [\"F5\"]}"
+  },
+  {
+   "id": "lyrics-3",
+   "score": "lyrics",
+   "kind": "sound",
+   "question": "In bar 3, voice 1.1 (staff 1, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 4.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "F5"
+   ],
+   "effort": "medium",
+   "answer": [
+    "F5"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "3"
+   ],
+   "output_tokens": 185,
+   "stop": "end_turn",
+   "reply": "Bar 3, voice 1.1 has four quarter notes with div=1: C5 on beat 1, D5 on beat 2, E5 on beat 3 and F5 on beat 4. The F5 is tied forward, so it lasts past the bar line.\n\nBeat 4.5 falls halfway through beat 4, while F5 is still sounding. No other note is sounding then.\n\n{\"answer\": [\"F5\"]}"
+  },
+  {
+   "id": "lyrics-4",
+   "score": "lyrics",
+   "kind": "start",
+   "question": "In bar 2, voice 1.1 (staff 1, voice 1), which notes start exactly at beat 2? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "A5"
+   ],
+   "effort": "medium",
+   "answer": [
+    "A5"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "2"
+   ],
+   "output_tokens": 142,
+   "stop": "end_turn",
+   "reply": "Bar 2, voice 1.1 has three quarter notes (div=1 is one quarter note): G5 on beat 1, A5 on beat 2 and B5 on beat 3. The only note that starts exactly at beat 2 is A5.\n\n{\"answer\": [\"A5\"]}"
+  },
+  {
+   "id": "lyrics-5",
+   "score": "lyrics",
+   "kind": "start",
+   "question": "In bar 5, voice 1.1 (staff 1, voice 1), which notes start exactly at beat 1? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "C5"
+   ],
+   "effort": "medium",
+   "answer": [
+    "C5"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "5"
+   ],
+   "output_tokens": 199,
+   "stop": "end_turn",
+   "reply": "Bar 5, voice 1.1 has two notes: C5, then D5. The line \"2 C5 D5\" sets the duration to 2 divs, which is a half quarter note, so each note is an eighth note. C5 starts at beat 1 and D5 starts at beat 1.5.\n\nOnly C5 starts exactly on beat 1. The A4 in voice 1.2 is in a different voice, so I didn't count it.\n\n{\"answer\": [\"C5\"]}"
+  },
+  {
+   "id": "lyrics-6",
+   "score": "lyrics",
+   "kind": "sound",
+   "question": "In bar 3, voice 1.1 (staff 1, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 2.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "D5"
+   ],
+   "effort": "medium",
+   "answer": [
+    "D5"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "3"
+   ],
+   "output_tokens": 182,
+   "stop": "end_turn",
+   "reply": "Bar 3 has four quarter notes in voice 1.1 (div=1, so each number is one quarter): C5 on beat 1, D5 on beat 2, E5 on beat 3 and F5 on beat 4.\n\nBeat 2.5 is halfway through beat 2, so the note sounding is D5, which started on beat 2 and lasts through beat 2.\n\n{\"answer\": [\"D5\"]}"
+  },
+  {
+   "id": "lyrics-7",
+   "score": "lyrics",
+   "kind": "highest",
+   "question": "In bar 1, voice 1.1 (staff 1, voice 1), which is the highest note? Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "F5"
+   ],
+   "effort": "medium",
+   "answer": [
+    "F5"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "1"
+   ],
+   "output_tokens": 108,
+   "stop": "end_turn",
+   "reply": "The notes in bar 1, voice 1, are C5, D5, E5 and F5. The highest is F5. The bar has no grace notes.\n\n{\"answer\": [\"F5\"]}"
+  },
+  {
+   "id": "lyrics-8",
+   "score": "lyrics",
+   "kind": "start",
+   "question": "In bar 1, voice 1.1 (staff 1, voice 1), which notes start exactly at beat 3? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "E5"
+   ],
+   "effort": "medium",
+   "answer": [
+    "E5"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "1"
+   ],
+   "output_tokens": 157,
+   "stop": "end_turn",
+   "reply": "Bar 1, voice 1 has four quarter notes: C5 on beat 1, D5 on beat 2, E5 on beat 3 and F5 on beat 4. The score uses div=1, so each note lasts one quarter note. The note that starts exactly at beat 3 is E5.\n\n{\"answer\": [\"E5\"]}"
+  },
+  {
+   "id": "lyrics-9",
+   "score": "lyrics",
+   "kind": "start",
+   "question": "In bar 2, voice 1.1 (staff 1, voice 1), which notes start exactly at beat 3? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "B5"
+   ],
+   "effort": "medium",
+   "answer": [
+    "B5"
+   ],
+   "right": true,
+   "thought": false,
+   "calls": [
+    "2"
+   ],
+   "output_tokens": 151,
+   "stop": "end_turn",
+   "reply": "Bar 2, voice 1.1 has three notes, and each lasts 1 div, which is one quarter note because div=1. G5 starts on beat 1, A5 on beat 2, and B5 on beat 3. The bar is 4/4, so the last beat is empty.\n\n{\"answer\": [\"B5\"]}"
+  },
+  {
+   "id": "lyrics-10",
+   "score": "lyrics",
+   "kind": "sound",
+   "question": "In bar 5, voice 1.1 (staff 1, voice 1), which notes are sounding (started earlier and still held, or starting) at beat 3.5? Beats count from 1 at the start of the bar, a beat here is a quarter note, and beat 2.5 is halfway through beat 2. Do not count grace notes. End your reply with one line of JSON, {\"answer\": [...]}, listing the pitches as sounding pitches spelled as in read_score (Bb4, F#3).",
+   "truth": [
+    "D5"
+   ],
+   "effort": "medium",
+   "answer": [
+    "D5"
+   ],
+   "right": true,
+   "thought": true,
+   "calls": [
+    "5"
+   ],
+   "output_tokens": 224,
+   "stop": "end_turn",
+   "reply": "At beat 3.5 in bar 5, voice 1.1 is sounding D5.\n\nVoice 1.1 in bar 5 has two half notes. C5 runs from beat 1 to beat 3. D5 starts on beat 3 and runs to the end of the bar, so it is still held at beat 3.5.\n\n{\"answer\": [\"D5\"]}"
+  }
+ ]
+}
