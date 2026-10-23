@@ -39,7 +39,6 @@ async def main() -> None:
     start, whole = await server.read_score(str(bar)), await server.read_score("all")
     span = f"read {info.ticks[1]} {info.ticks[2]}"
     rests = sorted(line for line in await server.request(span) if line.startswith("R "))
-    drawn = looks(await server.request(span))
     number = int(re.search(r"Checkpoint (\d+)", await server.checkpoint("restore test"))[1])
     idea = f"N1x div=4\nm{bar} len={length}\n1.1: !ff\n1.2: {length // 2} ( C5[stacc] D5 )\n1.2 L1: la la"
     await server.keep(proposal(await server.propose(idea, "restore test", replace=True)))
@@ -62,12 +61,27 @@ async def main() -> None:
     check("a kept restore of every bar leaves the score as at the checkpoint", await server.read_score("all") == whole)
     again = await server.restore(number, str(bar))
     check("restoring bars already as at the checkpoint changes nothing", "already" in again, again)
-    try:
-        await server.keep(proposal(await server.propose(f"N1x div=4\nm{bar} len={length}\n1.1: {length} r", "restore test", replace=True)))
-        await server.keep(proposal(await server.restore(number, str(bar))))
-        check("restore brings back the stem directions and beam modes the checkpoint has", looks(await server.request(span)) == drawn and await server.read_score(str(bar)) == start, f"{drawn}\n{looks(await server.request(span))}")
-    except ToolError as error:
-        print(f"SKIP stem directions and beam modes: {error}")
+    tried = []
+    for position, measure in enumerate(info.measures):
+        end = info.ticks[position + 1] if position + 1 < len(info.ticks) else 2**31 - 1
+        here = f"read {info.ticks[position]} {end}"
+        drawn = looks(await server.request(here))
+        if not any(len(look) > 2 and look[1] == "0" for look in drawn):
+            continue
+        before, size = await server.read_score(str(measure.number)), int(info.lengths[position] * 4)
+        try:
+            emptied = proposal(await server.propose(f"N1x div=4\nm{measure.number} len={size}\n1.1: {size} r", "restore test", replace=True))
+        except ToolError as error:
+            tried.append(f"bar {measure.number}: {error}")
+            continue
+        await server.keep(emptied)
+        await server.keep(proposal(await server.restore(number, str(measure.number))))
+        after = looks(await server.request(here))
+        check(f"restore brings back the stem directions and beam modes the checkpoint has (bar {measure.number})", after == drawn and await server.read_score(str(measure.number)) == before, f"{drawn}\n{after}")
+        break
+    else:
+        reason = "; ".join(tried[:3]) if tried else "the score has no stem direction or beam mode set in voice 1.1, so there is nothing to check"
+        print(f"SKIP stem directions and beam modes: {reason}")
     error = await refused(server.restore(999, str(bar)))
     check("an unknown checkpoint is refused with the list", "no checkpoint 999" in error and '"restore test"' in error, error)
     for path in set(folder.glob("*")) - saved:

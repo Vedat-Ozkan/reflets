@@ -78,6 +78,10 @@ mcp = MCPServer(
 bridge = Bridge()
 
 
+class Unchanged(ToolError):
+    pass
+
+
 @dataclass
 class Proposal:
     label: str
@@ -404,6 +408,8 @@ async def write_idea(idea: str, label: str, replace: bool, recast: bool = False,
         add_lines(plan, pre, info)
     except IdeaError as error:
         raise ToolError(str(error)) from None
+    if not plan.ops:
+        raise Unchanged("The idea changes nothing in the score, so nothing was written.")
     if view:
         plan.ops[0:0] = view.ops
         plan.meters = dict.fromkeys(view.positions, view.meter)
@@ -654,19 +660,26 @@ async def restore(checkpoint: int, bars: str) -> str:
     if body(now) == body(then):
         return f'Bars {first}-{last} are as in checkpoint {checkpoint} "{saved["name"]}" already.'
     label = f"restore {checkpoint}"
-    cleared = re.search(r"proposal id: (p\d+)", await propose(bare_idea(body(now), now.splitlines()[0], marks(writable(then), then.splitlines()[0])), label, replace=True))[1]
+    try:
+        cleared = re.search(r"proposal id: (p\d+)", await propose(bare_idea(body(now), now.splitlines()[0], marks(writable(then), then.splitlines()[0])), label, replace=True))[1]
+    except Unchanged:
+        cleared = None
     try:
         result = await write_idea(target_idea(body(now), writable(then), then.splitlines()[0]), label, True, drawn=moved(saved["read"], then_info, info, first, last))
     except ToolError as error:
-        await discard(cleared)
+        if cleared:
+            await discard(cleared)
         raise ToolError(f"Bars {first}-{last} could not be restored, and nothing changed: {error}") from None
-    a, b = closed(cleared), closed(re.search(r"proposal id: (p\d+)", result)[1])
-    proposal_id = opened(Proposal(label, b.start_tick, b.end_tick, sorted(set(a.tracks) | set(b.tracks)), b.bars, a.pre, b.post, a.pre_end, b.title, 2))
+    proposal_id = re.search(r"proposal id: (p\d+)", result)[1]
+    if cleared:
+        a, b = closed(cleared), closed(proposal_id)
+        proposal_id = opened(Proposal(label, b.start_tick, b.end_tick, sorted(set(a.tracks) | set(b.tracks)), b.bars, a.pre, b.post, a.pre_end, b.title, 2))
     note = result.split("Read-back matched.", 1)[1].split("\n", 1)[0]
     if body(then) != writable(then):
         note += " Glissandos cannot be written, so the checkpoint's are left out; they are in its file."
+    where = f"bar {first}" if first == last else f"bars {first}-{last}"
     return (
-        f'Restored {b.bars} from checkpoint {checkpoint} "{saved["name"]}" ({saved["saved"]}), in two undo steps '
+        f'Restored {where} from checkpoint {checkpoint} "{saved["name"]}" ({saved["saved"]}), in {"two undo steps" if cleared else "one undo step"} '
         f'"Reflets: {label}". Read-back matched.{note}\nThe restored notes are blue. The user listens with Play in '
         f'MuseScore; then keep("{proposal_id}") turns them black, or discard("{proposal_id}") takes the bars back as '
         f"they were before.\nproposal id: {proposal_id}"
