@@ -49,4 +49,5 @@ Follow-ups:
 
 - Done 2026-10-24, plugin 0.25.0: the bridge listens on the first free port of 8731-8740, finds it with a `probe <nonce>` verb answered before `hello`, writes `reflets-token.txt` on 8731 and `reflets-token-<port>.txt` elsewhere, and answers `ping` with `active=<ms>`. Protocol stays 24: a 0.3.3 server keeps talking to 8731 and is no longer broken by a second window. `tests/live_windows.py` passed in three windows (the owner's chorale on plugin 0.24.6, groups and lyrics on 0.25.0); `live_proposals`, `live_checkpoint`, `live_restore` and `live_doctor` passed with the three open.
 - Done: `diagnose` checks the 8731 bridge, and `live_doctor` pins its port-8739 checks to it.
+- Done: a bridge whose `ping` fails counts as gone only when a plain TCP connect to its port also fails (a busy MuseScore still accepts one); then its `reflets-token-<port>.txt` is removed, so leftovers do not pile up. Checked by closing a window: the next call took 3 s once and removed the file.
 - When the window used last has no score open but another window has one, tools report "no score open". Decide whether to fall back to the other window.

@@ -119,6 +119,15 @@ class Bridge:
             raise BridgeError(f"The bridge plugin reported {code}: {message}")
         return words[2:], lines[1:]
 
+    async def listening(self) -> bool:
+        host, port = self.url.removeprefix("ws://").rsplit(":", 1)
+        try:
+            _, writer = await asyncio.wait_for(asyncio.open_connection(host, int(port)), OTHER_TIMEOUT)
+        except (OSError, asyncio.TimeoutError):
+            return False
+        writer.close()
+        return True
+
     async def active(self) -> int:
         words, _ = await self.request("ping")
         return int(dict(word.split("=", 1) for word in words if "=" in word).get("active", 0))
@@ -156,7 +165,11 @@ class Bridges:
             try:
                 live.append((await bridge.active(), bridge))
             except BridgeError:
+                if await bridge.listening():
+                    continue
                 bridge.dead = written(bridge.token)
+                if bridge is not self.first:
+                    bridge.token.unlink(missing_ok=True)
         return max(live, key=lambda pair: pair[0])[1] if live else self.first
 
     async def request(self, line: str) -> tuple[list[str], list[str]]:

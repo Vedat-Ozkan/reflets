@@ -66,9 +66,10 @@ async def main() -> None:
             began = time.monotonic()
             await call(server.score_info())
             times.append(time.monotonic() - began)
-        check("a token file nothing answers costs one short wait, then none", times[0] < 5 and times[1] < 1, str(times))
+        check("a token file nothing answers costs one short wait, then none, and is removed",
+              times[0] < 5 and times[1] < 1 and not stale.exists(), str(times))
     finally:
-        stale.unlink()
+        stale.unlink(missing_ok=True)
     sys.exit(1 if failures else 0)
 
 
