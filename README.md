@@ -15,7 +15,7 @@ Status: slices 3 and 4 done. The server reads the open score (`score_info`, `rea
 1. Put the plugin in MuseScore's plugin folder:
 
    ```
-   uvx --python 3.12 --from git+https://github.com/Vedat-Ozkan/reflets@v0.3.3 reflets install-plugin
+   uvx --python 3.12 --from git+https://github.com/Vedat-Ozkan/reflets@v0.4.0 reflets install-plugin
    ```
 
    It copies `reflets-bridge.qml` to `Documents/MuseScore4/Plugins/reflets-bridge/` (from WSL, the Windows user's Documents folder). If MuseScore's plugin folder is elsewhere, set `REFLETS_TOKEN_FILE` to `reflets-token.txt` in that folder, here and in the server's `env`.
@@ -24,7 +24,7 @@ Status: slices 3 and 4 done. The server reads the open score (`score_info`, `rea
    - Claude Code:
 
      ```
-     claude mcp add reflets -- uvx --python 3.12 --from git+https://github.com/Vedat-Ozkan/reflets@v0.3.3 reflets
+     claude mcp add reflets -- uvx --python 3.12 --from git+https://github.com/Vedat-Ozkan/reflets@v0.4.0 reflets
      ```
 
    - Claude Desktop: Settings > Developer > Edit Config, add the entry below to `claude_desktop_config.json`, and restart Claude. On Windows, use the full path of `uvx.exe` (`C:\Users\<you>\.local\bin\uvx.exe` with the default uv install) and keep the two `UV_` lines: Claude Desktop from the Microsoft Store redirects its programs' writes to `AppData`, which breaks uv's Python install there.
@@ -34,7 +34,7 @@ Status: slices 3 and 4 done. The server reads the open score (`score_info`, `rea
        "mcpServers": {
          "reflets": {
            "command": "uvx",
-           "args": ["--python", "3.12", "--from", "git+https://github.com/Vedat-Ozkan/reflets@v0.3.3", "reflets"],
+           "args": ["--python", "3.12", "--from", "git+https://github.com/Vedat-Ozkan/reflets@v0.4.0", "reflets"],
            "env": {
              "UV_PYTHON_INSTALL_DIR": "C:\\Users\\<you>\\.local\\share\\uv\\python",
              "UV_TOOL_DIR": "C:\\Users\\<you>\\.local\\share\\uv\\tools"
@@ -47,7 +47,7 @@ Status: slices 3 and 4 done. The server reads the open score (`score_info`, `rea
    - Codex:
 
      ```
-     codex mcp add reflets -- uvx --python 3.12 --from git+https://github.com/Vedat-Ozkan/reflets@v0.3.3 reflets
+     codex mcp add reflets -- uvx --python 3.12 --from git+https://github.com/Vedat-Ozkan/reflets@v0.4.0 reflets
      ```
 
      The first start installs Reflets, which can take longer than Codex's 10-second start limit. Add `startup_timeout_sec = 120` under `[mcp_servers.reflets]` in `~/.codex/config.toml`.
