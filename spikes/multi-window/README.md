@@ -1,6 +1,6 @@
 # Multi-window spike
 
-Checks the three assumptions in `research/multi-window-2026-10-23.md`. Not yet run.
+Checks the three assumptions in `research/multi-window-2026-10-23.md`. Run 2026-10-23, all passed (results in that note).
 
 1. Copy `reflets-multiwindow-spike.qml` to `Documents/MuseScore4/Plugins/reflets-multiwindow-spike/` and enable it in MuseScore's plugin manager.
 2. Open two scores in two MuseScore windows. Run Plugins > Reflets Multiwindow Spike in each, but not in a window running the bridge: plugins in one process share one WebSocket server, so the spike would take the bridge's connections until MuseScore restarts (spec 2.1).

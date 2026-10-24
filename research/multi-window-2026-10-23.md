@@ -17,6 +17,17 @@ MuseScore 4 opens each further score in a new process (one score per window). Th
   - So the plugin can find its own port: open a client to each candidate port and send a probe carrying a random nonce. Its own server sees its own nonce; another process's bridge does not.
 - Nothing in the API names the process or the window. `Qt.application.state` is part of every QML engine (`Qt.ApplicationActive` when the process has the focused window), so each bridge could record when its window was last active. Not yet tried in a v1 plugin engine.
 
+## Spike results (2026-10-23, `spikes/multi-window/`)
+
+Run in three MuseScore 4.7.5 windows (lyrics, the nocturne, then groups in place of lyrics), next to the chorale's bridge on 8731. All passed:
+
+- Sequential `listen` on 8751-8755: the first window listened on 8751, the second on 8752 (`netstat` showed each port held by its own process). MuseScore logs `QTcpServer::listen() called when already listening` for each refused call.
+- The nonce probe through `api.websocket`: each window reported `probe mine` for its own port and `probe other` for the other's; ports with nothing listening never call `onConnected`, so they stay "no answer" without an error.
+- `Qt.application.state` reaches a v1 plugin and is per process: 4 (active) in the window in front, 2 in the other; bringing a window forward raised its `lastActive` above the other's and counted a change.
+- After the 8751 window was closed, the spike in a newly opened window took 8751 again.
+
+Also seen: running a second plugin that calls `listen` (the old Reflets Spike, run by a mis-click) in the bridge's window takes the bridge's connections; running Reflets Bridge again takes them back, as spec 2.1 says.
+
 ## Design this allows
 
 1. Plugin: listen on 8731-8740 in turn, find its port with the nonce probe, write the token to `reflets-token-<port>.txt` (never another instance's file), and show the port in the toast. It reports `Qt.application.state` changes as a last-active time.
