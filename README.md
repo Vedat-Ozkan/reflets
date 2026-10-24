@@ -2,7 +2,7 @@
 
 A composing companion for MuseScore Studio, served over MCP. A bridge plugin inside MuseScore exposes the open score on a local WebSocket (port 8731); the Reflets MCP server talks to it and gives an MCP host such as Claude Code tools for reading the score.
 
-Status: slices 3 and 4 done. The server reads the open score (`score_info`, `read_score`, notes in N1x with the header and bar fields: repeats, voltas, bar lines, breaks, jumps, markers, key and meter changes) and writes ideas into it in place: `propose` writes an idea in blue as one undo step and checks it by reading it back, `keep` turns it black, `discard` undoes it. `check` lists part-writing faults in chorale-style bars, `analyze` drafts the harmony, `render` engraves bars to a PNG with the findings drawn if asked, `checkpoint` saves the whole score as a MusicXML file under a name (`keep` saves one too), and `restore` lists them or writes chosen bars back as a checkpoint has them. When MuseScore cannot be reached, `score_info` says why with a checklist.
+Status: slices 3 and 4 done. The server reads the open score (`score_info`, `read_score`, notes in N1x with the header and bar fields: repeats, voltas, bar lines, breaks, jumps, markers, key and meter changes) and writes ideas into it in place: `propose` writes an idea in blue as one undo step and checks it by reading it back, `keep` turns it black, `discard` undoes it. `check` lists part-writing faults in chorale-style bars, `analyze` drafts the harmony, `render` engraves bars to a PNG with the findings drawn if asked, `checkpoint` saves the whole score as a MusicXML file under a name (`keep` saves one too, and `score_info` lists them), and `restore` writes chosen bars back as a checkpoint has them. When MuseScore cannot be reached, `score_info` says why with a checklist.
 
 ## Requirements
 
@@ -15,7 +15,7 @@ Status: slices 3 and 4 done. The server reads the open score (`score_info`, `rea
 1. Put the plugin in MuseScore's plugin folder:
 
    ```
-   uvx --python 3.12 --from git+https://github.com/Vedat-Ozkan/reflets@v0.3.2 reflets install-plugin
+   uvx --python 3.12 --from git+https://github.com/Vedat-Ozkan/reflets@v0.3.3 reflets install-plugin
    ```
 
    It copies `reflets-bridge.qml` to `Documents/MuseScore4/Plugins/reflets-bridge/` (from WSL, the Windows user's Documents folder). If MuseScore's plugin folder is elsewhere, set `REFLETS_TOKEN_FILE` to `reflets-token.txt` in that folder, here and in the server's `env`.
@@ -24,7 +24,7 @@ Status: slices 3 and 4 done. The server reads the open score (`score_info`, `rea
    - Claude Code:
 
      ```
-     claude mcp add reflets -- uvx --python 3.12 --from git+https://github.com/Vedat-Ozkan/reflets@v0.3.2 reflets
+     claude mcp add reflets -- uvx --python 3.12 --from git+https://github.com/Vedat-Ozkan/reflets@v0.3.3 reflets
      ```
 
    - Claude Desktop: Settings > Developer > Edit Config, add the entry below to `claude_desktop_config.json`, and restart Claude. On Windows, use the full path of `uvx.exe` (`C:\Users\<you>\.local\bin\uvx.exe` with the default uv install) and keep the two `UV_` lines: Claude Desktop from the Microsoft Store redirects its programs' writes to `AppData`, which breaks uv's Python install there.
@@ -34,7 +34,7 @@ Status: slices 3 and 4 done. The server reads the open score (`score_info`, `rea
        "mcpServers": {
          "reflets": {
            "command": "uvx",
-           "args": ["--python", "3.12", "--from", "git+https://github.com/Vedat-Ozkan/reflets@v0.3.2", "reflets"],
+           "args": ["--python", "3.12", "--from", "git+https://github.com/Vedat-Ozkan/reflets@v0.3.3", "reflets"],
            "env": {
              "UV_PYTHON_INSTALL_DIR": "C:\\Users\\<you>\\.local\\share\\uv\\python",
              "UV_TOOL_DIR": "C:\\Users\\<you>\\.local\\share\\uv\\tools"

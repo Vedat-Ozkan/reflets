@@ -120,7 +120,7 @@ async def load_info() -> ScoreInfo:
     title="Score info",
     description=(
         "Use this first: whether MuseScore is connected, and the open score's title, parts with their staves, "
-        "bar count, meter, key and pickup. When MuseScore is not reachable it says why, with a checklist of the plugin "
+        "bar count, meter, key and pickup, and its checkpoints by number, name and time, with their files. When MuseScore is not reachable it says why, with a checklist of the plugin "
         "file, its token file, the harmony model, the port and the bridge's answer, each passed or failed with what "
         "to do: tell the user what it says."
     ),
@@ -146,7 +146,8 @@ async def score_info() -> str:
         f"MuseScore {int(version[:-4])}.{int(version[-4:-2])}.{int(version[-2:])}, "
         f"Reflets bridge {hello.get('plugin', '?').split('/')[-1]}, connected.\n"
         f'"{info.title}": {len(info.parts)} part(s): {parts}. Bars {first}-{last} '
-        f"({'with' if first == 0 else 'no'} pickup), meter {info.measures[0].meter}, key {info.key}{changes}."
+        f"({'with' if first == 0 else 'no'} pickup), meter {info.measures[0].meter}, key {info.key}{changes}.\n"
+        f"{listed_checkpoints(info)}"
     )
 
 
@@ -637,19 +638,15 @@ def listed_checkpoints(info: ScoreInfo) -> str:
     title="Restore bars from a checkpoint",
     description=(
         "Use this when the user wants bars back as they were at a checkpoint: it writes them as the checkpoint has "
-        'them, notes, marks, decorations, lines and lyrics, as a proposal. bars is a range like "5-12". Called without '
-        "a checkpoint, it lists the open score's checkpoints by number, name and time, with their files, and writes nothing. "
+        'them, notes, marks, decorations, lines and lyrics, as a proposal. checkpoint is its number, which score_info '
+        'lists; bars is a range like "5-12" or "all". '
         "Bars outside it keep the user's later edits. Refused when a bar's length changed since; then the user can "
         "open the checkpoint's file."
     ),
     annotations=writes("Restore bars from a checkpoint", destructive=True),
     structured_output=False,
 )
-async def restore(checkpoint: int | None = None, bars: str = "") -> str:
-    if checkpoint is None:
-        return listed_checkpoints(await load_info())
-    if not bars.strip():
-        raise ToolError('Name the bars to restore, a range like "5-12" or "all".')
+async def restore(checkpoint: int, bars: str) -> str:
     info, index, first, last, _ = await read_bars(bars, whole_score=True)
     folder = checkpoint_folder(info.title)
     found = [path for path in folder.glob(f"{checkpoint:03d}*.json") if path.stem.split(" ", 1)[0] == f"{checkpoint:03d}"]

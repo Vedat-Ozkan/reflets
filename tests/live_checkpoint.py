@@ -38,7 +38,7 @@ async def main() -> None:
     check("the keep checkpoint holds the kept notes", len(later["read"]) > len(stored["read"]), f"{len(later['read'])} vs {len(stored['read'])}")
     third, odd = saved(await server.checkpoint('a/b: "c"?'))
     check("a name with characters Windows refuses still saves", odd.exists() and third == second + 1, str(odd))
-    listing = await server.restore()
+    listing = await server.score_info()
     check("the list names each checkpoint by number", all(f'{n}. "{name}"' in listing for n, name in ((first, "before the idea"), (second, "keep checkpoint test"), (third, 'a/b: "c"?'))), listing)
     await server.request("undo")
     await server.request("undo")
