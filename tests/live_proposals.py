@@ -54,6 +54,16 @@ async def main() -> None:
     server.proposals_file().write_text(json.dumps(data))
     await server.discard(latest)
     check("the bar is as before", await server.read_score(str(bar)) == start)
+    for tool in ("discard", "keep"):
+        written = re.search(r"proposal id: (p\d+)", await server.propose(idea[1:-1].replace("\\n", "\n"), "undone"))[1]
+        await server.request("undo")
+        try:
+            result = await getattr(server, tool)(written)
+        except ToolError as refused:
+            result = str(refused)
+        check(f"{tool} of a proposal undone in MuseScore closes it", "no longer in the score" in result
+              and written not in json.loads(server.proposals_file().read_text())["open"]
+              and await server.read_score(str(bar)) == start, result)
     for path in set(folder.glob("*")) - saved:
         path.unlink()
     sys.exit(1 if failures else 0)

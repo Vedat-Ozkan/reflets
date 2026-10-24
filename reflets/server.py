@@ -535,6 +535,16 @@ async def find(proposal_id: str) -> Proposal:
     return p
 
 
+async def gone(proposal_id: str, p: Proposal) -> str:
+    if sorted(await request(f"read {p.start_tick} {p.pre_end}")) != sorted(p.pre):
+        return ""
+    closed(proposal_id)
+    return (
+        f"{proposal_id} is no longer in the score: {p.bars} are as they were before it, undone in MuseScore or the "
+        "score reopened. It is closed now; nothing changed."
+    )
+
+
 @mcp.tool(
     title="Discard an idea",
     description=(
@@ -548,6 +558,8 @@ async def discard(proposal_id: str) -> str:
     p = await find(proposal_id)
     span = f"read {p.start_tick} {p.end_tick}"
     if sorted(await request(span)) != sorted(p.post):
+        if left := await gone(proposal_id, p):
+            return left
         raise ToolError(
             f"{p.bars.capitalize()} changed since {proposal_id} was written, so undoing would remove the user's edit. "
             "Nothing was undone; the user can use Ctrl+Z in MuseScore."
@@ -575,6 +587,8 @@ async def discard(proposal_id: str) -> str:
 )
 async def keep(proposal_id: str) -> str:
     p = await find(proposal_id)
+    if left := await gone(proposal_id, p):
+        raise ToolError(left)
     tracks = ",".join(map(str, p.tracks))
     await request(f"color {p.start_tick} {p.end_tick} {tracks} #000000 keep {p.label}")
     closed(proposal_id)

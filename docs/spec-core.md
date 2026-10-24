@@ -443,7 +443,7 @@ With the 4.7 floor (2.5) only the right column is used; the left stays as a reco
 
 `discard(p)`:
 
-1. Re-read the proposal's range. If it differs from the post-write read-back stored with `p`, the user has edited since; refuse, and tell the user to use Ctrl+Z themselves. Undo would otherwise remove their edit.
+1. Re-read the proposal's range. If it differs from the post-write read-back stored with `p`, the user has edited since; refuse, and tell the user to use Ctrl+Z themselves. Undo would otherwise remove their edit. As built 2026-10-23: if the range equals the pre-snapshot instead, the proposal is no longer in the score (undone in MuseScore, or the score reopened from its file, as p1492 was in the Desktop test); `discard` closes it and says so, and `keep` closes it and refuses. Other stale entries (proposals from test scores) are left in `proposals.json` for the owner to decide.
 2. `undo` verb → `cmd(UNDO)` with the version code (6.8), outside any `startCmd`.
 3. Read back; it must equal the pre-snapshot, else report a mismatch and stop (the code may have been a silent no-op, `deep:60`).
 
