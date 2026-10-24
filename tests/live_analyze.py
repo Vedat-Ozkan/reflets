@@ -1,8 +1,7 @@
 import asyncio
+import os
 import re
 import sys
-
-from engine import draft
 
 from reflets import server
 
@@ -23,11 +22,10 @@ async def main() -> None:
     chords = re.findall(r"^m(\d+) b[\d.]+ \|", report, re.M)
     check("the draft lists chords in the range only", chords and {int(bar) for bar in chords} <= {first, first + 1}, report)
     check("the notes table comes first", report.index(f"\nm{first}\n") < report.index("CHORDS:"), report)
-    python = draft.ANALYSISGNN_PYTHON
-    draft.ANALYSISGNN_PYTHON = "/nonexistent/python"
+    python = os.environ.pop("ANALYSISGNN_PYTHON")
     report = await server.analyze(bars)
-    check("without the model, the table and the reason", f"\nm{first}\n" in report and "the AnalysisGNN model is not installed" in report, report)
-    draft.ANALYSISGNN_PYTHON = python
+    check("without the model, the table and the reason", f"\nm{first}\n" in report and "AnalysisGNN model is not installed (ANALYSISGNN_PYTHON and ANALYSISGNN_CHECKPOINT are not set)" in report, report)
+    os.environ["ANALYSISGNN_PYTHON"] = python
     sys.exit(1 if failures else 0)
 
 

@@ -120,7 +120,9 @@ async def load_info() -> ScoreInfo:
     title="Score info",
     description=(
         "Use this first: whether MuseScore is connected, and the open score's title, parts with their staves, "
-        "bar count, meter, key and pickup. If it says MuseScore is not reachable, tell the user what it says."
+        "bar count, meter, key and pickup. When MuseScore is not reachable it says why, with a checklist of the plugin "
+        "file, its token file, the harmony model, the port and the bridge's answer, each passed or failed with what "
+        "to do: tell the user what it says."
     ),
     annotations=read_only("Score info"),
     meta={"anthropic/alwaysLoad": True},
@@ -130,7 +132,7 @@ async def score_info() -> str:
     try:
         _, lines = await bridge.request("info")
     except BridgeError as error:
-        return str(error)
+        return f"{error}\n\n{await diagnose()}" if bridge.socket is None else str(error)
     info = parse_info(lines)
     hello = bridge.hello
     version = hello.get("mscore", "0").rjust(5, "0")
@@ -221,16 +223,22 @@ async def check(bars: str = "all") -> str:
 async def analyze(bars: str = "all") -> str:
     _, index, first, last, _ = await read_bars(bars, whole_score=True)
     table = reduce.as_text(index, first, last)
-    if not Path(draft.ANALYSISGNN_PYTHON).exists() or not Path(draft.ANALYSISGNN_CHECKPOINT).exists():
-        return table + (
-            f"\n\nNo harmony draft: the AnalysisGNN model is not installed (ANALYSISGNN_PYTHON {draft.ANALYSISGNN_PYTHON}, "
-            f"ANALYSISGNN_CHECKPOINT {draft.ANALYSISGNN_CHECKPOINT}). Analyse from the table."
-        )
+    missing = missing_model()
+    if missing:
+        return table + f"\n\nNo harmony draft: the optional AnalysisGNN model is not installed ({missing}). Analyse from the table."
     try:
         result = await asyncio.to_thread(draft.draft, index)
     except draft.DraftError as error:
         return table + f"\n\nNo harmony draft: {error}. Analyse from the table."
     return table + "\n\n" + draft.as_text(result, first, last)
+
+
+def missing_model() -> str:
+    paths = [os.environ.get(name) for name in ("ANALYSISGNN_PYTHON", "ANALYSISGNN_CHECKPOINT")]
+    if not all(paths):
+        return "ANALYSISGNN_PYTHON and ANALYSISGNN_CHECKPOINT are not set"
+    gone = [path for path in paths if not Path(path).exists()]
+    return f"nothing at {' or '.join(gone)}" if gone else ""
 
 
 async def read_bars(bars: str, whole_score: bool = False) -> tuple[ScoreInfo, ScoreIndex, int, int, bool]:
@@ -613,14 +621,7 @@ async def checkpoint(name: str) -> str:
     return await save_checkpoint(" ".join(name.split()) or "checkpoint")
 
 
-@mcp.tool(
-    title="List the checkpoints",
-    description="Use this to see the checkpoints saved for the open score, by number, name and time, with their files.",
-    annotations=read_only("List the checkpoints"),
-    structured_output=False,
-)
-async def checkpoints() -> str:
-    info = await load_info()
+def listed_checkpoints(info: ScoreInfo) -> str:
     folder = checkpoint_folder(info.title)
     found = sorted(folder.glob("*.json")) if folder.exists() else []
     if not found:
@@ -635,20 +636,25 @@ async def checkpoints() -> str:
 @mcp.tool(
     title="Restore bars from a checkpoint",
     description=(
-        "Use this when the user wants bars back as they were at a checkpoint (see checkpoints): it writes them as "
-        'the checkpoint has them, notes, marks, decorations, lines and lyrics, as a proposal. bars is a range like "5-12". '
+        "Use this when the user wants bars back as they were at a checkpoint: it writes them as the checkpoint has "
+        'them, notes, marks, decorations, lines and lyrics, as a proposal. bars is a range like "5-12". Called without '
+        "a checkpoint, it lists the open score's checkpoints by number, name and time, with their files, and writes nothing. "
         "Bars outside it keep the user's later edits. Refused when a bar's length changed since; then the user can "
         "open the checkpoint's file."
     ),
     annotations=writes("Restore bars from a checkpoint", destructive=True),
     structured_output=False,
 )
-async def restore(checkpoint: int, bars: str) -> str:
+async def restore(checkpoint: int | None = None, bars: str = "") -> str:
+    if checkpoint is None:
+        return listed_checkpoints(await load_info())
+    if not bars.strip():
+        raise ToolError('Name the bars to restore, a range like "5-12" or "all".')
     info, index, first, last, _ = await read_bars(bars, whole_score=True)
     folder = checkpoint_folder(info.title)
     found = [path for path in folder.glob(f"{checkpoint:03d}*.json") if path.stem.split(" ", 1)[0] == f"{checkpoint:03d}"]
     if not found:
-        raise ToolError(f"There is no checkpoint {checkpoint}. " + await checkpoints())
+        raise ToolError(f"There is no checkpoint {checkpoint}. " + listed_checkpoints(info))
     saved = json.loads(found[0].read_text())
     then_info = parse_info(saved["info"])
     numbers, then_numbers = [m.number for m in info.measures], [m.number for m in then_info.measures]
@@ -692,17 +698,7 @@ async def restore(checkpoint: int, bars: str) -> str:
     )
 
 
-@mcp.tool(
-    title="Diagnose the connection",
-    description=(
-        "Use this when score_info cannot reach MuseScore or a tool fails in a way you cannot explain: "
-        "a checklist of the plugin file, its token file, the harmony model, the port, the bridge's answer, "
-        "MuseScore's version and the open score, each passed or failed with what to do."
-    ),
-    annotations=read_only("Diagnose the connection"),
-    structured_output=False,
-)
-async def doctor() -> str:
+async def diagnose() -> str:
     checks = []
 
     def check(ok: bool, text: str) -> None:
@@ -720,13 +716,11 @@ async def doctor() -> str:
         check(False, f"No plugin file at {plugin}. Copy plugin/reflets-bridge.qml there, or {where}.")
     token = token_file()
     check(token.exists(), f"Token file {token}." if token.exists() else f"No token file at {token}: run Plugins > Reflets Bridge, or {where}.")
-    model = Path(draft.ANALYSISGNN_PYTHON).exists() and Path(draft.ANALYSISGNN_CHECKPOINT).exists()
-    named = "ANALYSISGNN_PYTHON" in os.environ or "ANALYSISGNN_CHECKPOINT" in os.environ
-    where = f"at {draft.ANALYSISGNN_PYTHON} and {draft.ANALYSISGNN_CHECKPOINT}" if named else "(ANALYSISGNN_PYTHON and ANALYSISGNN_CHECKPOINT are not set)"
-    checks.append(f"PASS AnalysisGNN model {draft.ANALYSISGNN_CHECKPOINT}." if model else (
-        f"NOTE No AnalysisGNN model {where}: analyze gives the "
-        "notes table without a harmony draft. Set ANALYSISGNN_PYTHON and ANALYSISGNN_CHECKPOINT to install it."
-    ))
+    missing = missing_model()
+    checks.append(f"NOTE No AnalysisGNN model ({missing}): analyze gives the notes table without a harmony draft. The model "
+                  "is optional: set it up as sheet-music-plugin's README says (Draft model), then name its Python and checkpoint "
+                  "with ANALYSISGNN_PYTHON and ANALYSISGNN_CHECKPOINT in the server's env." if missing else
+                  f"PASS AnalysisGNN model {os.environ['ANALYSISGNN_CHECKPOINT']}.")
     host, port = bridge.url.removeprefix("ws://").rsplit(":", 1)
     try:
         _, writer = await asyncio.wait_for(asyncio.open_connection(host, int(port)), 5)

@@ -2,13 +2,13 @@
 
 A composing companion for MuseScore Studio, served over MCP. A bridge plugin inside MuseScore exposes the open score on a local WebSocket (port 8731); the Reflets MCP server talks to it and gives an MCP host such as Claude Code tools for reading the score.
 
-Status: slices 3 and 4 done. The server reads the open score (`score_info`, `read_score`, notes in N1x with the header and bar fields: repeats, voltas, bar lines, breaks, jumps, markers, key and meter changes) and writes ideas into it in place: `propose` writes an idea in blue as one undo step and checks it by reading it back, `keep` turns it black, `discard` undoes it. `check` lists part-writing faults in chorale-style bars, `analyze` drafts the harmony, `render` engraves bars to a PNG with the findings drawn if asked, `checkpoint` saves the whole score as a MusicXML file under a name (`keep` saves one too) `checkpoints` lists them and `restore` writes chosen bars back as a checkpoint has them, and `doctor` diagnoses the connection.
+Status: slices 3 and 4 done. The server reads the open score (`score_info`, `read_score`, notes in N1x with the header and bar fields: repeats, voltas, bar lines, breaks, jumps, markers, key and meter changes) and writes ideas into it in place: `propose` writes an idea in blue as one undo step and checks it by reading it back, `keep` turns it black, `discard` undoes it. `check` lists part-writing faults in chorale-style bars, `analyze` drafts the harmony, `render` engraves bars to a PNG with the findings drawn if asked, `checkpoint` saves the whole score as a MusicXML file under a name (`keep` saves one too), and `restore` lists them or writes chosen bars back as a checkpoint has them. When MuseScore cannot be reached, `score_info` says why with a checklist.
 
 ## Requirements
 
 - MuseScore Studio 4.7 or later
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) and Git. uv fetches Python and the engine ([sheet-music-analysis](https://github.com/Vedat-Ozkan/sheet-music-analysis), from GitHub).
-- Optional, for the harmony draft in `analyze`: the AnalysisGNN environment and checkpoint from `sheet-music-plugin` (`.venv-agnn`, `artifacts/models/model.ckpt`; see its README), named by `ANALYSISGNN_PYTHON` and `ANALYSISGNN_CHECKPOINT` in the server's `env`. Without them `analyze` gives the notes table only.
+- Optional, for the harmony draft in `analyze`: the AnalysisGNN model. It is not part of the install: it runs in its own Python environment with PyTorch, set up from a clone of [sheet-music-analysis](https://github.com/Vedat-Ozkan/sheet-music-analysis) as its README's "Draft model" section says (`.venv-agnn` and `artifacts/models/model.ckpt`). Name the two in the server's `env`, as absolute paths: `ANALYSISGNN_PYTHON` the environment's Python (`.venv-agnn/bin/python`, on Windows `.venv-agnn\Scripts\python.exe`) and `ANALYSISGNN_CHECKPOINT` the checkpoint. Without them `analyze` gives the notes table only, and says so.
 
 ## Install
 
