@@ -44,6 +44,14 @@ Status: slices 3 and 4 done. The server reads the open score (`score_info`, `rea
      }
      ```
 
+   - Codex:
+
+     ```
+     codex mcp add reflets -- uvx --python 3.12 --from git+https://github.com/Vedat-Ozkan/reflets@v0.3.3 reflets
+     ```
+
+     The first start installs Reflets, which can take longer than Codex's 10-second start limit. Add `startup_timeout_sec = 120` under `[mcp_servers.reflets]` in `~/.codex/config.toml`.
+
 To work on Reflets itself, clone this repository, run `uv sync`, copy `.mcp.json.example` to `.mcp.json` with the path to the clone, and start Claude Code in it.
 
 ## Use
