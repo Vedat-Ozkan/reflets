@@ -6,7 +6,7 @@ from pathlib import Path
 
 import websockets
 from reflets import server
-from reflets.bridge import Bridge
+from reflets.bridge import Bridges
 
 failures = []
 
@@ -56,12 +56,12 @@ async def main() -> None:
             os.environ[name] = value
 
     os.environ["REFLETS_PORT"] = "8739"
-    server.bridge = Bridge()
+    server.bridge = Bridges()
     report = await server.score_info()
     check("score_info names a closed port in its checklist", "Nothing listens on ws://127.0.0.1:8739" in report and "PASS Token file" in report, report)
 
     async with websockets.serve(silent, "127.0.0.1", 8739):
-        server.bridge = Bridge()
+        server.bridge = Bridges()
         report = await server.diagnose()
     check("another server on the port is named", "does not answer as the Reflets bridge" in report, report)
     sys.exit(1 if failures else 0)

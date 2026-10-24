@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import functools
 import os
 import platform
@@ -12,6 +13,7 @@ import websockets
 PROTO = 24
 CLIENT = "reflets-server/0.2.0"
 TIMEOUT = 10
+OTHER_TIMEOUT = 1
 NOT_RUNNING = (
     "Reflets cannot reach MuseScore. Open MuseScore Studio 4.7, open your score, and run "
     "Plugins > Reflets Bridge once (it keeps running until MuseScore quits)."
@@ -42,8 +44,11 @@ def documents() -> Path:
 
 
 class Bridge:
-    def __init__(self) -> None:
-        self.url = f"ws://127.0.0.1:{os.environ.get('REFLETS_PORT', '8731')}"
+    def __init__(self, port: int, token: Path, open_timeout: float = TIMEOUT) -> None:
+        self.url = f"ws://127.0.0.1:{port}"
+        self.token = token
+        self.open_timeout = open_timeout
+        self.dead = 0.0
         self.socket = None
         self.next_id = 1
         self.hello: dict[str, str] = {}
@@ -64,10 +69,10 @@ class Bridge:
 
     async def _connect(self) -> None:
         try:
-            token = token_file().read_text().strip()
+            token = self.token.read_text().strip()
         except FileNotFoundError:
-            raise BridgeError(f"{NOT_RUNNING} (No token file at {token_file()}.)") from None
-        self.socket = await websockets.connect(self.url, open_timeout=TIMEOUT, max_size=None)
+            raise BridgeError(f"{NOT_RUNNING} (No token file at {self.token}.)") from None
+        self.socket = await websockets.connect(self.url, open_timeout=self.open_timeout, max_size=None)
         self.next_id = 1
         try:
             words, _ = await self._send(f"hello proto={PROTO} token={token} client={CLIENT}")
@@ -102,7 +107,69 @@ class Bridge:
             if code == "unauthorized":
                 raise BridgeError(
                     "The Reflets Bridge plugin refused the connection: " + message
-                    + f". The token file is {token_file()}; set REFLETS_TOKEN_FILE if MuseScore's plugin folder is elsewhere."
+                    + f". The token file is {self.token}; set REFLETS_TOKEN_FILE if MuseScore's plugin folder is elsewhere."
                 )
             raise BridgeError(f"The bridge plugin reported {code}: {message}")
         return words[2:], lines[1:]
+
+    async def active(self) -> int:
+        words, _ = await self.request("ping")
+        return int(dict(word.split("=", 1) for word in words if "=" in word).get("active", 0))
+
+
+chosen: contextvars.ContextVar[Bridge | None] = contextvars.ContextVar("chosen", default=None)
+
+
+class Bridges:
+    def __init__(self) -> None:
+        self.known: dict[Path, Bridge] = {}
+
+    @property
+    def first(self) -> Bridge:
+        return self.at(token_file(), int(os.environ.get("REFLETS_PORT", "8731")))
+
+    def at(self, token: Path, port: int, open_timeout: float = TIMEOUT) -> Bridge:
+        if token not in self.known:
+            self.known[token] = Bridge(port, token, open_timeout)
+        return self.known[token]
+
+    def found(self) -> list[Bridge]:
+        more = sorted(path for path in token_file().parent.glob("reflets-token-*.txt") if path.stem.rsplit("-", 1)[1].isdigit())
+        others = [self.at(path, int(path.stem.rsplit("-", 1)[1]), OTHER_TIMEOUT) for path in more]
+        return [self.first] + [bridge for bridge in others if bridge.dead != bridge.token.stat().st_mtime]
+
+    async def pick(self) -> Bridge:
+        found = self.found()
+        if len(found) == 1:
+            return found[0]
+        live = []
+        for bridge in found:
+            try:
+                live.append((await bridge.active(), bridge))
+            except BridgeError:
+                if bridge is not self.first:
+                    bridge.dead = bridge.token.stat().st_mtime
+        return max(live, key=lambda pair: pair[0])[1] if live else self.first
+
+    async def request(self, line: str) -> tuple[list[str], list[str]]:
+        bridge = chosen.get()
+        if bridge is None:
+            bridge = await self.pick()
+            chosen.set(bridge)
+        return await bridge.request(line)
+
+    @property
+    def current(self) -> Bridge:
+        return chosen.get() or self.first
+
+    @property
+    def hello(self) -> dict[str, str]:
+        return self.current.hello
+
+    @property
+    def socket(self):
+        return self.current.socket
+
+    @property
+    def url(self) -> str:
+        return self.first.url
