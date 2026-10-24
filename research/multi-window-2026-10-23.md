@@ -29,3 +29,13 @@ MuseScore 4 opens each further score in a new process (one score per window). Th
 - Sequential `listen` calls in one process end on the first free port (two processes, one already on 8731).
 - The nonce probe from `api.websocket` to the plugin's own server works within one process.
 - `Qt.application.state` and its change signal reach a v1 plugin, and differ per process.
+
+## Server half (branch `multi-window`, 2026-10-23)
+
+Built and checked against two fake bridges (websocket servers answering `hello`, `ping` and `info` with captured lines), not against MuseScore: the window used last is chosen once per tool call; `keep` and `discard` go to the window holding the proposal's score; two windows with one score are refused; a bridge that does not answer, the 8731 one included, is skipped until its token file is rewritten, because under WSL's mirrored networking a closed port times out (10 s) instead of refusing. After the first window closes, the next call takes about 2 s, later ones none.
+
+Follow-ups:
+
+- The plugin half must match what the server assumes: `ping` answers `ok pong active=<ms>`; the bridge on 8731 writes only `reflets-token.txt`, a bridge on any other port only `reflets-token-<port>.txt`.
+- `diagnose` and `live_doctor` assume one port. With a `reflets-token-*.txt` present, `live_doctor`'s checks on port 8739 are routed to a live window.
+- When the window used last has no score open but another window has one, tools report "no score open". Decide whether to fall back to the other window.

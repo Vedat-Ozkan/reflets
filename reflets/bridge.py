@@ -43,12 +43,19 @@ def documents() -> Path:
     return Path(subprocess.run(["wslpath", "-u", folder], capture_output=True, text=True).stdout.strip())
 
 
+def written(path: Path) -> float:
+    try:
+        return path.stat().st_mtime
+    except FileNotFoundError:
+        return 0.0
+
+
 class Bridge:
     def __init__(self, port: int, token: Path, open_timeout: float = TIMEOUT) -> None:
         self.url = f"ws://127.0.0.1:{port}"
         self.token = token
         self.open_timeout = open_timeout
-        self.dead = 0.0
+        self.dead: float | None = None
         self.socket = None
         self.next_id = 1
         self.hello: dict[str, str] = {}
@@ -136,7 +143,9 @@ class Bridges:
     def found(self) -> list[Bridge]:
         more = sorted(path for path in token_file().parent.glob("reflets-token-*.txt") if path.stem.rsplit("-", 1)[1].isdigit())
         others = [self.at(path, int(path.stem.rsplit("-", 1)[1]), OTHER_TIMEOUT) for path in more]
-        return [self.first] + [bridge for bridge in others if bridge.dead != bridge.token.stat().st_mtime]
+        first = self.first
+        first.open_timeout = OTHER_TIMEOUT if others else TIMEOUT
+        return [bridge for bridge in [first] + others if bridge.dead != written(bridge.token)] or [first]
 
     async def pick(self) -> Bridge:
         found = self.found()
@@ -147,8 +156,7 @@ class Bridges:
             try:
                 live.append((await bridge.active(), bridge))
             except BridgeError:
-                if bridge is not self.first:
-                    bridge.dead = bridge.token.stat().st_mtime
+                bridge.dead = written(bridge.token)
         return max(live, key=lambda pair: pair[0])[1] if live else self.first
 
     async def request(self, line: str) -> tuple[list[str], list[str]]:
