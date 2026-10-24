@@ -47,6 +47,6 @@ Built and checked against two fake bridges (websocket servers answering `hello`,
 
 Follow-ups:
 
-- The plugin half must match what the server assumes: `ping` answers `ok pong active=<ms>`; the bridge on 8731 writes only `reflets-token.txt`, a bridge on any other port only `reflets-token-<port>.txt`.
-- `diagnose` and `live_doctor` assume one port. With a `reflets-token-*.txt` present, `live_doctor`'s checks on port 8739 are routed to a live window.
+- Done 2026-10-24, plugin 0.25.0: the bridge listens on the first free port of 8731-8740, finds it with a `probe <nonce>` verb answered before `hello`, writes `reflets-token.txt` on 8731 and `reflets-token-<port>.txt` elsewhere, and answers `ping` with `active=<ms>`. Protocol stays 24: a 0.3.3 server keeps talking to 8731 and is no longer broken by a second window. `tests/live_windows.py` passed in three windows (the owner's chorale on plugin 0.24.6, groups and lyrics on 0.25.0); `live_proposals`, `live_checkpoint`, `live_restore` and `live_doctor` passed with the three open.
+- Done: `diagnose` checks the 8731 bridge, and `live_doctor` pins its port-8739 checks to it.
 - When the window used last has no score open but another window has one, tools report "no score open". Decide whether to fall back to the other window.

@@ -755,17 +755,18 @@ async def diagnose() -> str:
                   "is optional: set it up as sheet-music-plugin's README says (Draft model), then name its Python and checkpoint "
                   "with ANALYSISGNN_PYTHON and ANALYSISGNN_CHECKPOINT in the server's env." if missing else
                   f"PASS AnalysisGNN model {os.environ['ANALYSISGNN_CHECKPOINT']}.")
-    host, port = bridge.url.removeprefix("ws://").rsplit(":", 1)
+    first = bridge.first
+    host, port = first.url.removeprefix("ws://").rsplit(":", 1)
     try:
         _, writer = await asyncio.wait_for(asyncio.open_connection(host, int(port)), 5)
         writer.close()
     except (OSError, asyncio.TimeoutError):
-        check(False, f"Nothing listens on {bridge.url}: run Plugins > Reflets Bridge in MuseScore Studio 4.7. "
+        check(False, f"Nothing listens on {first.url}: run Plugins > Reflets Bridge in MuseScore Studio 4.7. "
               "If it shows a message that the WebSocket API is missing, this MuseScore build cannot run Reflets.")
         return "\n".join(checks)
-    check(True, f"Something listens on {bridge.url}.")
+    check(True, f"Something listens on {first.url}.")
     try:
-        _, lines = await bridge.request("info")
+        _, lines = await first.request("info")
     except BridgeError as error:
         if str(error).startswith(NOT_RUNNING):
             check(False, "What listens on the port does not answer as the Reflets bridge. Another plugin that uses "
@@ -773,8 +774,8 @@ async def diagnose() -> str:
         else:
             check(False, str(error))
         return "\n".join(checks)
-    version = bridge.hello.get("mscore", "0").rjust(5, "0")
-    check(True, f"Bridge {bridge.hello.get('plugin', '?')} answers on protocol {bridge.hello.get('proto')}.")
+    version = first.hello.get("mscore", "0").rjust(5, "0")
+    check(True, f"Bridge {first.hello.get('plugin', '?')} answers on protocol {first.hello.get('proto')}.")
     check(True, f"MuseScore {int(version[:-4])}.{int(version[-4:-2])}.{int(version[-2:])}.")
     check(True, f'Score open: "{parse_info(lines).title}".')
     return "\n".join(checks)
