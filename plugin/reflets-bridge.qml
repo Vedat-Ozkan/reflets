@@ -6,11 +6,15 @@ import QtQuick.Window 2.15
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.24.6"
+    version: "0.25.0"
     requiresScore: false
 
     readonly property int proto: 24
-    readonly property int port: 8731
+    readonly property int firstPort: 8731
+    readonly property int lastPort: 8740
+    property int port: 0
+    property string nonce: ""
+    property double lastActive: 0
     readonly property string ideaColor: "#1565c0"
     property string token: ""
     property var authed: ({})
@@ -19,6 +23,14 @@ MuseScore {
     property bool badgeInMain: false
 
     FileIO { id: tokenFile }
+
+    Connections {
+        target: Qt.application
+        function onStateChanged() {
+            if (Qt.application.state === Qt.ApplicationActive)
+                lastActive = Date.now()
+        }
+    }
 
     Window {
         id: badge
@@ -1220,10 +1232,12 @@ MuseScore {
                 + " division=" + division + " score=" + (curScore ? 1 : 0)
                 + " title=" + escapeText(curScore ? (curScore.title || curScore.scoreName) : "")
         }
+        if (verb === "probe")
+            return id + " ok " + (head[2] === nonce ? "mine" : "other")
         if (!authed[clientId])
             return id + " err unauthorized send hello with the token first"
         if (verb === "ping")
-            return id + " ok pong"
+            return id + " ok pong active=" + lastActive
         if (!curScore)
             return id + " err no-score"
         if (verb === "info")
@@ -1268,13 +1282,34 @@ MuseScore {
             return
         }
         token = newToken()
-        tokenFile.source = localPath(Qt.resolvedUrl("reflets-token.txt"))
-        var written = tokenFile.write(token)
-        api.websocketserver.listen(port, onClient)
+        nonce = newToken()
+        if (Qt.application.state === Qt.ApplicationActive)
+            lastActive = Date.now()
         if (typeof ui !== "undefined" && ui && ui.rootItem) {
             pill.parent = ui.rootItem
             badgeInMain = true
         }
+        for (var p = firstPort; p <= lastPort; p++)
+            api.websocketserver.listen(p, onClient)
+        for (var q = firstPort; q <= lastPort; q++)
+            probe(q)
+    }
+
+    function probe(candidate) {
+        api.websocket.open(candidate, function(socketId) {
+            api.websocket.onMessage(socketId, function(text) {
+                api.websocket.close(socketId)
+                if (text === "0 ok mine")
+                    claim(candidate)
+            })
+            api.websocket.send(socketId, "0 probe " + nonce)
+        })
+    }
+
+    function claim(found) {
+        port = found
+        tokenFile.source = localPath(Qt.resolvedUrl(port === firstPort ? "reflets-token.txt" : "reflets-token-" + port + ".txt"))
+        var written = tokenFile.write(token)
         status("listening")
         api.log.info("reflets-bridge " + version + ": listening on " + port + ", token file " + tokenFile.source
             + (written ? "" : " (WRITE FAILED)"))

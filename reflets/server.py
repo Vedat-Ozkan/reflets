@@ -24,7 +24,7 @@ from mcp.types import ToolAnnotations
 
 from reflets import n1x
 from reflets.restore import bare_idea, body, marks, target_idea, writable
-from reflets.bridge import NOT_RUNNING, PROTO, Bridge, BridgeError, token_file
+from reflets.bridge import NOT_RUNNING, PROTO, Bridge, BridgeError, Bridges, chosen, token_file
 from reflets.score import ScoreInfo, appended, build_index, parse_info
 from reflets.write import (
     IdeaError,
@@ -80,7 +80,7 @@ mcp = MCPServer(
         "at a glance are often wrong."
     ),
 )
-bridge = Bridge()
+bridge = Bridges()
 
 
 class Unchanged(ToolError):
@@ -106,6 +106,17 @@ render_numbers = itertools.count(1)
 
 def read_only(title: str) -> ToolAnnotations:
     return ToolAnnotations(title=title, read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=False)
+
+
+async def windows() -> list[tuple[Bridge, ScoreInfo]]:
+    found = []
+    for window in bridge.found():
+        try:
+            _, lines = await window.request("info")
+        except BridgeError:
+            continue
+        found.append((window, parse_info(lines)))
+    return found
 
 
 async def load_info() -> ScoreInfo:
@@ -142,12 +153,17 @@ async def score_info() -> str:
     )
     first, last = info.measures[0].number, info.measures[-1].number
     changes = f", key changes at {len(info.keys) - 1} bars" if len(info.keys) > 1 else ""
+    others = [f'"{other.title}"' for window, other in await windows() if window is not bridge.current] if len(bridge.found()) > 1 else []
+    elsewhere = (
+        f"\nAlso open in other MuseScore windows: {', '.join(others)}. Tools act on the window the user used last; to work "
+        "on another score, the user clicks into its window." if others else ""
+    )
     return (
         f"MuseScore {int(version[:-4])}.{int(version[-4:-2])}.{int(version[-2:])}, "
         f"Reflets bridge {hello.get('plugin', '?').split('/')[-1]}, connected.\n"
         f'"{info.title}": {len(info.parts)} part(s): {parts}. Bars {first}-{last} '
         f"({'with' if first == 0 else 'no'} pickup), meter {info.measures[0].meter}, key {info.key}{changes}.\n"
-        f"{listed_checkpoints(info)}"
+        f"{listed_checkpoints(info)}{elsewhere}"
     )
 
 
@@ -529,7 +545,14 @@ async def find(proposal_id: str) -> Proposal:
     if proposal_id not in found:
         open_ids = ", ".join(found) or "none"
         raise ToolError(f"There is no open proposal {proposal_id!r} (open: {open_ids}).")
-    p, title = Proposal(**found[proposal_id]), (await load_info()).title
+    p = Proposal(**found[proposal_id])
+    holding = [window for window, info in await windows() if info.title == p.title] if len(bridge.found()) > 1 else []
+    if len(holding) > 1:
+        raise ToolError(f'"{p.title}" is open in {len(holding)} MuseScore windows, so {proposal_id} cannot be found. '
+                        "Ask the user to close the other copies. Nothing was done.")
+    if holding:
+        chosen.set(holding[0])
+    title = (await load_info()).title
     if p.title != title:
         raise ToolError(f'{proposal_id} was written in "{p.title}", but "{title}" is open in MuseScore. Nothing was done.')
     return p
@@ -732,17 +755,18 @@ async def diagnose() -> str:
                   "is optional: set it up as sheet-music-plugin's README says (Draft model), then name its Python and checkpoint "
                   "with ANALYSISGNN_PYTHON and ANALYSISGNN_CHECKPOINT in the server's env." if missing else
                   f"PASS AnalysisGNN model {os.environ['ANALYSISGNN_CHECKPOINT']}.")
-    host, port = bridge.url.removeprefix("ws://").rsplit(":", 1)
+    first = bridge.first
+    host, port = first.url.removeprefix("ws://").rsplit(":", 1)
     try:
         _, writer = await asyncio.wait_for(asyncio.open_connection(host, int(port)), 5)
         writer.close()
     except (OSError, asyncio.TimeoutError):
-        check(False, f"Nothing listens on {bridge.url}: run Plugins > Reflets Bridge in MuseScore Studio 4.7. "
+        check(False, f"Nothing listens on {first.url}: run Plugins > Reflets Bridge in MuseScore Studio 4.7. "
               "If it shows a message that the WebSocket API is missing, this MuseScore build cannot run Reflets.")
         return "\n".join(checks)
-    check(True, f"Something listens on {bridge.url}.")
+    check(True, f"Something listens on {first.url}.")
     try:
-        _, lines = await bridge.request("info")
+        _, lines = await first.request("info")
     except BridgeError as error:
         if str(error).startswith(NOT_RUNNING):
             check(False, "What listens on the port does not answer as the Reflets bridge. Another plugin that uses "
@@ -750,8 +774,8 @@ async def diagnose() -> str:
         else:
             check(False, str(error))
         return "\n".join(checks)
-    version = bridge.hello.get("mscore", "0").rjust(5, "0")
-    check(True, f"Bridge {bridge.hello.get('plugin', '?')} answers on protocol {bridge.hello.get('proto')}.")
+    version = first.hello.get("mscore", "0").rjust(5, "0")
+    check(True, f"Bridge {first.hello.get('plugin', '?')} answers on protocol {first.hello.get('proto')}.")
     check(True, f"MuseScore {int(version[:-4])}.{int(version[-4:-2])}.{int(version[-2:])}.")
     check(True, f'Score open: "{parse_info(lines).title}".')
     return "\n".join(checks)

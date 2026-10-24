@@ -40,3 +40,14 @@ Also seen: running a second plugin that calls `listen` (the old Reflets Spike, r
 - Sequential `listen` calls in one process end on the first free port (two processes, one already on 8731).
 - The nonce probe from `api.websocket` to the plugin's own server works within one process.
 - `Qt.application.state` and its change signal reach a v1 plugin, and differ per process.
+
+## Server half (branch `multi-window`, 2026-10-23)
+
+Built and checked against two fake bridges (websocket servers answering `hello`, `ping` and `info` with captured lines), not against MuseScore: the window used last is chosen once per tool call; `keep` and `discard` go to the window holding the proposal's score; two windows with one score are refused; a bridge that does not answer, the 8731 one included, is skipped until its token file is rewritten, because under WSL's mirrored networking a closed port times out (10 s) instead of refusing. After the first window closes, the next call takes about 2 s, later ones none.
+
+Follow-ups:
+
+- Done 2026-10-24, plugin 0.25.0: the bridge listens on the first free port of 8731-8740, finds it with a `probe <nonce>` verb answered before `hello`, writes `reflets-token.txt` on 8731 and `reflets-token-<port>.txt` elsewhere, and answers `ping` with `active=<ms>`. Protocol stays 24: a 0.3.3 server keeps talking to 8731 and is no longer broken by a second window. `tests/live_windows.py` passed in three windows (the owner's chorale on plugin 0.24.6, groups and lyrics on 0.25.0); `live_proposals`, `live_checkpoint`, `live_restore` and `live_doctor` passed with the three open.
+- Done: `diagnose` checks the 8731 bridge, and `live_doctor` pins its port-8739 checks to it.
+- Done: a bridge whose `ping` fails counts as gone only when a plain TCP connect to its port also fails (a busy MuseScore still accepts one); then its `reflets-token-<port>.txt` is removed, so leftovers do not pile up. Checked by closing a window: the next call took 3 s once and removed the file.
+- When the window used last has no score open but another window has one, tools report "no score open". Decide whether to fall back to the other window.
