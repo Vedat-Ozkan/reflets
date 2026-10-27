@@ -7,7 +7,7 @@ license = "MIT"
 dependencies = [
     "mcp>=2.2",
     "websockets>=13",
-    "sheet-music-analysis @ git+https://github.com/Vedat-Ozkan/sheet-music-analysis@v0.1.0",  # the engine; brings music21, required for check (spec open question 7)
+    "sheet-music-analysis @ git+https://github.com/Vedat-Ozkan/sheet-music-analysis@v0.2.0",  # the engine; brings music21, required for check (spec open question 7)
 ]
 
 [project.scripts]
