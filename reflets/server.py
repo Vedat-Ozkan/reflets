@@ -11,6 +11,7 @@ import tempfile
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime
+from fractions import Fraction
 from pathlib import Path
 
 from engine import annotate, draft, notes, part_writing, reduce
@@ -25,7 +26,7 @@ from mcp.types import ToolAnnotations
 from reflets import n1x
 from reflets.restore import bare_idea, body, marks, target_idea, writable
 from reflets.bridge import NOT_RUNNING, PROTO, Bridge, BridgeError, Bridges, chosen, token_file
-from reflets.score import ScoreInfo, appended, build_index, parse_info
+from reflets.score import ScoreInfo, appended, build_index, key_name, parse_info
 from reflets.write import (
     IdeaError,
     add_lines,
@@ -72,7 +73,7 @@ mcp = MCPServer(
         "skipped: a trailing '-' continues the word, '_' holds the syllable over the note, '*' marks a note without one. "
         "'m9 = m1' means bar 9 is bar 1 again, every line and field; '2.1 = m1' means this voice line is bar 1's. "
         "check lists part-writing faults such as parallel fifths in chorale-style bars, analyze drafts the harmony, "
-        "render shows bars as an image, with check's findings drawn on it if asked. checkpoint saves the whole score "
+        "render shows bars as an image, with check's findings drawn on it if asked; hum records the user humming a line into a staff. checkpoint saves the whole score "
         "under a name, to come back to later; keep saves one too; restore writes chosen bars back as a checkpoint has them. "
         "To try an idea, write it in the same form with propose; it lands in the score in colour as one undo step. "
         "The user listens in MuseScore, then you call keep or discard as they decide. Before you say which note "
@@ -620,6 +621,156 @@ async def keep(proposal_id: str) -> str:
     except (ToolError, OSError) as error:
         saved = f"No checkpoint was saved: {error}"
     return f'Kept {proposal_id}: the notes in {p.bars} are black now (one undo step, "Reflets: keep {p.label}").\n{saved}'
+
+
+LONGEST_TAKE = 40
+CALIBRATION_CLICKS = 8
+HUM_SETUP = (
+    "Humming needs the audio extra: install Reflets with uvx --from 'reflets[hum] @ git+…' (see the README); on Linux "
+    "and WSL also sudo apt install libportaudio2 libasound2-plugins, with ~/.asoundrc routing to pulse."
+)
+
+
+def tempo_at(info: ScoreInfo, position: int) -> float | None:
+    for bar in reversed(info.bars[: position + 1]):
+        tempos = [mark for mark in bar.marks if mark.kind == "Tempo"]
+        if tempos:
+            return float(max(tempos, key=lambda mark: mark.onset).value) * 60
+    return None
+
+
+def key_at(info: ScoreInfo, tick: int) -> int:
+    name = max(((at, key) for at, key in info.keys.items() if at <= tick), default=(0, info.key))[1]
+    return 0 if name == "0" else int(name[:-1]) * (1 if name.endswith("s") else -1)
+
+
+@mcp.tool(
+    title="Hum a line",
+    description=(
+        "Use this when the user wants to hum, sing or 'da' a melody, bass line or rhythm into the score. It plays one "
+        "bar of count-in clicks (beat 1 higher) through the computer's speakers or headphones, then records the "
+        "microphone for `bars` bars while the click goes on, turns the humming into notes on the click's grid, and "
+        "writes them as a proposal like propose does: blue, one undo step, then keep or discard. Before calling, tell "
+        "the user to get ready: hum after the count-in, along with the click, giving each note its own push; any "
+        "syllable or plain humming works, 'da' helps repeated notes. The call blocks while they hum. "
+        "start_bar is where the first downbeat lands; staff is the staff number as in read_score's voice lines "
+        "(the flute's staff, say); bars past the end are appended. tempo defaults to the score's tempo at start_bar, "
+        "else 90, in quarter notes per minute; the meter is the score's. grid=2 snaps to eighths (best for most "
+        "tunes), grid=4 to sixteenths. The notes go to the instrument's middle register; octave=1 or -1 moves "
+        "them. kind='rhythm' writes only the rhythm, on one pitch. If the score has no notes and its key is C, the "
+        "key heard is written as the key signature; if the score has notes in another key, the humming is moved "
+        "to that key, as most people hum in a key of their own. replace=True as for propose. calibrate=True "
+        "measures the delay between click and microphone instead: 8 clicks, the user says 'ta' on each; needed once "
+        "per audio device when using headphones, since on speakers each take measures the delay from its own clicks."
+    ),
+    annotations=writes("Hum a line", destructive=True),
+    structured_output=False,
+)
+async def hum(
+    start_bar: int = 1, staff: int = 1, bars: int = 4, tempo: float | None = None, grid: int = 2, octave: int = 0,
+    kind: str = "line", replace: bool = False, calibrate: bool = False,
+) -> str:
+    try:
+        from reflets import audio, hum as humming
+        import sounddevice  # noqa: F401
+    except (ImportError, OSError):
+        raise ToolError(HUM_SETUP) from None
+    folder = token_file().parent
+    if calibrate:
+        beat = 60 / (tempo or 90)
+        play, starts = audio.click_track(beat, 4, CALIBRATION_CLICKS)
+        try:
+            take = await asyncio.to_thread(audio.record, play, starts)
+        except Exception as error:
+            raise ToolError(f"Recording failed: {error}. {HUM_SETUP}") from None
+        found = humming.calibration(take.audio, [start / audio.RATE for start in starts])
+        if found is None:
+            raise ToolError("Not enough 'ta's were heard on the clicks to measure the delay. Ask the user to try again, louder, one 'ta' on each click.")
+        audio.store_latency(folder, take.device, found)
+        return f"Calibrated: the microphone hears the user {1000 * found:.0f} ms after each click on {take.device}. Takes on this device use it."
+    if grid not in (2, 4) or kind not in ("line", "rhythm") or not 1 <= bars <= 32:
+        raise ToolError("grid is 2 or 4, kind is 'line' or 'rhythm', bars is 1 to 32.")
+    info, index, *_ = await read_bars("all")
+    numbers = [measure.number for measure in info.measures]
+    if start_bar not in numbers and start_bar != numbers[-1] + 1:
+        raise ToolError(f"Bar {start_bar} does not exist; the score has bars {numbers[0]} to {numbers[-1]}.")
+    parts = [(instrument, staves) for (_, staves), instrument in zip(info.parts, info.instrument_ids)]
+    owner = next(((instrument, staves) for instrument, staves in parts if staff in staves), None)
+    if owner is None:
+        raise ToolError(f"Staff {staff} does not exist; the score has staves 1 to {max(s for _, staves in parts for s in staves)}.")
+    position = numbers.index(start_bar) if start_bar in numbers else len(numbers) - 1
+    covered = info.measures[position:position + bars]
+    if any(measure.meter != info.measures[position].meter for measure in covered):
+        raise ToolError("The meter changes inside those bars; hum fewer bars, up to the change.")
+    taken = [measure.number for measure in covered if measure.number >= start_bar and any(
+        event.pitch and event.staff == staff and event.layer == 1 for event in measure.events)]
+    if taken and not replace:
+        raise ToolError(f"Staff {staff} already has notes in bar(s) {', '.join(map(str, taken))}. Ask the user, then call again with replace=True, before they hum.")
+    numerator, denominator = (int(x) for x in info.measures[position].meter.split("/"))
+    tempo = tempo or tempo_at(info, position) or 90
+    beat = 60 / tempo * 4 / denominator
+    bar_quarters = Fraction(4 * numerator, denominator)
+    if (bars + 1) * numerator * beat > LONGEST_TAKE:
+        raise ToolError(f"That take would last over {LONGEST_TAKE} seconds; hum fewer bars at a time.")
+    play, starts = audio.click_track(beat, numerator, (bars + 1) * numerator)
+    try:
+        take = await asyncio.to_thread(audio.record, play, starts)
+    except Exception as error:
+        raise ToolError(f"Recording failed: {error}. {HUM_SETUP}") from None
+    heard = audio.echo(take, numerator)
+    if heard is not None:
+        audio.store_latency(folder, take.device, heard)
+    latency = heard or audio.stored_latency(folder, take.device)
+    timing = "measured from the click this take" if heard else "calibrated earlier" if latency else "the driver's estimate, uncalibrated"
+    latency = latency or take.gap
+    first = starts[numerator]
+    slots = int(bars * bar_quarters * grid)
+    result = await asyncio.to_thread(humming.transcribe, take.audio[first:], 60 / tempo, grid, latency, slots)
+    if not result or not result.notes:
+        raise ToolError("No humming was heard after the count-in. Check the microphone, then try again.")
+    score_has_notes = any(event.pitch for measure in index.measures for event in measure.events)
+    signature = key_at(info, info.ticks[position])
+    pitches = [note.pitch for note in result.notes]
+    moved, set_key = 0, None
+    if score_has_notes:
+        moved = humming.moved_to(result.key, signature)
+        fifths = signature
+    else:
+        fifths = result.key.fifths if signature == 0 else signature
+        if signature == 0 and fifths != 0:
+            set_key = fifths
+        elif signature != 0:
+            moved = humming.moved_to(result.key, signature)
+    instrument, staves = owner
+    target = humming.centre(instrument, staves.index(staff), len(staves))
+    shift = moved + humming.placed_octave([p + moved for p in pitches], target) + 12 * octave
+    for note in result.notes:
+        note.pitch = humming.tonic_near(target, result.key.tonic + moved) if kind == "rhythm" else note.pitch + shift
+    division = 48
+    lines = humming.voice_lines(result.notes, [int(bar_quarters * grid)] * bars, division // grid, fifths)
+    idea = [f"N1x div={division} ts={info.measures[position].meter}"]
+    for n, line in enumerate(lines):
+        header = f"m{start_bar + n} len={int(bar_quarters * division)}" + (f" ks={key_name(set_key)}" if n == 0 and set_key is not None else "")
+        idea += [header, f"{staff}.1: {line}"]
+    if saving := os.environ.get("REFLETS_HUM_SAVE"):
+        audio.save(Path(saving), take, {
+            "tempo": tempo, "meter": info.measures[position].meter, "bars": bars, "grid": grid, "latency": latency,
+            "timing": timing, "start_bar": start_bar, "staff": staff, "instrument": instrument, "kind": kind,
+            "key": result.key.name, "idea": "\n".join(idea),
+        })
+    written = await write_idea("\n".join(idea), "hummed", replace)
+    heard_key = result.key.name + (" (or close to another key; check by ear)" if result.key.margin < 0.05 else "")
+    notes = [
+        f"Heard {len(result.notes)} notes in {heard_key}, the singer {100 * result.tuning:+.0f} cents off concert pitch; "
+        f"tempo {tempo:g}, {'eighth' if grid == 2 else 'sixteenth'} grid, delay {1000 * latency:.0f} ms ({timing}).",
+    ]
+    if moved:
+        notes.append(f"Moved {abs(moved)} semitone{'s' if abs(moved) > 1 else ''} {'up' if moved > 0 else 'down'} into the score's key.")
+    if set_key is not None:
+        notes.append("The key signature was set from the humming, from the first bar of the take on.")
+    if timing.startswith("the driver"):
+        notes.append("If the notes land late or early, the user is probably on headphones: run hum with calibrate=True once.")
+    return " ".join(notes) + "\n" + written
 
 
 def checkpoint_folder(title: str) -> Path:

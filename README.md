@@ -10,6 +10,8 @@ Status: slices 3 and 4 done. The server reads the open score (`score_info`, `rea
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) and Git. uv fetches Python and the engine ([sheet-music-analysis](https://github.com/Vedat-Ozkan/sheet-music-analysis), from GitHub).
 - Optional, for the harmony draft in `analyze`: the AnalysisGNN model. It is not part of the install: it runs in its own Python environment with PyTorch, set up from a clone of [sheet-music-analysis](https://github.com/Vedat-Ozkan/sheet-music-analysis) as its README's "Draft model" section says (`.venv-agnn` and `artifacts/models/model.ckpt`). Name the two in the server's `env`, as absolute paths: `ANALYSISGNN_PYTHON` the environment's Python (`.venv-agnn/bin/python`, on Windows `.venv-agnn\Scripts\python.exe`) and `ANALYSISGNN_CHECKPOINT` the checkpoint. Without them `analyze` gives the notes table only, and says so.
 
+- Optional, for `hum` (humming a line into the score): a microphone, and the `hum` extra, which adds SwiftF0, ONNX Runtime and sounddevice (about 40 MB). Install with `--from 'reflets[hum] @ git+https://github.com/Vedat-Ozkan/reflets@v0.4.0'` in place of the `--from` below. On Linux and WSL, also `sudo apt install libportaudio2 libasound2-plugins pulseaudio-utils` and an `~/.asoundrc` with `pcm.!default { type pulse }` and `ctl.!default { type pulse }`, so the default device reaches WSLg's microphone and speakers.
+
 ## Install
 
 1. Put the plugin in MuseScore's plugin folder:
@@ -57,7 +59,8 @@ To work on Reflets itself, clone this repository, run `uv sync`, copy `.mcp.json
 ## Use
 
 1. Open a score in MuseScore and run Plugins > Reflets Bridge once per session. It keeps running until MuseScore quits. A small blue pill at the top middle of MuseScore's window says "Reflets listening" when it starts, and for a few seconds after each thing Reflets does (connected, wrote an idea, kept it, undo). It shows only over MuseScore: if you are in another app, it waits until you switch back. After each idea is written, MuseScore scrolls to it and selects it, so Play starts just before it.
-2. Ask Claude about the score. With scores open in several MuseScore windows, run the bridge in each; Claude works on the window you used last, so click into a window to work on its score.
+2. Ask Claude about the score, or to let you hum a line ("let me hum a melody into the flute from bar 9"). Reflets plays a bar of count-in clicks, then records you for the bars asked while the click goes on, and writes what you hummed as a blue idea. Speakers work best: each take then measures the delay between click and microphone from its own clicks. On headphones, ask Claude to calibrate humming once per device (you say "ta" on 8 clicks).
+   With scores open in several MuseScore windows, run the bridge in each; Claude works on the window you used last, so click into a window to work on its score.
 
 ## Docs
 

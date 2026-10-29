@@ -2,3 +2,5 @@
 __pycache__/
 .mcp.json
 .env
+out/
+spikes/hum/takes/

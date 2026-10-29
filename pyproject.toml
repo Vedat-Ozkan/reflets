@@ -10,11 +10,15 @@ dependencies = [
     "sheet-music-analysis @ git+https://github.com/Vedat-Ozkan/sheet-music-analysis@v0.2.0",  # the engine; brings music21, required for check (spec open question 7)
 ]
 
+[project.optional-dependencies]
+hum = ["swift-f0>=0.3", "onnxruntime>=1.20", "sounddevice>=0.5", "numpy>=1.26"]
+
 [project.scripts]
 reflets = "reflets.server:main"
 
 [dependency-groups]
 dev = ["pytest>=8"]
+hum-eval = ["swift-f0>=0.3", "onnxruntime>=1.20", "soundfile>=0.13", "soxr>=0.5", "mir_eval>=0.8", "pretty_midi>=0.2", "remotezip>=0.12"]  # eval/hum_eval.py only
 
 [build-system]
 requires = ["hatchling"]

@@ -10,6 +10,8 @@ MCP server (`reflets/`, Python) plus a MuseScore bridge plugin (`plugin/reflets-
 - `reflets/write.py`: compiles a decoded N1x idea into the plugin's write ops and checks the read-back
 - `reflets/restore.py`: builds the two ideas `restore` writes: the current bars cleared of their details, then the checkpoint's bars
 - `reflets/server.py`: MCP tools
+- `reflets/hum.py`: humming to notes (SwiftF0 pitch track and note split, tuning, key, clean-up, grid snap) and N1x voice lines; pure, no device
+- `reflets/audio.py`: the take: one duplex stream plays the click and records the mic; the delay from the click's echo, or a stored calibration per device. Needs the `hum` extra, imported only inside the `hum` tool
 - `plugin/reflets-bridge.qml`: the bridge, a macro plugin with no dialog (spec 2.1)
 - `tests/live_write.py`: end-to-end check of the write path against a live MuseScore with the nocturne open
 - `tests/live_roundtrip.py`: writes every bar of whatever score is open, in the shortest range whose lines close in it, as read, with every mark, decoration and line that closes in the range removed and every lyric line emptied, and as read again, checking each read-back and the discard, and that stem directions and beam modes stay as read
@@ -27,6 +29,11 @@ MCP server (`reflets/`, Python) plus a MuseScore bridge plugin (`plugin/reflets-
 - `tests/reading_capture.py`: saves the open score's `info` and `read` lines and the live `read_score` text of every bar range to a JSON file in `tests/data/reading/`
 - `tests/reading_accuracy.py`: decision 22's release test: Sonnet 5.5 at effort low and medium answers 40 computed questions on which note starts or sounds where, through a `read_score` tool served from `tests/data/reading/` (chorale, nocturne, groups, lyrics) with the server instructions; needs `Anth_Key` and `uv run --with anthropic`; medium passes at 95%
 - `tests/live_read.py`: end-to-end check of N1x reading against a live MuseScore; `tests/data/bar-fields.mscz` is its score for bar fields and `tests/data/marks.mscz` and `tests/data/system-marks.mscz` for marks, `tests/data/decorations.mscz` for decorations, `tests/data/groups.mscz` for tuplets and groups, `tests/data/lines.mscz` for lines, `tests/data/lyrics.mscz` for lyrics, `tests/data/repeats.mscz` for repeated bars, `tests/data/keys.musicxml` (opened as an import) for a transposing staff's key. Scores for the owner to open go in `Documents/MuseScore4/Scores/reflets/` on Windows
+- `tests/live_hum.py`: end-to-end check of `hum` against a live MuseScore with any score open: every saved take of the last bar's meter is written after the last bar of `--staff N` in place of the microphone, read back and discarded, and must sit in the staff's register, in the score's key when it has notes, and on one pitch with `--rhythm`; hum without replace on a staff with notes must refuse before recording; `--mic` for a real take
+- `tests/hum-session.md`: the owner's humming session in Claude Desktop (the dev server config, twelve takes and what each should give); with `REFLETS_HUM_SAVE` set, `hum` saves each take (WAV and details) to that folder, `spikes/hum/takes/` here, git-ignored as it is the owner's voice
+- `eval/hum_takes.py`: scores the saved takes against their labels (a known tune, or `right` for notes that came out right) and against the last baseline; `--label` labels a take
+- `tests/test_hum.py`: a synthesized Twinkle Twinkle (sharp, with scoops, vibrato and latency) must come out as the exact N1x
+- `eval/hum_eval.py`: how well humming becomes notes, on the HumTrans clips with corrected onsets (`uv run --group hum-eval python -m eval.hum_eval`): the 440 test clips by default, `--split valid|train`, `--meter 3/4`, `--clips N`; data goes to `out/`, never committed; results in `research/hum-accuracy-2026-10-28.md`; `--reflets` scores click mode as `reflets/hum.py` does it
 - `research/`, `spikes/`: research reports and throwaway spike code, kept as a record
 
 ## Environment
