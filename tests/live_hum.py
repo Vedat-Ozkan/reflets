@@ -1,6 +1,6 @@
 """End-to-end check of hum against a live MuseScore with any score open: each saved take (REFLETS_HUM_SAVE) whose meter
 is the last bar's is written after the last bar of a staff in place of the microphone, read back and discarded. The
-notes must sit in the staff's register, in the score's key when it has notes (or with its relative minor's leading tone), and on one pitch with --rhythm. When the
+notes must sit in the staff's register, in the score's key when it has notes (or with its relative minor's leading tone), with a tempo mark when the take's tempo is not the score's, and on one pitch with --rhythm. When the
 staff already has notes in its first bar, hum without replace must refuse before recording.
 
     uv run --extra hum python tests/live_hum.py [spikes/hum/takes] [--staff N] [--rhythm]
@@ -57,7 +57,11 @@ async def one(name: str, last: int, bars: int, tempo: float, grid: int, staff: i
     result = await server.hum(start_bar=last + 1, staff=staff, bars=bars, tempo=tempo, grid=grid, kind=kind)
     print(result.splitlines()[0])
     check(f"{name}: written and read back", "Read-back matched" in result and f"bars {last + 1}-{last + bars}" in result, result)
-    written = n1x.decode(await server.read_score(f"{last + 1}-{last + bars}"))
+    text = await server.read_score(f"{last + 1}-{last + bars}")
+    written = n1x.decode(text)
+    marked = server.tempo_at(info, len(info.measures) - 1)
+    if marked is None or abs(marked - tempo) > 0.5:
+        check(f"{name}: tempo mark q{tempo:g} at bar {last + 1}", f"q{tempo:g} " in text, text)
     pitches = [midi_tpc(note.pitch)[0] for bar in written.bars for (s, _), voice in bar.voices.items() if s == staff
                for chord in voice.chords for note in chord.notes]
     instrument, staves = next((i, s) for (_, s), i in zip(info.parts, info.instrument_ids) if staff in s)

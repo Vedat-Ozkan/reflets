@@ -70,3 +70,7 @@ Follow `tests/hum-session.md`: 12 takes, from Twinkle on a blank flute score to 
    - `uv run --group hum-eval --extra hum python -m eval.hum_eval --key --reflets [--eighths]` (HumTrans, no worse than above);
    - `uv run --extra hum python tests/live_hum.py` (MuseScore open: replays every take of the score's meter).
 4. **Report** what went wrong in the session, then fix it under the same "no worse on HumTrans" rule.
+
+## Update 2026-10-29
+- Known problem 1 was a misreading. Take `20261028-192934` is not room noise: it holds 16 confident notes on B2, the first note of the owner's Twinkle, so they hummed or spoke on it. Clicks and room noise alone give no notes (`tests/test_hum.py`), and `hum` then answers "No humming was heard". No fix was needed.
+- `hum` now writes a tempo mark at the first hummed bar when the take's tempo is not the score's there.

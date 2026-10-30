@@ -39,3 +39,12 @@ def test_note_across_a_bar_line_is_tied():
     notes = [hum.Placed(6, 4, 60)]
     assert hum.voice_lines(notes, [8, 8], 24, 0) == ["144 r 48 C4~", "48 C4"]
 
+
+
+def test_clicks_and_room_noise_give_no_notes():
+    from reflets import audio
+
+    clicks, _ = audio.click_track(60 / 90, 4, 20)
+    room = 0.003 * np.random.default_rng(2).standard_normal(len(clicks)).astype(np.float32)
+    result = hum.transcribe(0.3 * clicks + room, 60 / 90, 2, 0.19, 32)
+    assert result is None or not result.notes

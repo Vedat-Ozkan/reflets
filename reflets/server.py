@@ -707,7 +707,8 @@ async def hum(
     if taken and not replace:
         raise ToolError(f"Staff {staff} already has notes in bar(s) {', '.join(map(str, taken))}. Ask the user, then call again with replace=True, before they hum.")
     numerator, denominator = (int(x) for x in info.measures[position].meter.split("/"))
-    tempo = tempo or tempo_at(info, position) or 90
+    marked = tempo_at(info, position)
+    tempo = tempo or marked or 90
     beat = 60 / tempo * 4 / denominator
     bar_quarters = Fraction(4 * numerator, denominator)
     if (bars + 1) * numerator * beat > LONGEST_TAKE:
@@ -748,6 +749,8 @@ async def hum(
         note.pitch = humming.tonic_near(target, result.key.tonic + moved) if kind == "rhythm" else note.pitch + shift
     division = 48
     lines = humming.voice_lines(result.notes, [int(bar_quarters * grid)] * bars, division // grid, fifths)
+    if marked is None or abs(marked - tempo) > 0.5:
+        lines[0] = f"q{tempo:g} {lines[0]}"
     idea = [f"N1x div={division} ts={info.measures[position].meter}"]
     for n, line in enumerate(lines):
         header = f"m{start_bar + n} len={int(bar_quarters * division)}" + (f" ks={key_name(set_key)}" if n == 0 and set_key is not None else "")
@@ -768,6 +771,8 @@ async def hum(
         notes.append(f"Moved {abs(moved)} semitone{'s' if abs(moved) > 1 else ''} {'up' if moved > 0 else 'down'} into the score's key.")
     if set_key is not None:
         notes.append("The key signature was set from the humming, from the first bar of the take on.")
+    if lines[0].startswith("q"):
+        notes.append(f"The tempo mark was set to {tempo:g}, from bar {start_bar} on.")
     if timing.startswith("the driver"):
         notes.append("If the notes land late or early, the user is probably on headphones: run hum with calibrate=True once.")
     return " ".join(notes) + "\n" + written
