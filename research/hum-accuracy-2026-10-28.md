@@ -242,3 +242,5 @@ New baseline (`--key --reflets`, recall / precision):
 | valid in 3/4 | .920 / .900 | .811 / .794 | .917 / .865 | .865 / .816 |
 
 Synthesised (`eval.hum_synth`, 15 melodies, 24 renders): .882 / .932 on the slot, .807 / .852 right length, 641 of 840 notes outside the key placed.
+
+Rests by the strength of the note's end do not help either. On test, a gap of 1.5 to 3 sixteenths is a MIDI rest 33% of the time when the written end is on a beat and 65% off it, but the tool knows only where the sound ends, which is early by a varying amount. Keeping a gap shorter than a beat as a rest when it is at least 1 − w × (the end's weakness) beats long cost the 16th grid at every w tried (.790 / .781 → .781 / .773 at w 0.15 to 0.35, .501 / .495 at 0.5); the 8th grid was unchanged until 0.5.
