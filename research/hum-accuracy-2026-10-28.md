@@ -226,3 +226,19 @@ New baseline, the bar for the one-pass note boundaries:
 | train (974 of 1,000) | .845 / .834 | .768 / .758 | .894 / .892 | .825 / .823 |
 | train in 3/4 | .836 / .819 | .756 / .741 | .885 / .881 | .820 / .816 |
 | valid in 3/4 | .897 / .875 | .782 / .763 | .910 / .852 | .850 / .796 |
+
+## Onsets toward the stronger grid point (2026-10-30)
+
+Where a hummed onset falls 0.3 to 0.7 of a step between two grid points of different strength (beat over eighth over sixteenth), the MIDI note is on the stronger one 877 times of 974 on test and 841 of 884 on valid; plain rounding gets about half of those. `snap` now charges `ONSET_PULL` steps per level of weakness: 0.2, from 0.05 to 0.4 on 1,000 train clips (16th grid length .768 / .758 at 0 rising to .793 / .787 at 0.3; 8th grid at most +.001 / +.003). 0.3 cost the synthesised syncopated and rhythmic melodies (`eval/hum_synth.py`, their written length .700 → .678) and 0.2 did not (.697), so 0.2. Chromatic notes on test are unchanged (66 of 204), and the owner's takes gain (130 of 154 right length, 13 extra, from 127 and 17).
+
+New baseline (`--key --reflets`, recall / precision):
+
+| Clips | 16th grid: slot | 16th grid: written length | 8th grid: slot | 8th grid: written length |
+|---|---|---|---|---|
+| test (421 of 440) | .882 / .876 | .805 / .799 | .922 / .920 | .858 / .857 |
+| valid (352 of 374) | .874 / .864 | .806 / .797 | .904 / .903 | .845 / .845 |
+| train (974 of 1,000) | .865 / .855 | .790 / .781 | .895 / .895 | .826 / .826 |
+| train in 3/4 | .862 / .847 | .788 / .773 | .889 / .886 | .822 / .820 |
+| valid in 3/4 | .920 / .900 | .811 / .794 | .917 / .865 | .865 / .816 |
+
+Synthesised (`eval.hum_synth`, 15 melodies, 24 renders): .882 / .932 on the slot, .807 / .852 right length, 641 of 840 notes outside the key placed.

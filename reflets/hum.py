@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from functools import cache
 
@@ -24,6 +25,7 @@ TOUCHING = 0.06
 PUSH_RISE = 8
 PUSH_FALL = 6
 PUSH_CLEAR = 0.2
+ONSET_PULL = 0.2
 FRAME = 160
 
 
@@ -211,11 +213,20 @@ def fix_octaves(pitches: list[int]) -> list[int]:
     return out
 
 
-def snap(sung: list[Sung], pitches: list[int], step: float, latency: float, slots: int, rest: int) -> list[Placed]:
+def strength(slot: int, beat: int) -> int:
+    return 0 if slot % beat == 0 else 1 if beat % 2 == 0 and slot % (beat // 2) == 0 else 2
+
+
+def onset_slot(at: float, beat: int) -> int:
+    low = math.floor(at)
+    return min((low, low + 1), key=lambda slot: abs(at - slot) + ONSET_PULL * strength(slot, beat))
+
+
+def snap(sung: list[Sung], pitches: list[int], step: float, latency: float, slots: int, beat: int) -> list[Placed]:
     placed: list[Placed] = []
     held = 0.0
     for s, pitch in zip(sung, pitches):
-        slot = round((s.start - latency) / step)
+        slot = onset_slot((s.start - latency) / step, beat)
         end = max(slot + 1, round((s.end - latency) / step))
         if end <= 0 or slot >= slots:
             continue
@@ -229,7 +240,7 @@ def snap(sung: list[Sung], pitches: list[int], step: float, latency: float, slot
             placed[-1].length = slot - placed[-1].slot
         placed.append(Placed(slot, min(end, slots) - slot, pitch))
     for a, following in zip(placed, [p.slot for p in placed[1:]] + [slots]):
-        if following - (a.slot + a.length) < rest:
+        if following - (a.slot + a.length) < beat:
             a.length = following - a.slot
     return placed
 
