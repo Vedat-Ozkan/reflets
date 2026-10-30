@@ -59,3 +59,5 @@ uv run --extra hum python tests/live_hum.py --staff 1 --rhythm
 ```
 
 The first checks take 5 (refused before recording, as the staff has notes) and take 7 (moved into the chorale's key, bars appended and removed); the second take 6 (the bass register); the third take 9. Accuracy in 3/4 (take 8) is measured on HumTrans: `python -m eval.hum_eval --key --reflets --split train --meter 3/4`. Takes 10 and 11 still need headphones and the owner; take 12 is `keep`, covered by `tests/live_proposals.py`.
+
+Take `20261029-231528` (headphones, started an eighth late) is kept on purpose: its scoops land on beats as extra notes, so on a score that has notes, such as `bwv66.6`, its "in the score's key" check fails. That failure is expected, not a regression.

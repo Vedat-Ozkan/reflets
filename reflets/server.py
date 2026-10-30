@@ -629,11 +629,12 @@ HUM_SETUP = (
     "Humming needs the audio extra: install Reflets with uvx --from 'reflets[hum] @ git+…' (see the README); on Linux "
     "and WSL also sudo apt install libportaudio2 libasound2-plugins, with ~/.asoundrc routing to pulse."
 )
+NO_RECORDING = "Recording failed: {}. Check that the microphone and speakers or headphones are connected and that no other app holds them."
 
 
 def tempo_at(info: ScoreInfo, position: int) -> float | None:
-    for bar in reversed(info.bars[: position + 1]):
-        tempos = [mark for mark in bar.marks if mark.kind == "Tempo"]
+    for at, bar in reversed(list(enumerate(info.bars[: position + 1]))):
+        tempos = [mark for mark in bar.marks if mark.kind == "Tempo" and (at < position or mark.onset == 0)]
         if tempos:
             return float(max(tempos, key=lambda mark: mark.onset).value) * 60
     return None
@@ -675,6 +676,8 @@ async def hum(
         import sounddevice  # noqa: F401
     except (ImportError, OSError):
         raise ToolError(HUM_SETUP) from None
+    if tempo is not None and not 20 <= tempo <= 300:
+        raise ToolError("tempo is 20 to 300 quarter notes per minute.")
     folder = token_file().parent
     if calibrate:
         beat = 60 / (tempo or 90)
@@ -682,7 +685,7 @@ async def hum(
         try:
             take = await asyncio.to_thread(audio.record, play, starts)
         except Exception as error:
-            raise ToolError(f"Recording failed: {error}. {HUM_SETUP}") from None
+            raise ToolError(NO_RECORDING.format(error)) from None
         found = humming.calibration(take.audio, [start / audio.RATE for start in starts])
         if found is None:
             raise ToolError("Not enough 'ta's were heard on the clicks to measure the delay. Ask the user to try again, louder, one 'ta' on each click.")
@@ -707,7 +710,7 @@ async def hum(
     if taken and not replace:
         raise ToolError(f"Staff {staff} already has notes in bar(s) {', '.join(map(str, taken))}. Ask the user, then call again with replace=True, before they hum.")
     numerator, denominator = (int(x) for x in info.measures[position].meter.split("/"))
-    marked = tempo_at(info, position)
+    marked = tempo_at(info, numbers.index(start_bar) if start_bar in numbers else len(numbers))
     tempo = tempo or marked or 90
     beat = 60 / tempo * 4 / denominator
     bar_quarters = Fraction(4 * numerator, denominator)
@@ -717,16 +720,19 @@ async def hum(
     try:
         take = await asyncio.to_thread(audio.record, play, starts)
     except Exception as error:
-        raise ToolError(f"Recording failed: {error}. {HUM_SETUP}") from None
+        raise ToolError(NO_RECORDING.format(error)) from None
     heard = audio.echo(take, numerator)
+    stored = audio.stored_latency(folder, take.device)
     if heard is not None:
-        audio.store_latency(folder, take.device, heard)
-    latency = heard or audio.stored_latency(folder, take.device)
-    timing = "measured from the click this take" if heard else "calibrated earlier" if latency else "the driver's estimate, uncalibrated"
-    latency = latency or take.gap
+        latency, timing = heard, "measured from the click this take"
+    elif stored is not None:
+        latency, timing = stored, "calibrated earlier"
+    else:
+        latency, timing = take.gap, "the driver's estimate, uncalibrated"
     first = starts[numerator]
     slots = int(bars * bar_quarters * grid)
-    result = await asyncio.to_thread(humming.transcribe, take.audio[first:], 60 / tempo, grid, latency, slots)
+    click_slots = max(1, int(grid * 4 // denominator))
+    result = await asyncio.to_thread(humming.transcribe, take.audio[first:], 60 / tempo, grid, latency, slots, click_slots)
     if not result or not result.notes:
         raise ToolError("No humming was heard after the count-in. Check the microphone, then try again.")
     score_has_notes = any(event.pitch for measure in index.measures for event in measure.events)
@@ -738,7 +744,9 @@ async def hum(
         fifths = signature
     else:
         fifths = result.key.fifths if signature == 0 else signature
-        if signature == 0 and fifths != 0:
+        if kind == "rhythm" and signature == 0:
+            fifths = 0
+        elif signature == 0 and fifths != 0:
             set_key = fifths
         elif signature != 0:
             moved = humming.moved_to(result.key, signature)
@@ -746,15 +754,21 @@ async def hum(
     target = humming.centre(instrument, staves.index(staff), len(staves))
     shift = moved + humming.placed_octave([p + moved for p in pitches], target) + 12 * octave
     for note in result.notes:
-        note.pitch = humming.tonic_near(target, result.key.tonic + moved) if kind == "rhythm" else note.pitch + shift
+        note.pitch = humming.tonic_near(target, result.key.tonic + moved) + 12 * octave if kind == "rhythm" else note.pitch + shift
     division = 48
     lines = humming.voice_lines(result.notes, [int(bar_quarters * grid)] * bars, division // grid, fifths)
+    tempo_marks = []
     if marked is None or abs(marked - tempo) > 0.5:
-        lines[0] = f"q{tempo:g} {lines[0]}"
+        old = [mark for mark in info.bars[position].marks if mark.kind == "Tempo" and mark.onset == 0] if start_bar in numbers else []
+        tempo_marks = ["-" + n1x.mark_token(mark) for mark in old] + [f"q{tempo:g}"]
     idea = [f"N1x div={division} ts={info.measures[position].meter}"]
     for n, line in enumerate(lines):
         header = f"m{start_bar + n} len={int(bar_quarters * division)}" + (f" ks={key_name(set_key)}" if n == 0 and set_key is not None else "")
+        if n == 0 and tempo_marks and staff == 1:
+            line = " ".join(tempo_marks + [line])
         idea += [header, f"{staff}.1: {line}"]
+        if n == 0 and tempo_marks and staff != 1:
+            idea.append("1.1: " + " ".join(tempo_marks))
     if saving := os.environ.get("REFLETS_HUM_SAVE"):
         audio.save(Path(saving), take, {
             "tempo": tempo, "meter": info.measures[position].meter, "bars": bars, "grid": grid, "latency": latency,
@@ -771,7 +785,7 @@ async def hum(
         notes.append(f"Moved {abs(moved)} semitone{'s' if abs(moved) > 1 else ''} {'up' if moved > 0 else 'down'} into the score's key.")
     if set_key is not None:
         notes.append("The key signature was set from the humming, from the first bar of the take on.")
-    if lines[0].startswith("q"):
+    if tempo_marks:
         notes.append(f"The tempo mark was set to {tempo:g}, from bar {start_bar} on.")
     if timing.startswith("the driver"):
         notes.append("If the notes land late or early, the user is probably on headphones: run hum with calibrate=True once.")

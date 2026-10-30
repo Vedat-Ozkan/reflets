@@ -35,6 +35,7 @@ async def refuses_replacing(staff: int) -> None:
     info, *_ = await server.read_bars("all")
     first = info.measures[0].number
     if not any(event.pitch and event.staff == staff and event.layer == 1 for event in info.measures[0].events):
+        print(f"NOT RUN hum without replace asks first: staff {staff} has no notes in bar {first}")
         return
 
     def recorded(play, starts):
@@ -59,9 +60,9 @@ async def one(name: str, last: int, bars: int, tempo: float, grid: int, staff: i
     check(f"{name}: written and read back", "Read-back matched" in result and f"bars {last + 1}-{last + bars}" in result, result)
     text = await server.read_score(f"{last + 1}-{last + bars}")
     written = n1x.decode(text)
-    marked = server.tempo_at(info, len(info.measures) - 1)
+    marked = server.tempo_at(info, len(info.measures))
     if marked is None or abs(marked - tempo) > 0.5:
-        check(f"{name}: tempo mark q{tempo:g} at bar {last + 1}", f"q{tempo:g} " in text, text)
+        check(f"{name}: tempo mark q{tempo:g} at bar {last + 1}", re.search(rf"q{tempo:g}(@0)?(\s|$)", text, re.M) is not None, text)
     pitches = [midi_tpc(note.pitch)[0] for bar in written.bars for (s, _), voice in bar.voices.items() if s == staff
                for chord in voice.chords for note in chord.notes]
     instrument, staves = next((i, s) for (_, s), i in zip(info.parts, info.instrument_ids) if staff in s)

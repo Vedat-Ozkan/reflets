@@ -18,7 +18,7 @@ reflets = "reflets.server:main"
 
 [dependency-groups]
 dev = ["pytest>=8"]
-hum-eval = ["swift-f0>=0.3", "onnxruntime>=1.20", "soundfile>=0.13", "soxr>=0.5", "mir_eval>=0.8", "pretty_midi>=0.2", "remotezip>=0.12"]  # eval/hum_eval.py only
+hum-eval = ["swift-f0>=0.3", "onnxruntime>=1.20", "soundfile>=0.13", "soxr>=0.5", "mir_eval>=0.8", "pretty_midi>=0.2", "remotezip>=0.12"]
 
 [build-system]
 requires = ["hatchling"]

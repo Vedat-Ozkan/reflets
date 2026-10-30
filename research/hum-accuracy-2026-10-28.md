@@ -144,3 +144,16 @@ Of the owner's remaining errors, 7 were repeated notes merged into one, and in 5
 | train in 3/4, 650 | 0.621 / 0.621 | 0.712 / 0.712 |
 
 Owner's takes: 118 → 124 of 154 with the right length. The owner accepted the 0.001 loss on test's 8th grid (about 5 of 5,433 notes) against the gains elsewhere. Thresholds are rises and falls within the take, so they do not depend on microphone gain; a noisy room or a microphone with noise suppression fills the dips and falls back to merged repeats.
+
+## Slides and drift splits (2026-10-30)
+- **Slides.** A scoop folded into the next piece made that piece look longer, so its own slide test failed: in take 10 (`20261029-231702`) 55.0 slid into a 57.2 overshoot, then 56.2, and 57.2 was written. The slide test now uses each piece's own length. HumTrans is unchanged except test's 8th grid, 0.708 → 0.709; owner's takes 124 → 126.
+- **Drift splits.** A held note whose pitch drifted 0.5 to 0.9 semitone was cut in two by the tracker; after `in_key` both halves have the same written pitch. On 1,000 train clips, of the touching same-pitch boundaries the pipeline keeps, 667 sit at a labelled onset (a real repeat; 4% of them without a push) and 273 do not (78% without a push). Touching pieces with the same written pitch and no push between them are now joined. Right note value, recall / precision:
+
+| Clips | 16th grid: before → now | 8th grid: before → now |
+|---|---|---|
+| test, 440 | 0.639 / 0.631 → 0.645 / 0.645 | 0.709 / 0.711 → 0.713 / 0.721 |
+| valid, 374 | 0.589 / 0.578 → 0.594 / 0.590 | 0.673 / 0.667 → 0.679 / 0.682 |
+| train, 1,000 (measured on) | 0.616 / 0.607 → 0.621 / 0.619 | 0.687 / 0.686 → 0.692 / 0.698 |
+| train in 3/4, 650 | 0.621 / 0.605 → 0.628 / 0.621 | 0.712 / 0.708 → 0.720 / 0.725 |
+
+Owner's takes 126 → 127 of 154 with the right length, 20 → 17 extra notes; one take (`20261028-193247`) loses 2, a repeat sung without a measurable push.

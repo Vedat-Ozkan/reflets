@@ -24,11 +24,11 @@ import pretty_midi
 import soundfile
 import swift_f0
 
+from reflets.hum import MAJOR, MINOR
+
 OUT = Path(__file__).parent.parent / "out" / "hum-eval"
 HUMTRANS = "https://huggingface.co/datasets/dadinghh2/HumTrans/resolve/main/"
 CORRECTED = "https://raw.githubusercontent.com/shubham-gupta-30/humming_transcription/HEAD/heurestic_filtered_onsets_offsets/filtered_{}.zip"
-MAJOR = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88])
-MINOR = np.array([6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17])
 
 
 def meter(key: str) -> str:
@@ -49,7 +49,7 @@ def fetch(split: str, only: str | None, clips: int | None) -> tuple[zipfile.ZipF
     if only:
         wanted = [key for key in wanted if meter(key) == only]
     if clips:
-        wanted = [wanted[i] for i in np.linspace(0, len(wanted) - 1, clips).astype(int)]
+        wanted = [wanted[i] for i in np.unique(np.linspace(0, len(wanted) - 1, clips).astype(int))]
     (OUT / "wav").mkdir(exist_ok=True)
     if any(not (OUT / "wav" / f"{key}.wav").exists() for key in wanted):
         from remotezip import RemoteZip

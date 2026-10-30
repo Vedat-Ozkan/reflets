@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import cache
 
 import numpy as np
 import swift_f0
@@ -76,8 +77,13 @@ def fifths_of(tonic: int, major: bool) -> int:
     return min(range(-7, 8), key=lambda f: (((f * 7) % 12) != relative, abs(f)))
 
 
+@cache
+def detector() -> swift_f0.SwiftF0:
+    return swift_f0.SwiftF0()
+
+
 def track(audio: np.ndarray) -> list[Sung]:
-    result = swift_f0.SwiftF0().detect(audio.astype(np.float32), RATE)
+    result = detector().detect(audio.astype(np.float32), RATE)
     found = swift_f0.segment_notes(result, pitch_hold_ms=80)
     times, hz, voiced = np.asarray(result.timestamps), np.asarray(result.pitch_hz), np.asarray(result.confidence) > 0.9
     sung = []
@@ -109,7 +115,7 @@ def find_key(sung: list[Sung]) -> Key:
              + np.bincount([(low + 1) % 12 for low in lower], [d * a for d, a in zip(durations, above)], 12))
     ranked = ranking(np.bincount(classes, weights=durations, minlength=12))
     split_ranked = ranking(split)
-    (best, *_), (second, *_) = ranked[0], ranked[1]
+    best = ranked[0][0]
     fit = {(tonic, major): r for r, tonic, major in ranked}
 
     def in_scale(tonic: int, major: bool) -> float:
@@ -119,7 +125,8 @@ def find_key(sung: list[Sung]) -> Key:
     near = ({(tonic, major) for r, tonic, major in ranked if best - r <= KEY_CLOSE}
             | {(tonic, major) for r, tonic, major in split_ranked if split_ranked[0][0] - r <= KEY_CLOSE})
     tonic, major = max(near, key=lambda k: (in_scale(*k), fit[k]))
-    return Key(tonic, major, fifths_of(tonic, major), float(best - second))
+    other = max(r for r, t, m in ranked if (t, m) != (tonic, major))
+    return Key(tonic, major, fifths_of(tonic, major), float(fit[tonic, major] - other))
 
 
 def in_key(sung: list[Sung], key: Key) -> list[int]:
@@ -138,13 +145,12 @@ def in_key(sung: list[Sung], key: Key) -> list[int]:
 def absorb_short(sung: list[Sung], shortest: float, scoop: float) -> list[Sung]:
     out: list[Sung] = []
     pending: Sung | None = None
-    for i, s in enumerate(sung):
-        if pending:
-            s = Sung(pending.start, s.end, s.semitone)
-            pending = None
+    for i, own in enumerate(sung):
+        s = Sung(pending.start, own.end, own.semitone) if pending else own
+        pending = None
         following = sung[i + 1] if i + 1 < len(sung) else None
         touching = following is not None and following.start - s.end < TOUCHING
-        slides_in = touching and s.end - s.start < scoop and abs(s.semitone - following.semitone) <= SCOOP_SEMITONES
+        slides_in = touching and own.end - own.start < scoop and abs(own.semitone - following.semitone) <= SCOOP_SEMITONES
         if s.end - s.start >= shortest and not slides_in:
             out.append(s)
             continue
@@ -160,12 +166,12 @@ def loudness(audio: np.ndarray) -> np.ndarray:
     return 20 * np.log10(np.sqrt((frames ** 2).mean(1)) + 1e-9)
 
 
-def pushed(level: np.ndarray, at: float) -> bool:
+def pushed(level: np.ndarray, at: float) -> bool | None:
     i = int(at * RATE / FRAME)
     if i < 20 or i + 12 > len(level):
-        return False
+        return None
     dip = level[i - 15:i + 3].min()
-    return level[i:i + 12].max() - dip >= PUSH_RISE and level[i - 20:i - 8].mean() - dip >= PUSH_FALL
+    return bool(level[i:i + 12].max() - dip >= PUSH_RISE and level[i - 20:i - 8].mean() - dip >= PUSH_FALL)
 
 
 def split_pushes(sung: list[Sung], level: np.ndarray, step: float, latency: float) -> list[Sung]:
@@ -182,6 +188,18 @@ def split_pushes(sung: list[Sung], level: np.ndarray, step: float, latency: floa
     return out
 
 
+def join_unpushed(sung: list[Sung], pitches: list[int], level: np.ndarray) -> tuple[list[Sung], list[int]]:
+    out: list[Sung] = []
+    kept: list[int] = []
+    for s, pitch in zip(sung, pitches):
+        if out and kept[-1] == pitch and s.start - out[-1].end < TOUCHING and pushed(level, s.start) is False:
+            out[-1] = Sung(out[-1].start, s.end, out[-1].semitone)
+            continue
+        out.append(s)
+        kept.append(pitch)
+    return out, kept
+
+
 def fix_octaves(pitches: list[int]) -> list[int]:
     out = list(pitches)
     for i in range(len(out)):
@@ -191,13 +209,14 @@ def fix_octaves(pitches: list[int]) -> list[int]:
     return out
 
 
-def snap(sung: list[Sung], pitches: list[int], step: float, latency: float, slots: int, grid: int) -> list[Placed]:
+def snap(sung: list[Sung], pitches: list[int], step: float, latency: float, slots: int, rest: int) -> list[Placed]:
     placed: list[Placed] = []
     for s, pitch in zip(sung, pitches):
         slot = round((s.start - latency) / step)
         end = max(slot + 1, round((s.end - latency) / step))
-        if slot < 0 or slot >= slots:
+        if end <= 0 or slot >= slots:
             continue
+        slot = max(slot, 0)
         if placed and placed[-1].slot == slot:
             if s.end - s.start <= placed[-1].length * step:
                 continue
@@ -206,7 +225,7 @@ def snap(sung: list[Sung], pitches: list[int], step: float, latency: float, slot
             placed[-1].length = slot - placed[-1].slot
         placed.append(Placed(slot, min(end, slots) - slot, pitch))
     for a, following in zip(placed, [p.slot for p in placed[1:]] + [slots]):
-        if following - (a.slot + a.length) < grid:
+        if following - (a.slot + a.length) < rest:
             a.length = following - a.slot
     return placed
 
@@ -216,10 +235,9 @@ class Transcription:
     notes: list[Placed]
     key: Key
     tuning: float
-    unsure: list[int]
 
 
-def transcribe(audio: np.ndarray, beat: float, grid: int, latency: float, slots: int) -> Transcription | None:
+def transcribe(audio: np.ndarray, beat: float, grid: int, latency: float, slots: int, click: int | None = None) -> Transcription | None:
     step = beat / grid
     sung = track(audio)
     if not sung:
@@ -227,15 +245,15 @@ def transcribe(audio: np.ndarray, beat: float, grid: int, latency: float, slots:
     sung, tuning = tuned(sung)
     key = find_key(sung)
     sung = absorb_short(sung, SHORT_STEPS * step, SCOOP_STEPS * step)
-    sung = split_pushes(sung, loudness(audio), step, latency)
-    pitches = fix_octaves(in_key(sung, key))
-    unsure = [i for i, s in enumerate(sung) if abs(s.semitone - round(s.semitone)) > 0.35]
-    notes = snap(sung, pitches, step, latency, slots, grid)
-    return Transcription(notes, key, tuning, unsure)
+    level = loudness(audio)
+    sung = split_pushes(sung, level, step, latency)
+    sung, pitches = join_unpushed(sung, fix_octaves(in_key(sung, key)), level)
+    notes = snap(sung, pitches, step, latency, slots, click or grid)
+    return Transcription(notes, key, tuning)
 
 
 CENTRES = [
-    ("piccolo", 86), ("flute", 79), ("oboe", 74), ("english-horn", 65), ("bass-clarinet", 50), ("clarinet", 67),
+    ("piccolo", 86), ("alto-flute", 67), ("bass-flute", 55), ("flute", 79), ("oboe", 74), ("english-horn", 65), ("bass-clarinet", 50), ("clarinet", 67),
     ("contrabassoon", 38), ("bassoon", 50), ("soprano-saxophone", 70), ("alto-saxophone", 63), ("tenor-saxophone", 56),
     ("baritone-saxophone", 48), ("trumpet", 69), ("horn", 60), ("bass-trombone", 45), ("trombone", 52), ("tuba", 38),
     ("violin", 74), ("viola", 62), ("violoncello", 50), ("cello", 50), ("contrabass", 38), ("bass-guitar", 38),
@@ -291,9 +309,9 @@ def calibration(audio: np.ndarray, clicks: list[float]) -> float | None:
     sung = track(audio)
     offsets = []
     for at in clicks:
-        near = [s.start - at for s in sung if -0.15 < s.start - at < 0.6]
+        near = [s for s in sung if -0.15 < s.start - at < 0.6]
         if near:
-            offsets.append(min(near, key=abs))
+            offsets.append(max(near, key=lambda s: s.end - s.start).start - at)
     if len(offsets) < len(clicks) * 0.6:
         return None
     middle = float(np.median(offsets))

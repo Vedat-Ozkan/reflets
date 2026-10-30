@@ -65,7 +65,7 @@ def echo(take: Take, beats: int) -> float | None:
         found.append(int(np.argmax(np.abs(np.correlate(window, sound, mode="valid")))) / RATE)
     middle = float(np.median(found))
     agreeing = [f for f in found if abs(f - middle) <= ECHO_SPREAD]
-    return float(np.median(agreeing)) if len(agreeing) >= len(found) - 1 >= 2 else None
+    return float(np.median(agreeing)) if len(agreeing) >= max(2, len(found) - 1) else None
 
 
 def latencies_file(folder: Path) -> Path:
@@ -90,7 +90,10 @@ def store_latency(folder: Path, device: str, latency: float) -> None:
 
 def save(folder: Path, take: Take, meta: dict) -> Path:
     folder.mkdir(parents=True, exist_ok=True)
-    path = folder / time.strftime("%Y%m%d-%H%M%S")
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    path, n = folder / stamp, 2
+    while path.with_suffix(".wav").exists():
+        path, n = folder / f"{stamp}-{n}", n + 1
     with wave.open(str(path.with_suffix(".wav")), "wb") as out:
         out.setnchannels(1)
         out.setsampwidth(2)

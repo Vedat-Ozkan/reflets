@@ -16,7 +16,8 @@ from pathlib import Path
 
 import numpy as np
 
-from reflets import hum
+from reflets import hum, n1x
+from reflets.write import midi_tpc
 
 FOLDER = Path(__file__).parent.parent / "spikes" / "hum" / "takes"
 TUNES = {
@@ -41,14 +42,31 @@ def transcribed(audio: np.ndarray, meta: dict) -> list[hum.Placed]:
     numerator, denominator = (int(x) for x in meta["meter"].split("/"))
     grid = meta["grid"]
     slots = meta["bars"] * numerator * 4 // denominator * grid
-    result = hum.transcribe(audio[meta["starts"][numerator]:], 60 / meta["tempo"], grid, meta["latency"], slots)
+    result = hum.transcribe(audio[meta["starts"][numerator]:], 60 / meta["tempo"], grid, meta["latency"], slots, max(1, grid * 4 // denominator))
     return result.notes if result else []
+
+
+def written(meta: dict) -> list[tuple[int, int, int]]:
+    numerator, denominator = (int(x) for x in meta["meter"].split("/"))
+    bar_slots = numerator * 4 * meta["grid"] // denominator
+    notes: list[list[int]] = []
+    tied = False
+    for n, bar in enumerate(n1x.decode(meta["idea"]).bars):
+        for chord in bar.voices[meta["staff"], 1].chords:
+            slot, length = n * bar_slots + int(chord.onset * meta["grid"]), int(chord.duration * meta["grid"])
+            pitch = midi_tpc(chord.notes[0].pitch)[0]
+            if tied and notes[-1][0] + notes[-1][1] == slot and notes[-1][2] == pitch:
+                notes[-1][1] += length
+            else:
+                notes.append([slot, length, pitch])
+            tied = chord.notes[0].tied
+    return [tuple(note) for note in notes]
 
 
 def answer(meta: dict) -> list[tuple[int, int, int]] | None:
     tune = meta.get("tune")
     if tune == "right":
-        return [tuple(note) for note in meta["notes"]]
+        return written(meta)
     if tune in TUNES:
         scale = meta["grid"] // 2
         return [(slot * scale, length * scale, pitch) for slot, length, pitch in TUNES[tune]]
