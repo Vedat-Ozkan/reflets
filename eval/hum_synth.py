@@ -7,7 +7,8 @@ off pitch by 14 to 26 cents as HumTrans's hummers are, timing spread, a held or 
 and a latency), in several renders with a different tonic, tempo and singer, then transcribed by reflets/hum.py on
 the grid the melody needs. The labels are exact, so a note is right when its
 pitch, up to one transposition, lands on its grid slot, and right in length when its written length is right too.
-Notes outside the melody's own mode are counted apart, since HumTrans is 98% diatonic and a clean-up that snaps
+Half the singers join each note to the next with a glide and, on a repeated pitch, only a dip in loudness. Notes
+outside the melody's major or minor key are counted apart, since HumTrans is 98% diatonic and a clean-up that snaps
 toward the key wins there by never writing them. --score writes the melodies as a score to play before humming each
 one, so the owner's takes of them are scored by eval.hum_takes against the same labels.
 """
@@ -22,18 +23,11 @@ import numpy as np
 
 from reflets import hum
 
-MODES = {
-    "major": [0, 2, 4, 5, 7, 9, 11], "minor": [0, 2, 3, 5, 7, 8, 10], "dorian": [0, 2, 3, 5, 7, 9, 10],
-    "mixolydian": [0, 2, 4, 5, 7, 9, 10], "lydian": [0, 2, 4, 6, 7, 9, 11], "phrygian": [0, 1, 3, 5, 7, 8, 10],
-    "harmonic minor": [0, 2, 3, 5, 7, 8, 11],
-}
-
-
 @dataclass
 class Melody:
     name: str
     kind: str
-    mode: str
+    key: str
     notes: list[tuple[int, int, int]]
     meter: tuple[int, int] = (4, 4)
 
@@ -51,19 +45,19 @@ MELODIES = [
     Melody("blues", "chromatic", "major",
            [(0, 4, 0), (4, 4, 3), (8, 2, 5), (10, 2, 6), (12, 4, 7), (16, 4, 10), (20, 4, 7), (24, 8, 6),
             (32, 4, 5), (36, 4, 3), (40, 4, 0), (44, 4, 3), (48, 4, 4), (52, 4, 0), (56, 8, 0)]),
-    Melody("harmonic-minor", "chromatic", "harmonic minor",
+    Melody("harmonic-minor", "chromatic", "minor",
            [(0, 4, 0), (4, 4, 3), (8, 4, 7), (12, 4, 8), (16, 4, 11), (20, 4, 12), (24, 8, 11),
             (32, 4, 8), (36, 4, 7), (40, 4, 5), (44, 4, 3), (48, 4, 2), (52, 4, -1), (56, 8, 0)]),
-    Melody("dorian", "mode", "dorian",
-           [(0, 4, 2), (4, 4, 5), (8, 4, 9), (12, 4, 7), (16, 4, 5), (20, 4, 4), (24, 8, 2),
-            (32, 4, 9), (36, 4, 11), (40, 4, 12), (44, 4, 9), (48, 4, 7), (52, 4, 5), (56, 8, 2)]),
-    Melody("mixolydian", "mode", "mixolydian",
+    Melody("dorian", "mode", "minor",
+           [(0, 4, 0), (4, 4, 3), (8, 4, 5), (12, 4, 9), (16, 4, 7), (20, 4, 5), (24, 8, 3),
+            (32, 4, 9), (36, 4, 10), (40, 4, 12), (44, 4, 9), (48, 4, 7), (52, 4, 5), (56, 8, 0)]),
+    Melody("mixolydian", "mode", "major",
            [(0, 4, 0), (4, 4, 4), (8, 4, 7), (12, 4, 10), (16, 8, 9), (24, 8, 7),
             (32, 4, 10), (36, 4, 9), (40, 4, 7), (44, 4, 5), (48, 4, 4), (52, 4, 2), (56, 8, 0)]),
-    Melody("lydian", "mode", "lydian",
+    Melody("lydian", "mode", "major",
            [(0, 4, 0), (4, 4, 2), (8, 4, 4), (12, 4, 6), (16, 8, 7), (24, 8, 6),
             (32, 4, 9), (36, 4, 7), (40, 4, 6), (44, 4, 4), (48, 4, 6), (52, 4, 2), (56, 8, 0)]),
-    Melody("phrygian", "mode", "phrygian",
+    Melody("phrygian", "mode", "minor",
            [(0, 4, 0), (4, 4, 1), (8, 4, 3), (12, 4, 1), (16, 8, 0), (24, 8, -2),
             (32, 4, 0), (36, 4, 1), (40, 4, 3), (44, 4, 5), (48, 4, 3), (52, 4, 1), (56, 8, 0)]),
     Melody("syncopation", "rhythm", "major",
@@ -98,6 +92,7 @@ class Singer:
     scoop: float
     vibrato: float
     intonation: float
+    legato: bool
 
 
 def singers(count: int) -> list[Singer]:
@@ -105,27 +100,37 @@ def singers(count: int) -> list[Singer]:
     return [Singer(int(rng.integers(45, 65)), float(rng.uniform(75, 125)), float(rng.uniform(-40, 40)),
                    float(rng.uniform(0.05, 0.25)), float(rng.uniform(0.7, 0.95)), float(rng.uniform(0.005, 0.03)),
                    float(rng.uniform(0.2, 1.5)), float(rng.uniform(0.05, 0.3)),
-                   float(rng.uniform(14, 26))) for _ in range(count)]
+                   float(rng.uniform(14, 26)), bool(rng.random() < 0.5)) for _ in range(count)]
 
 
 def sung(melody: Melody, singer: Singer, seed: int) -> np.ndarray:
     rng = np.random.default_rng(seed)
     sixteenth = 15 / singer.tempo
     end = max(slot + length for slot, length, _ in melody.notes)
-    audio = np.zeros(int((end * sixteenth + singer.latency + 1) * hum.RATE), np.float32)
+    size = int((end * sixteenth + singer.latency + 1) * hum.RATE)
+    midi, level = np.full(size, 69.0), np.zeros(size)
     drift = rng.uniform(-30, 30)
-    for slot, length, degree in melody.notes:
-        start = max(0.0, slot * sixteenth + singer.latency + rng.normal(0, singer.spread))
-        seconds = max(0.06, length * sixteenth * singer.held + rng.normal(0, singer.spread))
-        t = np.arange(int(seconds * hum.RATE)) / hum.RATE
-        bend = (singer.cents + drift * slot / end + rng.normal(0, singer.intonation)) / 100
-        midi = singer.tonic + degree + bend - singer.scoop * np.exp(-t / 0.04) + singer.vibrato * np.sin(2 * np.pi * 5.5 * t)
-        phase = 2 * np.pi * np.cumsum(440 * 2 ** ((midi - 69) / 12)) / hum.RATE
-        voice = sum(np.sin(k * phase) / k ** 1.5 for k in range(1, 8))
-        envelope = np.minimum(1, t / 0.02) * np.minimum(1, (seconds - t) / 0.05)
-        at = int(start * hum.RATE)
-        audio[at:at + len(t)] += (0.2 * voice * envelope)[: len(audio) - at].astype(np.float32)
-    return audio + 0.004 * rng.standard_normal(len(audio)).astype(np.float32)
+    starts = [max(0.0, slot * sixteenth + singer.latency + rng.normal(0, singer.spread)) for slot, _, _ in melody.notes]
+    previous = None
+    for i, ((slot, length, degree), start) in enumerate(zip(melody.notes, starts)):
+        joined = singer.legato and i + 1 < len(starts) and melody.notes[i + 1][0] == slot + length
+        stop = starts[i + 1] if joined else start + max(0.06, length * sixteenth * singer.held + rng.normal(0, singer.spread))
+        a, b = int(start * hum.RATE), min(size, int(stop * hum.RATE))
+        t = np.arange(b - a) / hum.RATE
+        pitch = singer.tonic + degree + (singer.cents + drift * slot / end + rng.normal(0, singer.intonation)) / 100
+        if previous is None:
+            glide = -singer.scoop * np.exp(-t / 0.04)
+            attack = np.minimum(1, t / 0.02)
+        else:
+            glide = (previous - pitch) * np.exp(-t / 0.03)
+            attack = 1 - (0.5 if round(previous) == round(pitch) else 0.1) * np.exp(-t / 0.03)
+        midi[a:b] = pitch + glide + singer.vibrato * np.sin(2 * np.pi * 5.5 * t)
+        release = 1 if joined else np.minimum(1, (len(t) / hum.RATE - t) / 0.05)
+        level[a:b] = attack * release
+        previous = pitch if joined else None
+    phase = 2 * np.pi * np.cumsum(440 * 2 ** ((midi - 69) / 12)) / hum.RATE
+    voice = sum(np.sin(k * phase) / k ** 1.5 for k in range(1, 8))
+    return (0.2 * voice * level + 0.004 * rng.standard_normal(size)).astype(np.float32)
 
 
 def scored(melody: Melody, singer: Singer, seed: int) -> dict[str, int]:
@@ -145,7 +150,8 @@ def scored(melody: Melody, singer: Singer, seed: int) -> dict[str, int]:
 
     shift = max(range(-24, 25), key=counts)
     found = {(n.slot, n.pitch + shift): n.length for n in notes}
-    outside = [(degree % 12) not in MODES[melody.mode] for _, _, degree in melody.notes]
+    scale_steps = hum.MAJOR_STEPS if melody.key == "major" else hum.MINOR_STEPS
+    outside = [(degree % 12) not in scale_steps for _, _, degree in melody.notes]
     tally = {"notes": len(truth), "placed": 0, "whole": 0, "found": len(notes), "outside": sum(outside), "outside placed": 0}
     for (s, length, p), out in zip(truth, outside):
         if (s, p) in found:
@@ -194,7 +200,7 @@ def main() -> None:
     print(f"{len(MELODIES)} melodies, {args.renders} renders each; recall / precision")
     for kind in ["control", "chromatic", "mode", "rhythm", "all"]:
         t = totals[kind]
-        outside = f", outside the mode {t['outside placed']}/{t['outside']} placed" if t["outside"] else ""
+        outside = f", outside the key {t['outside placed']}/{t['outside']} placed" if t["outside"] else ""
         print(f"{kind:10} on the slot {t['placed'] / t['notes']:.3f} / {t['placed'] / t['found']:.3f}, "
               f"right length {t['whole'] / t['notes']:.3f} / {t['whole'] / t['found']:.3f}{outside}")
 

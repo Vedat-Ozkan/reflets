@@ -64,7 +64,7 @@ Take `20261029-231528` (headphones, started an eighth late) is kept on purpose: 
 
 ## Unusual material (2026-10-30)
 
-HumTrans is 98% diatonic and the tunes above are too, so these takes check that the tool does not rewrite chromatic notes, modes and rhythms it rarely meets. Open `tests/data/hum-targets.musicxml` in MuseScore (an import; written by `python -m eval.hum_synth --score`): each melody starts at a rehearsal mark with its name. Play it once or twice, then hum it into a blank flute score at a tempo that is comfortable (80 to 100), on "da", and say the grid:
+HumTrans is 98% diatonic and the tunes above are too, so these takes check that the tool does not rewrite chromatic notes, modes and rhythms it rarely meets. Open `hum-targets.musicxml` from `Documents/MuseScore4/Scores/reflets/` in MuseScore (an import; a copy of `tests/data/hum-targets.musicxml`, written by `python -m eval.hum_synth --score`): each melody starts at a rehearsal mark with its name. Play it once or twice, then hum it into a blank flute score at a tempo that is comfortable (80 to 100), on "da", and say the grid:
 
 | # | Melody (rehearsal mark) | Ask Claude | What it tests |
 |---|---|---|---|
