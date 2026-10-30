@@ -117,10 +117,10 @@ class Bridge:
             raise BridgeError(f"The bridge plugin reported {code}: {message}")
         return words[2:], lines[1:]
 
-    async def listening(self) -> bool:
+    async def listening(self, timeout: float = OTHER_TIMEOUT) -> bool:
         host, port = self.url.removeprefix("ws://").rsplit(":", 1)
         try:
-            _, writer = await asyncio.wait_for(asyncio.open_connection(host, int(port)), OTHER_TIMEOUT)
+            _, writer = await asyncio.wait_for(asyncio.open_connection(host, int(port)), timeout)
         except (OSError, asyncio.TimeoutError):
             return False
         writer.close()

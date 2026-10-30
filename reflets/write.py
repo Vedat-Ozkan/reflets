@@ -10,8 +10,12 @@ from fractions import Fraction
 from reflets import n1x
 from engine.score import beat_length
 
-from reflets.score import FIFTHS, SEMITONES, SYSTEM_LINES, SYSTEM_MARKS, Bar, Jump, Marker, Mark, ScoreInfo, build_index, unescape
+from reflets.score import (
+    FIFTHS, SEMITONES, SYSTEM_MARKS, Bar, Jump, Marker, Mark, ScoreInfo, bar_at, bar_start, build_index, chord_flags, escape,
+    is_grace, is_system_line, key_at, retimed, unescape,
+)
 
+METER = r"[1-9]\d*/(1|2|4|8|16|32|64)"
 VALUES = sorted({Fraction(1, 2**k) * dots for k in range(8) for dots in (1, Fraction(3, 2), Fraction(7, 4))}, reverse=True)
 
 
@@ -142,6 +146,10 @@ def standalone(name: str) -> str | None:
     return "fermata" if symbol.startswith("fermata") else "breath" if symbol.startswith(("breath", "caesura")) else None
 
 
+def standalone_token(name: str) -> str:
+    return f"[{n1x.decoration(SYMBOLS.get(name, name))}]"
+
+
 def classify(name: str, where: str) -> tuple[str, str]:
     if name in n1x.ARPEGGIOS:
         return "arp", str(n1x.ARPEGGIOS.index(name))
@@ -160,12 +168,7 @@ def classify(name: str, where: str) -> tuple[str, str]:
         raise IdeaError(f"{where}: [{name}] cannot be written: MuseScore's plugin API has no way to create glissandos, two-note tremolos or chord lines")
     if name in GRACE_ACTIONS:
         raise IdeaError(f"{where}: [{name}] is a grace note type; it goes on a grace note, as in gD5[{name}]")
-    symbol = SYMBOLS.get(name, name)
-    if symbol.startswith("fermata"):
-        return "fermata", symbol
-    if symbol.startswith(("breath", "caesura")):
-        return "breath", symbol
-    return "art", symbol
+    return standalone(name) or "art", SYMBOLS.get(name, name)
 
 
 def decoration_ops(track: int, first: int, last: int, end: int, chord: n1x.Chord | None, rest_names: tuple[str, ...], where: str) -> list[str]:
@@ -202,8 +205,7 @@ def line_ops(lines: list[Line]) -> tuple[list[str], list[str]]:
     octaves, others = [], []
     for line in lines:
         kind, sub = LINE_KINDS[line.name]
-        escaped = line.text.replace("\\", "\\\\").replace("\n", "\\n")
-        op = f"l {line.track} {line.tick} {line.track2} {line.end} {int(line.grace)} {kind} {sub} {escaped}"
+        op = f"l {line.track} {line.tick} {line.track2} {line.end} {int(line.grace)} {kind} {sub} {escape(line.text)}"
         (octaves if kind == "OTTAVA" else others).append(op)
     return octaves, others
 
@@ -215,7 +217,7 @@ def spans(lines: list[str]) -> list[Line]:
         if words[0] != "N" or words[5] == "PartialLyricsLine":
             continue
         value = f"{words[5]}:{words[6]}"
-        system = words[5] in SYSTEM_LINES or words[5] == "TextLine" and words[6] == "1"
+        system = is_system_line(words[5], words[6])
         track, track2 = (0, 0) if system else (int(words[3]), int(words[4]))
         text = n1x.line_text(value, unescape(" ".join(words[7:])))
         result.add(Line(int(words[1]), track, int(words[2].rstrip("g")), track2, words[2].endswith("g"), n1x.line_name(value), text, words[5]))
@@ -223,7 +225,7 @@ def spans(lines: list[str]) -> list[Line]:
 
 
 def start_cell(line: Line, info: ScoreInfo) -> tuple[int, int]:
-    return bisect.bisect_right(info.ticks, line.tick) - 1, line.track
+    return bar_at(info.ticks, line.tick), line.track
 
 
 def end_cell(line: Line, info: ScoreInfo) -> tuple[int, int]:
@@ -311,7 +313,7 @@ def add_lines(plan: Plan, pre: list[str], info: ScoreInfo) -> None:
             added.append(replace(line, end=token.tick, grace=token.grace))
         movable.remove(line)
     redone = []
-    numbers = [measure.number for measure in info.measures]
+    numbers = info.numbers
     for line in left:
         if line.name == "" and (start_cell(line, info) in plan.timed or end_cell(line, info) in plan.timed):
             where = f"m{numbers[start_cell(line, info)[0]]} {line.track // 4 + 1}.{line.track % 4 + 1}"
@@ -363,7 +365,7 @@ def old_marks(pre: list[str], info: ScoreInfo, division: int) -> dict[tuple[int,
         if words[0] not in ("A", "F"):
             continue
         tick, track = int(words[1]), int(words[2])
-        position = bisect.bisect_right(info.ticks, tick) - 1
+        position = bar_at(info.ticks, tick)
         onset = Fraction(tick - info.ticks[position], division)
         if onset >= info.lengths[position]:
             continue
@@ -381,7 +383,7 @@ def old_marks(pre: list[str], info: ScoreInfo, division: int) -> dict[tuple[int,
 
 
 def old_chords(pre: list[str], info: ScoreInfo, division: int, first: int, last: int) -> dict[tuple[int, int], dict[Fraction, n1x.Chord]]:
-    numbers = [measure.number for measure in info.measures]
+    numbers = info.numbers
     result = {}
     for bar in n1x.decode(n1x.encode(info, build_index(info, pre, division), first, last)).bars:
         for (staff, layer), voice in bar.voices.items():
@@ -394,7 +396,7 @@ def old_looks(pre: list[str]) -> dict[tuple[int, int], tuple[str, list[str]]]:
     result = {}
     for line in pre:
         words = line.split()
-        if words[0] == "C" and not any(word.startswith("G") for word in words[4:-1]):
+        if words[0] == "C" and not is_grace(words):
             looks = [f"stem {word[1:]}" if word[0] == "S" else f"beam {word[1:]}" for word in words[4:-1] if word[0] in "SB"]
             result[(int(words[2]), int(words[1]))] = (words[3], looks)
     return result
@@ -458,12 +460,12 @@ def idea_range(text: str, info: ScoreInfo) -> tuple[int, int]:
         idea = n1x.decode(text)
     except n1x.DecodeError as error:
         raise IdeaError(str(error)) from None
-    numbers = [measure.number for measure in info.measures]
+    numbers = info.numbers
     for bar in idea.bars:
         if bar.number not in numbers:
             raise IdeaError(f"Bar {bar.number} does not exist; the score has bars {numbers[0]} to {numbers[-1]}")
     positions = sorted(numbers.index(bar.number) for bar in idea.bars) or [0]
-    return info.ticks[positions[0]], info.ticks[positions[-1] + 1] if positions[-1] + 1 < len(info.ticks) else 2**31 - 1
+    return info.ticks[positions[0]], bar_start(info, positions[-1] + 1)
 
 
 def split_rest(item: tuple, cuts: list[Fraction]) -> list[tuple]:
@@ -480,9 +482,7 @@ def plan_end(info: ScoreInfo, plan: Plan) -> int:
 
 def current_fields(info: ScoreInfo, position: int) -> dict[str, str]:
     fields = dict(field.split("=", 1) for field in n1x.bar_fields(info.bars[position]))
-    key_ticks = sorted(info.keys)
-    tick = info.ticks[position]
-    fields["ks"] = info.keys[key_ticks[bisect.bisect_right(key_ticks, tick) - 1]] if key_ticks else info.key
+    fields["ks"] = key_at(info, info.ticks[position])
     fields["ts"] = info.measures[position].meter
     return fields
 
@@ -496,7 +496,7 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
         for name, value in (("title", info.title), ("composer", info.composer)):
             if line.startswith(name + "=") and line != f"{name}={n1x.quote(value)}":
                 raise IdeaError(f"The {name} cannot be changed by an idea; leave the {name}= line out")
-    numbers = [measure.number for measure in info.measures]
+    numbers = info.numbers
     idea_range(text, info)
     written_bars = sorted(numbers.index(bar.number) for bar in idea.bars)
     olds = old_marks(pre, info, division)
@@ -539,7 +539,7 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
             track = (staff - 1) * 4 + layer - 1
             cell = (position, track)
             plan.cells.add(cell)
-            end_tick = info.ticks[position + 1] if position + 1 < len(info.ticks) else 2**31 - 1
+            end_tick = bar_start(info, position + 1)
             if voice.timed:
                 clears.append(f"x {track} {bar_tick} {end_tick} 1")
             if voice.timed and layer > 1 and not voice.chords and not voice.marks and not any(names for _, _, names in voice.rests) and not olds.get(cell):
@@ -566,7 +566,7 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
                     for name in n1x.names(body):
                         if not standalone(name.removeprefix("-")):
                             raise IdeaError(f"{where}: only a fermata or a breath stands on its own with @, not [{name}]")
-                        entries.append((onset, f"[{n1x.decoration(classify(name.removeprefix('-'), where)[1])}]", removal or name.startswith("-")))
+                        entries.append((onset, standalone_token(name.removeprefix('-')), removal or name.startswith("-")))
                     continue
                 mark_element(body, where)
                 entries.append((onset, body, removal))
@@ -574,13 +574,13 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
                 for name in () if chord.grace else chord.decorations:
                     if kind := standalone(name.removeprefix("-")):
                         at = chord.onset + (chord.duration if kind == "breath" else 0)
-                        entries.append((at, f"[{n1x.decoration(classify(name.removeprefix('-'), where)[1])}]", name.startswith("-")))
+                        entries.append((at, standalone_token(name.removeprefix('-')), name.startswith("-")))
             for onset, duration, names in voice.rests:
                 for name in names:
                     if not (kind := standalone(name.removeprefix("-"))):
                         raise IdeaError(f"{where}: a rest takes only a fermata or a breath, not [{name}]")
                     at = onset + (duration if kind == "breath" else 0)
-                    entries.append((at, f"[{n1x.decoration(classify(name.removeprefix('-'), where)[1])}]", name.startswith("-")))
+                    entries.append((at, standalone_token(name.removeprefix('-')), name.startswith("-")))
             old, lost = olds.get(cell, []), []
             if voice.timed:
                 spans = [(chord.onset, chord.onset + chord.duration) for chord in voice.chords if not chord.grace]
@@ -615,8 +615,7 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
                     raise IdeaError(f"{where}: {token} is a system mark (tempo, rehearsal mark, system text); write it in 1.1")
                 if kind == "CLEF" and layer != 1:
                     raise IdeaError(f"{where}: a clef belongs to the staff; write it in {staff}.1")
-                escaped = text.replace("\\", "\\\\").replace("\n", "\\n")
-                marks.append(f"a {track} {tick} {kind} {value:g} {escaped}")
+                marks.append(f"a {track} {tick} {kind} {value:g} {escape(text)}")
             expected_marks = [(mark[0], mark[1]) for mark in kept if mark[1]] + [(onset, token) for onset, token, _ in added]
             if not voice.timed:
                 plan.expected[(bar.number, (staff, layer))] = n1x.Voice(marks=expected_marks)
@@ -705,7 +704,7 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
                 end = tick + round(chunk * 4 * division)
                 if following and following[0] == end and pitch in {p for p, _, _ in following[2]}:
                     ties.append(f"~ {track} {tick} {pitch}")
-                elif (bisect.bisect_right(info.ticks, end) - 1, track) not in plan.timed and end < plan_end(info, plan):
+                elif (bar_at(info.ticks, end), track) not in plan.timed and end < plan_end(info, plan):
                     ties.append(f"~ {track} {tick} {pitch} {end}")
                 else:
                     raise IdeaError(
@@ -714,10 +713,10 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
                     )
     for line in pre:
         words = line.split(" ")
-        if words[0] != "C" or any(word[:1] == "G" and word[1:2].isdigit() for word in words[4:]):
+        if words[0] != "C" or is_grace(words):
             continue
         tick, track = int(words[1]), int(words[2])
-        position = bisect.bisect_right(info.ticks, tick) - 1
+        position = bar_at(info.ticks, tick)
         if tick != info.ticks[position] or (position, track) not in plan.timed or (position - 1, track) in plan.timed:
             continue
         starting = {pitch for start, _, pitches, _ in voices.get(track, []) if start == tick for pitch, _, _ in pitches}
@@ -734,7 +733,7 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
     plan.cleared = len(meter_ops) + len(clears) + len(removals)
     positions = sorted(plan.expected_bars)
     plan.start_tick = info.ticks[positions[0]]
-    plan.end_tick = info.ticks[positions[-1] + 1] if positions[-1] + 1 < len(info.ticks) else 2**31 - 1
+    plan.end_tick = bar_start(info, positions[-1] + 1)
     plan.counts = {
         "notes": sum(len(entry[2]) for entries in voices.values() for entry in entries),
         "rests": rests,
@@ -844,12 +843,6 @@ def bar_changes(bar: n1x.IdeaBar, position: int, info: ScoreInfo) -> tuple[Bar, 
     return new, changes, volta
 
 
-def key_at(info: ScoreInfo, tick: int) -> str:
-    key_ticks = sorted(info.keys)
-    at = bisect.bisect_right(key_ticks, tick) - 1
-    return info.keys[key_ticks[at]] if at >= 0 else info.key
-
-
 def key_change(bar: n1x.IdeaBar, position: int, info: ScoreInfo) -> str | None:
     where = f"m{bar.number}"
     tick = info.ticks[position]
@@ -878,12 +871,12 @@ def meter_reach(info: ScoreInfo, position: int) -> int:
 
 
 def meter_span(text: str, info: ScoreInfo) -> tuple[int, int] | None:
-    numbers = [measure.number for measure in info.measures]
+    numbers = info.numbers
     for bar in n1x.decode(text).bars:
         if ("ts" in bar.fields or "-ts" in bar.fields) and bar.number in numbers:
             position = numbers.index(bar.number)
             reach = meter_reach(info, position)
-            return info.ticks[position], info.ticks[reach] if reach < len(info.ticks) else 2**31 - 1
+            return info.ticks[position], bar_start(info, reach)
     return None
 
 
@@ -897,7 +890,7 @@ def meter_change(bar: n1x.IdeaBar, position: int, info: ScoreInfo, idea: n1x.Ide
         target = previous
     elif "ts" in bar.fields:
         target = bar.fields["ts"]
-        if not re.fullmatch(r"[1-9]\d*/(1|2|4|8|16|32|64)", target):
+        if not re.fullmatch(METER, target):
             raise IdeaError(f"{where}: ts={target} is not a meter like 3/4 or 12/8")
     else:
         return None
@@ -905,7 +898,7 @@ def meter_change(bar: n1x.IdeaBar, position: int, info: ScoreInfo, idea: n1x.Ide
         return None
     if Fraction(4) * Fraction(target) != info.lengths[position]:
         reach = meter_reach(info, position)
-        numbers = [measure.number for measure in info.measures]
+        numbers = info.numbers
         if bar.voices or any(numbers.index(other.number) > position for other in idea.bars):
             raise IdeaError(
                 f"{where}: ts={target} changes the bar's length, so MuseScore re-bars the music after it; write it alone, "
@@ -968,9 +961,9 @@ def sung_ticks(pre: list[str], info: ScoreInfo) -> dict[tuple[int, int], list[in
     result: dict[tuple[int, int], set[int]] = {}
     for line in pre:
         words = line.split(" ")
-        if words[0] == "C" and not any(word[:1] == "G" and word[1:2].isdigit() for word in words[4:]):
+        if words[0] == "C" and not is_grace(words):
             tick, track = int(words[1]), int(words[2])
-            result.setdefault((bisect.bisect_right(info.ticks, tick) - 1, track), set()).add(tick)
+            result.setdefault((bar_at(info.ticks, tick), track), set()).add(tick)
     return {cell: sorted(ticks) for cell, ticks in result.items()}
 
 
@@ -983,21 +976,17 @@ def syllable(token: str, where: str) -> tuple[str, bool]:
     return (token[:-1], True) if token.endswith("-") else (token, False)
 
 
-def lyric_text(text: str) -> str:
-    return text.replace("\\", "\\\\").replace("\n", "\\n")
-
-
 def add_lyrics(plan: Plan, pre: list[str], info: ScoreInfo, division: int) -> None:
     old = old_lyrics(pre)
     lyrics = {key: dict(syllables) for key, syllables in old.items()}
     sung = sung_ticks(pre, info)
-    numbers = [measure.number for measure in info.measures]
+    numbers = info.numbers
     outside: dict[tuple[int, int], tuple[int, int]] = {}
     pieces_at = {cell: sorted(start for start, _ in chunks) for cell, chunks in plan.chunks.items()}
     for bar in sorted(plan.idea.bars, key=lambda bar: numbers.index(bar.number)):
         position = numbers.index(bar.number)
         start = info.ticks[position]
-        stop = info.ticks[position + 1] if position + 1 < len(info.ticks) else 2**31 - 1
+        stop = bar_start(info, position + 1)
         for (staff, layer), voice in sorted(bar.voices.items()):
             track = (staff - 1) * 4 + layer - 1
             cell = (position, track)
@@ -1053,14 +1042,14 @@ def add_lyrics(plan: Plan, pre: list[str], info: ScoreInfo, division: int) -> No
     for (track, verse), mine in sorted(lyrics.items()):
         before = old.get((track, verse), {})
         for tick, new in sorted(mine.items()):
-            cell = (bisect.bisect_right(info.ticks, tick) - 1, track)
+            cell = (bar_at(info.ticks, tick), track)
             was = before.get(tick)
             if cell in plan.timed or was is None or (was.text, was.continues) != (new.text, new.continues):
-                writes.append((tick, f"w {track} {tick} {verse} {int(new.continues)} {new.end} {lyric_text(new.text)}"))
+                writes.append((tick, f"w {track} {tick} {verse} {int(new.continues)} {new.end} {escape(new.text)}"))
             elif was.end != new.end:
                 holds.append(f"h {track} {tick} {verse} {new.end}")
         for tick in sorted(before):
-            cell = (bisect.bisect_right(info.ticks, tick) - 1, track)
+            cell = (bar_at(info.ticks, tick), track)
             if tick not in mine and cell not in plan.timed:
                 drops.append(f"u {track} {tick} {verse}")
     holds += [f"h {track} {start - 1} {verse} {end}" for (track, verse), (start, end) in sorted(outside.items())]
@@ -1103,8 +1092,8 @@ def cells(lines: list[str], info: ScoreInfo) -> dict[tuple[int, int], list[tuple
         if words[0] not in ("C", "R"):
             continue
         tick, track, written = int(words[1]), int(words[2]), Fraction(words[3])
-        cell = (bisect.bisect_right(info.ticks, tick) - 1, track)
-        flags = [word for word in words[4:] if word[:1] in "TG" and word[1:2].isdigit()]
+        cell = (bar_at(info.ticks, tick), track)
+        flags = chord_flags(words)
         grace = next((int(flag[1:]) for flag in flags if flag[0] == "G"), 0)
         if words[0] == "R":
             key = (tick, "R", written, 0, 0, ())
@@ -1188,7 +1177,7 @@ def mark_lines(lines: list[str], info: ScoreInfo, skip: set[tuple[int, int]]) ->
         if words[0] not in ("A", "F"):
             continue
         track = 0 if words[0] == "A" and words[3] in SYSTEM_MARKS else int(words[2])
-        if (bisect.bisect_right(info.ticks, int(words[1])) - 1, track) not in skip:
+        if (bar_at(info.ticks, int(words[1])), track) not in skip:
             kept.append(line)
     return sorted(kept)
 
@@ -1214,7 +1203,7 @@ def line_of(idea: n1x.Idea, number: int, label: str) -> str:
 
 def verify(plan: Plan, pre: list[str], post: list[str], info: ScoreInfo, division: int) -> tuple[str | None, list[int]]:
     before, after = cells(pre, info), cells(post, info)
-    numbers = [measure.number for measure in info.measures]
+    numbers = info.numbers
     cut = set()
     for cell in sorted(set(before) | set(after)):
         position, track = cell
@@ -1233,7 +1222,7 @@ def verify(plan: Plan, pre: list[str], post: list[str], info: ScoreInfo, divisio
             if words[0] == "C" for note in words[-1].split(",") if "b" in note.split(":")[3:]}
     if plan.tied_back - tied:
         track, tick, _ = min(plan.tied_back - tied)
-        return f"the tie into bar {numbers[bisect.bisect_right(info.ticks, tick) - 1]}, staff {track // 4 + 1} voice {track % 4 + 1}, was not made again", []
+        return f"the tie into bar {numbers[bar_at(info.ticks, tick)]}, staff {track // 4 + 1} voice {track % 4 + 1}, was not made again", []
     annotations = (mark_lines(pre, info, plan.cells), mark_lines(post, info, plan.cells))
     if annotations[0] != annotations[1]:
         return f"marks outside the idea changed: {annotations[0]} -> {annotations[1]}", []
@@ -1281,7 +1270,7 @@ def recast_view(text: str, info: ScoreInfo, pre: list[str], division: int) -> Re
         idea = n1x.decode(text)
     except n1x.DecodeError as error:
         raise IdeaError(str(error)) from None
-    numbers = [measure.number for measure in info.measures]
+    numbers = info.numbers
     if any(bar.number not in numbers for bar in idea.bars):
         raise IdeaError(f"Bar {min(bar.number for bar in idea.bars if bar.number not in numbers)} does not exist")
     bars = sorted(idea.bars, key=lambda bar: numbers.index(bar.number))
@@ -1295,7 +1284,7 @@ def recast_view(text: str, info: ScoreInfo, pre: list[str], division: int) -> Re
             f"e.g. 'm{changed[-1].number} len=… ts={info.measures[numbers.index(changed[-1].number)].meter}'"
         )
     meter = changed[0].fields["ts"]
-    if not re.fullmatch(r"[1-9]\d*/(1|2|4|8|16|32|64)", meter):
+    if not re.fullmatch(METER, meter):
         raise IdeaError(f"m{changed[0].number}: ts={meter} is not a meter like 3/4 or 12/8")
     first = numbers.index(changed[0].number)
     length = 4 * Fraction(meter)
@@ -1312,7 +1301,7 @@ def recast_view(text: str, info: ScoreInfo, pre: list[str], division: int) -> Re
     for line in pre:
         words = line.split(" ")
         if words[0] in ("C", "R", "A", "F"):
-            position = bisect.bisect_right(ticks, int(words[1])) - 1
+            position = bar_at(ticks, int(words[1]))
             if position in positions:
                 needed.setdefault(position, set()).add(0 if words[0] == "A" and words[3] in SYSTEM_MARKS else int(words[2]))
     starts: dict[int, list[Fraction]] = {}
@@ -1336,7 +1325,7 @@ def recast_view(text: str, info: ScoreInfo, pre: list[str], division: int) -> Re
             return tick
         if tick >= after:
             return tick + delta
-        position = bisect.bisect_right(ticks, tick) - 1
+        position = bar_at(ticks, tick)
         at = Fraction(tick - ticks[position], division) * length / info.lengths[position]
         if snap and starts[position]:
             at = min(starts[position] + ([length] if snap == "end" else []), key=lambda onset: abs(onset - at))
@@ -1346,7 +1335,7 @@ def recast_view(text: str, info: ScoreInfo, pre: list[str], division: int) -> Re
     for line in pre:
         words = line.split(" ")
         tick = int(words[1])
-        position = bisect.bisect_right(ticks, tick) - 1
+        position = bar_at(ticks, tick)
         if words[0] in ("C", "R"):
             words[1] = str(moved(tick))
             if position in positions:
@@ -1354,9 +1343,8 @@ def recast_view(text: str, info: ScoreInfo, pre: list[str], division: int) -> Re
         elif words[0] in ("A", "F"):
             words[1] = str(moved(tick, "start"))
         elif words[0] == "N":
-            end = words[2].rstrip("g")
             words[1] = str(moved(tick, "start"))
-            words[2] = str(moved(int(end), "end")) + words[2][len(end):]
+            words[2] = retimed(words[2], lambda end: moved(end, "end"))
         elif words[0] == "Y":
             words[1] = str(moved(tick))
             words[5] = str(moved(tick + int(words[5])) - int(words[1]))

@@ -26,7 +26,7 @@ from mcp.types import ToolAnnotations
 from reflets import n1x
 from reflets.restore import bare_idea, body, marks, target_idea, writable
 from reflets.bridge import NOT_RUNNING, PROTO, Bridge, BridgeError, Bridges, chosen, token_file
-from reflets.score import ScoreInfo, appended, build_index, key_name, parse_info
+from reflets.score import END, ScoreInfo, appended, bar_start, build_index, key_at, key_fifths, key_name, parse_info, retimed
 from reflets.write import (
     IdeaError,
     add_lines,
@@ -147,7 +147,6 @@ async def score_info() -> str:
         return f"{error}\n\n{await diagnose()}" if bridge.socket is None else str(error)
     info = parse_info(lines)
     hello = bridge.hello
-    version = hello.get("mscore", "0").rjust(5, "0")
     parts = "; ".join(
         f"P{n} {name} (staff {staves[0]})" if len(staves) == 1 else f"P{n} {name} (staves {staves[0]}-{staves[-1]})"
         for n, (name, staves) in enumerate(info.parts, 1)
@@ -160,7 +159,7 @@ async def score_info() -> str:
         "on another score, the user clicks into its window." if others else ""
     )
     return (
-        f"MuseScore {int(version[:-4])}.{int(version[-4:-2])}.{int(version[-2:])}, "
+        f"MuseScore {mscore_version(hello)}, "
         f"Reflets bridge {hello.get('plugin', '?').split('/')[-1]}, connected.\n"
         f'"{info.title}": {len(info.parts)} part(s): {parts}. Bars {first}-{last} '
         f"({'with' if first == 0 else 'no'} pickup), meter {info.measures[0].meter}, key {info.key}{changes}.\n"
@@ -182,7 +181,7 @@ async def score_info() -> str:
 )
 async def read_score(bars: str = "all") -> str:
     info, index, first, last, whole = await read_bars(bars)
-    numbers = [measure.number for measure in info.measures]
+    numbers = info.numbers
     try:
         text = n1x.encode(info, index, first, last)
         if whole and len(text) / 3.5 > WHOLE_SCORE_TOKENS:
@@ -261,7 +260,7 @@ def missing_model() -> str:
 
 async def read_bars(bars: str, whole_score: bool = False) -> tuple[ScoreInfo, ScoreIndex, int, int, bool]:
     info = await load_info()
-    numbers = [measure.number for measure in info.measures]
+    numbers = info.numbers
     if bars.strip().lower() == "all":
         first, last, whole = numbers[0], numbers[-1], True
     else:
@@ -277,7 +276,7 @@ async def read_bars(bars: str, whole_score: bool = False) -> tuple[ScoreInfo, Sc
         raise ToolError(f'bars runs from the lower bar to the higher one, as in "{last}-{first}"')
     start_tick = info.ticks[0 if whole_score or first == 1 and numbers[0] == 0 else numbers.index(first)]
     end_index = len(numbers) if whole_score else numbers.index(last) + 1
-    end_tick = info.ticks[end_index] if end_index < len(info.ticks) else 2**31 - 1
+    end_tick = bar_start(info, end_index)
     try:
         _, lines = await bridge.request(f"read {start_tick} {end_tick}")
     except BridgeError as error:
@@ -416,7 +415,7 @@ async def write_idea(idea: str, label: str, replace: bool, recast: bool = False,
     info = await load_info()
     division = int(bridge.hello["division"])
     staves = max(staff for _, part_staves in info.parts for staff in part_staves)
-    numbers = [measure.number for measure in info.measures]
+    numbers = info.numbers
     try:
         try:
             past = max(bar.number for bar in n1x.decode(idea).bars) - numbers[-1] if not recast else 0
@@ -425,7 +424,7 @@ async def write_idea(idea: str, label: str, replace: bool, recast: bool = False,
         if past > 0:
             closing = info.bars[-1].user_barline_type if info.bars[-1].user_barline_type not in n1x.REPEAT_BARLINES else None
             info = appended(info, past, division, closing)
-            numbers = [measure.number for measure in info.measures]
+            numbers = info.numbers
         start_tick, end_tick = idea_range(idea, info)
         original = pre = await request(f"read {start_tick} {end_tick}")
         if past > 0:
@@ -433,7 +432,7 @@ async def write_idea(idea: str, label: str, replace: bool, recast: bool = False,
         view = recast_view(idea, info, pre, division) if recast else None
         if view:
             reach = meter_reach(info, view.positions[-1])
-            span = (view.after, info.ticks[reach] if reach < len(info.ticks) else 2**31 - 1 - view.delta)
+            span = (view.after, info.ticks[reach] if reach < len(info.ticks) else END - view.delta)
             info, pre = view.info, view.pre
         else:
             span = meter_span(idea, info)
@@ -508,8 +507,7 @@ def shifted(lines: list[str], delta: int) -> list[str]:
         words = line.split(" ")
         words[1] = str(int(words[1]) + delta)
         if words[0] == "N":
-            end = words[2].rstrip("g")
-            words[2] = str(int(end) + delta) + words[2][len(end):]
+            words[2] = retimed(words[2], lambda end: end + delta)
         result.append(" ".join(words))
     return result
 
@@ -634,17 +632,17 @@ HUM_SETUP = (
 NO_RECORDING = "Recording failed: {}. Check that the microphone and speakers or headphones are connected and that no other app holds them."
 
 
+def mscore_version(hello: dict[str, str]) -> str:
+    version = hello.get("mscore", "0").rjust(5, "0")
+    return f"{int(version[:-4])}.{int(version[-4:-2])}.{int(version[-2:])}"
+
+
 def tempo_at(info: ScoreInfo, position: int) -> float | None:
     for at, bar in reversed(list(enumerate(info.bars[: position + 1]))):
         tempos = [mark for mark in bar.marks if mark.kind == "Tempo" and (at < position or mark.onset == 0)]
         if tempos:
             return float(max(tempos, key=lambda mark: mark.onset).value) * 60
     return None
-
-
-def key_at(info: ScoreInfo, tick: int) -> int:
-    name = max(((at, key) for at, key in info.keys.items() if at <= tick), default=(0, info.key))[1]
-    return 0 if name == "0" else int(name[:-1]) * (1 if name.endswith("s") else -1)
 
 
 @mcp.tool(
@@ -696,7 +694,7 @@ async def hum(
     if grid not in (2, 4) or kind not in ("line", "rhythm") or not 1 <= bars <= 32:
         raise ToolError("grid is 2 or 4, kind is 'line' or 'rhythm', bars is 1 to 32.")
     info, index, *_ = await read_bars("all")
-    numbers = [measure.number for measure in info.measures]
+    numbers = info.numbers
     if start_bar not in numbers and start_bar != numbers[-1] + 1:
         raise ToolError(f"Bar {start_bar} does not exist; the score has bars {numbers[0]} to {numbers[-1]}.")
     parts = [(instrument, staves) for (_, staves), instrument in zip(info.parts, info.instrument_ids)]
@@ -741,7 +739,7 @@ async def hum(
     if not result or not result.notes:
         raise ToolError("No humming was heard after the count-in. Check the microphone, then try again.")
     score_has_notes = any(event.pitch for measure in index.measures for event in measure.events)
-    signature = key_at(info, info.ticks[position])
+    signature = key_fifths(key_at(info, info.ticks[position]))
     pitches = [note.pitch for note in result.notes]
     moved, set_key = 0, None
     if score_has_notes:
@@ -814,7 +812,7 @@ async def save_checkpoint(name: str) -> str:
     stem = f"{number:03d} {file_name(name)}".rstrip()
     score = folder / f"{stem}.musicxml"
     await request(f"export {windows_path(score)}")
-    lines = await request(f"read {info.ticks[0]} {2**31 - 1}")
+    lines = await request(f"read {info.ticks[0]} {END}")
     saved = datetime.now().strftime("%Y-%m-%d %H:%M")
     (folder / f"{stem}.json").write_text(json.dumps({"name": name, "saved": saved, "info": info_lines, "read": lines}))
     return f'Checkpoint {number} "{name}" saved: {windows_path(score)}'
@@ -931,11 +929,7 @@ async def diagnose() -> str:
                   "with ANALYSISGNN_PYTHON and ANALYSISGNN_CHECKPOINT in the server's env." if missing else
                   f"PASS AnalysisGNN model {os.environ['ANALYSISGNN_CHECKPOINT']}.")
     first = bridge.first
-    host, port = first.url.removeprefix("ws://").rsplit(":", 1)
-    try:
-        _, writer = await asyncio.wait_for(asyncio.open_connection(host, int(port)), 5)
-        writer.close()
-    except (OSError, asyncio.TimeoutError):
+    if not await first.listening(5):
         check(False, f"Nothing listens on {first.url}: run Plugins > Reflets Bridge in MuseScore Studio 4.7. "
               "If it shows a message that the WebSocket API is missing, this MuseScore build cannot run Reflets.")
         return "\n".join(checks)
@@ -949,9 +943,8 @@ async def diagnose() -> str:
         else:
             check(False, str(error))
         return "\n".join(checks)
-    version = first.hello.get("mscore", "0").rjust(5, "0")
     check(True, f"Bridge {first.hello.get('plugin', '?')} answers on protocol {first.hello.get('proto')}.")
-    check(True, f"MuseScore {int(version[:-4])}.{int(version[-4:-2])}.{int(version[-2:])}.")
+    check(True, f"MuseScore {mscore_version(first.hello)}.")
     check(True, f'Score open: "{parse_info(lines).title}".')
     return "\n".join(checks)
 

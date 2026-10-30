@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import bisect
 import html
 import re
 import dataclasses
@@ -13,7 +12,7 @@ from urllib.parse import unquote
 from engine.notes import NotesError
 from engine.score import Event, ScoreIndex
 
-from reflets.score import Bar, Mark, ScoreInfo
+from reflets.score import Bar, Mark, ScoreInfo, key_at
 
 VERSION = "N1x"
 BARLINES = {2: "double", 0x10: "dashed", 0x20: "final", 0x80: "dotted", 0x100: "reverse-final", 0x200: "heavy", 0x400: "double-heavy"}
@@ -103,7 +102,6 @@ def encode(info: ScoreInfo, index: ScoreIndex, first: int, last: int) -> str:
         span = f"{staves[0]}-{staves[-1]}" if len(staves) > 1 else f"{staves[0]}"
         lines.append(f"P{number} {quote(name)} staves={span} instr={instrument}")
     meter = index.meter
-    key_ticks = sorted(info.keys)
     bars: list[tuple[str, list[str]]] = []
     numbers = line_numbers([
         (int(measure.id[1:]) - 1, mark)
@@ -118,7 +116,7 @@ def encode(info: ScoreInfo, index: ScoreIndex, first: int, last: int) -> str:
             meter = measure.meter
             header += f" ts={meter}"
         tick = info.ticks[position]
-        bar_key = info.keys[key_ticks[bisect.bisect_right(key_ticks, tick) - 1]] if key_ticks else key
+        bar_key = key_at(info, tick)
         if bar_key != key:
             key = bar_key
             header += f" ks={key}"

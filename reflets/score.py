@@ -11,6 +11,7 @@ FIFTHS = "FCGDAEB"
 SEMITONES = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
 SYSTEM_MARKS = {"Tempo", "RehearsalMark", "SystemText"}
 SYSTEM_LINES = {"GradualTempoChange"}
+END = 2**31 - 1
 
 
 def spell(pitch: int, tpc: int) -> str:
@@ -77,6 +78,45 @@ class ScoreInfo:
     details: dict[str, tuple[list[str], list[str]]] = field(default_factory=dict)
     tuplets: dict[tuple[int, int, int], list[tuple[Fraction, Fraction, str]]] = field(default_factory=dict)
     lyrics: dict[tuple[int, int, int], dict[Fraction, dict[int, tuple[str, bool] | None]]] = field(default_factory=dict)
+
+    @property
+    def numbers(self) -> list[int]:
+        return [measure.number for measure in self.measures]
+
+
+def bar_at(ticks: list[int], tick: int) -> int:
+    return bisect.bisect_right(ticks, tick) - 1
+
+
+def bar_start(info: ScoreInfo, position: int) -> int:
+    return info.ticks[position] if position < len(info.ticks) else END
+
+
+def key_at(info: ScoreInfo, tick: int) -> str:
+    key_ticks = sorted(info.keys)
+    at = bisect.bisect_right(key_ticks, tick) - 1
+    return info.keys[key_ticks[at]] if at >= 0 else info.key
+
+
+def key_fifths(name: str) -> int:
+    return 0 if name == "0" else int(name[:-1]) * (1 if name.endswith("s") else -1)
+
+
+def is_system_line(name: str, sub: str) -> bool:
+    return name in SYSTEM_LINES or name == "TextLine" and sub == "1"
+
+
+def chord_flags(words: list[str]) -> list[str]:
+    return [word for word in words[4:] if word[:1] in "TG" and word[1:2].isdigit()]
+
+
+def is_grace(words: list[str]) -> bool:
+    return any(flag[0] == "G" for flag in chord_flags(words))
+
+
+def retimed(word: str, move) -> str:
+    end = word.rstrip("g")
+    return str(move(int(end))) + word[len(end):]
 
 
 def appended(info: ScoreInfo, count: int, division: int, closing: int | None) -> ScoreInfo:
@@ -175,7 +215,7 @@ def build_index(info: ScoreInfo, lines: list[str], division: int) -> ScoreIndex:
             continue
         if words[0] in ("A", "F"):
             tick, track = int(words[1]), int(words[2])
-            position = bisect.bisect_right(info.ticks, tick) - 1
+            position = bar_at(info.ticks, tick)
             onset = Fraction(tick - info.ticks[position], division)
             if words[0] == "F":
                 info.bars[position].marks.append(Mark(track, onset, "Clef", words[3], ""))
@@ -194,14 +234,14 @@ def build_index(info: ScoreInfo, lines: list[str], division: int) -> ScoreIndex:
         if words[0] not in ("C", "R"):
             continue
         tick, track, written = int(words[1]), int(words[2]), Fraction(words[3])
-        flags = [word for word in words[4:] if word[:1] in "TG" and word[1:2].isdigit()]
+        flags = chord_flags(words)
         duration = 4 * written
         for flag in flags:
             if flag[0] == "T":
                 actual, normal = (int(x) for x in flag[1:].split(":")[:2])
                 duration = duration * normal / actual
         grace = any(flag[0] == "G" for flag in flags)
-        position = bisect.bisect_right(info.ticks, tick) - 1
+        position = bar_at(info.ticks, tick)
         measure = info.measures[position]
         onset = Fraction(tick - info.ticks[position], division)
         cursor = cursors.get((position, track))
@@ -247,7 +287,7 @@ def line_marks(info: ScoreInfo, spanners: list[list[str]], division: int) -> Non
     lines = []
     for words in spanners:
         tick, end, track, track2 = (int(word.rstrip("g")) for word in words[:4])
-        system = words[4] in SYSTEM_LINES or words[4] == "TextLine" and words[5] == "1"
+        system = is_system_line(words[4], words[5])
         text = unescape(" ".join(words[6:]))
         lines.append((tick, end, words[1].endswith("g"), 0 if system else track, 0 if system else track2, system, f"{words[4]}:{words[5]}", text))
     marks = []
@@ -278,6 +318,10 @@ def track_tuplets(stack: list, spans: list, onset: Fraction, flags: list[str]) -
             spans.append(stack[-1])
         scale = scale * int(normal) / int(actual)
     del stack[len(levels):]
+
+
+def escape(text: str) -> str:
+    return text.replace("\\", "\\\\").replace("\n", "\\n")
 
 
 def unescape(text: str) -> str:

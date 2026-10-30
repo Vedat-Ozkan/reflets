@@ -19,7 +19,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 from eval import hum_takes
 from reflets import audio, hum, n1x, server
-from reflets.score import key_name
+from reflets.score import key_at, key_fifths, key_name
 from reflets.write import midi_tpc
 
 failures = []
@@ -69,7 +69,7 @@ async def one(name: str, last: int, bars: int, tempo: float, grid: int, staff: i
     target = hum.centre(instrument, staves.index(staff), len(staves))
     check(f"{name}: in the {instrument} register", bool(pitches) and abs(np.median(pitches) - target) <= 7, f"median {np.median(pitches) if pitches else None}, centre {target}")
     if had_notes:
-        fifths = server.key_at(info, info.ticks[-1])
+        fifths = key_fifths(key_at(info, info.ticks[-1]))
         scale = {(fifths * 7 + step) % 12 for step in hum.MAJOR_STEPS + [8]}
         outside = sorted({p % 12 for p in pitches} - scale)
         check(f"{name}: in the score's key", not outside, f"pitch classes {outside} outside ks={key_name(fifths)}")
