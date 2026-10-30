@@ -6,7 +6,7 @@ import QtQuick.Window 2.15
 MuseScore {
     title: "Reflets Bridge"
     description: "Connects MuseScore to Reflets. Run once per session; it keeps running until MuseScore quits."
-    version: "0.25.0"
+    version: "0.25.1"
     requiresScore: false
 
     readonly property int proto: 24
@@ -197,7 +197,7 @@ MuseScore {
     }
 
     function chordLine(tick, track, el, grace) {
-        var offset = curScore.staves[Math.floor(track / 4)].pitchOffset(fraction(tick, division * 4))
+        var offset = offsetAt(track, tick)
         var ns = []
         for (var i = 0; i < el.notes.length; i++)
             ns.push(noteText(el.notes[i], offset))
@@ -563,10 +563,10 @@ MuseScore {
             var mt = m.firstSegment.tick
             if (mt >= endTick)
                 break
-            if (m.nextMeasure && m.nextMeasure.firstSegment.tick < startTick)
+            if (mt < startTick)
                 continue
             for (var seg = m.firstSegment; seg; seg = seg.nextInMeasure) {
-                if (seg.tick < startTick || seg.tick >= endTick || mt < startTick)
+                if (seg.tick >= endTick)
                     continue
                 var cr = notes ? seg.elementAt(track) : null
                 for (var g = 0; cr && cr.type === Element.CHORD && cr.graceNotes && g < cr.graceNotes.length; g++)
@@ -624,17 +624,10 @@ MuseScore {
         el.color = ideaColor
     }
 
-    function measureStart(tick) {
-        var start = 0
-        for (var m = curScore.firstMeasure; m && m.firstSegment.tick <= tick; m = m.nextMeasure)
-            start = m.firstSegment.tick
-        return start
-    }
-
     function chordEnding(track, end) {
         var c = curScore.newCursor()
         c.track = track - track % 4
-        c.rewindToTick(measureStart(end - 1))
+        c.rewindToTick(measureAt(end - 1).firstSegment.tick)
         c.track = track
         var found = null
         for (; c.segment && c.tick < end; c.next()) {
@@ -776,10 +769,7 @@ MuseScore {
     }
 
     function chordBefore(track, tick, wanted) {
-        var m = curScore.firstMeasure
-        while (m.nextMeasure && m.nextMeasure.firstSegment.tick <= tick)
-            m = m.nextMeasure
-        for (; m; m = m.prevMeasure) {
+        for (var m = measureAt(tick); m; m = m.prevMeasure) {
             for (var seg = m.lastSegment; seg; seg = seg.prevInMeasure) {
                 var el = seg.tick <= tick ? seg.elementAt(track) : null
                 var found = el && el.type === Element.CHORD ? wanted(el) : null
@@ -1131,8 +1121,8 @@ MuseScore {
                         throw "no syllable before tick " + otick + " in track " + otrack + " to hold"
                     hold(held[1], otrack, held[0], parseInt(o[4]))
                 } else if (o[0] === "~") {
-                    if (o[4] && !noteAt(otrack, parseInt(o[4]), parseInt(o[3])))
-                        throw "no note to tie to"
+                    if (o[4])
+                        noteAt(otrack, parseInt(o[4]), parseInt(o[3]))
                     var n = noteAt(otrack, otick, parseInt(o[3]))
                     if (!n.tieForward) {
                         curScore.selection.select(n)
@@ -1257,7 +1247,12 @@ MuseScore {
         if (verb === "export")
             return id + (writeScore(curScore, head.slice(2).join(" "), "musicxml") ? " ok" : " err export-failed writeScore returned false")
         if (verb === "undo" || verb === "redo") {
+            var bars = curScore.nmeasures
             cmd("action://notation/" + verb)
+            if (curScore.nmeasures < bars) {
+                cmd("last-element")
+                cmd("escape")
+            }
             status(verb)
             return id + " ok"
         }

@@ -156,7 +156,7 @@ Reserved for later layouts, not in v1: `mute <partIdx> <0|1>` via writable `Chan
 
 Verbs the API cannot support and that are therefore absent: list open scores (`api:127`), new score (`api:128`), silent open (`api:129`), write or close a non-current score (`api:130`), insert or remove measures (`api:132`), `cmd()` with arguments (`api:134`), playback state (`api:109`), change events (`api:126`).
 
-As built in slice 2 (protocol 2, plugin 0.2.0): `write <startTick> <endTick> <label...>` takes the label last, so it may contain spaces; `undo` and `redo` take no range and return only `ok`, and the server reads the range itself; a new verb `color <startTick> <endTick> <track,...> <#rrggbb> <label...>` sets the colour of every note and rest of those tracks as one undo step, for `keep` (7.1). Not built yet: `fp`, `select`, `export`, `open`, `appendMeasures`.
+As built in slice 2 (protocol 2, plugin 0.2.0): `write <startTick> <endTick> <label...>` takes the label last, so it may contain spaces; `undo` and `redo` take no range and return only `ok`, and the server reads the range itself; a new verb `color <startTick> <endTick> <track,...> <#rrggbb> <label...>` sets the colour of every note and rest of those tracks as one undo step, for `keep` (7.1). Not built yet: `fp`, `select`, `export`, `open`, `appendMeasures`. As built in plugin 0.25.1: an `undo` or `redo` that leaves the score with fewer bars goes to its last element (`last-element`, then `escape`), so discarding appended bars no longer leaves the view past the end of the score.
 
 ### 3.7 Read body: raw event lines
 
