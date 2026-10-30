@@ -18,6 +18,10 @@ SCOOP_STEPS = 0.55
 SCOOP_SEMITONES = 2.5
 KEY_CLOSE = 0.15
 TOUCHING = 0.06
+PUSH_RISE = 8
+PUSH_FALL = 6
+PUSH_CLEAR = 0.2
+FRAME = 160
 
 
 @dataclass
@@ -91,20 +95,30 @@ def tuned(sung: list[Sung]) -> tuple[list[Sung], float]:
     return [Sung(s.start, s.end, s.semitone - tuning) for s in sung], tuning
 
 
+def ranking(profile: np.ndarray) -> list[tuple[float, int, bool]]:
+    return sorted(((np.corrcoef(profile, np.roll(shape, tonic))[0, 1], tonic, shape is MAJOR)
+                   for tonic in range(12) for shape in (MAJOR, MINOR)), reverse=True)
+
+
 def find_key(sung: list[Sung]) -> Key:
     classes = [round(s.semitone) % 12 for s in sung]
     durations = [s.end - s.start for s in sung]
-    profile = np.bincount(classes, weights=durations, minlength=12)
-    ranked = sorted(((np.corrcoef(profile, np.roll(shape, tonic))[0, 1], tonic, shape is MAJOR)
-                     for tonic in range(12) for shape in (MAJOR, MINOR)), reverse=True)
+    lower = [int(np.floor(s.semitone)) for s in sung]
+    above = [s.semitone - low for s, low in zip(sung, lower)]
+    split = (np.bincount([low % 12 for low in lower], [d * (1 - a) for d, a in zip(durations, above)], 12)
+             + np.bincount([(low + 1) % 12 for low in lower], [d * a for d, a in zip(durations, above)], 12))
+    ranked = ranking(np.bincount(classes, weights=durations, minlength=12))
+    split_ranked = ranking(split)
     (best, *_), (second, *_) = ranked[0], ranked[1]
+    fit = {(tonic, major): r for r, tonic, major in ranked}
 
     def in_scale(tonic: int, major: bool) -> float:
         steps = MAJOR_STEPS if major else MINOR_STEPS
         return sum(d for c, d in zip(classes, durations) if (c - tonic) % 12 in steps)
 
-    near = [r for r in ranked if best - r[0] <= KEY_CLOSE]
-    _, tonic, major = max(near, key=lambda r: (in_scale(r[1], r[2]), r[0]))
+    near = ({(tonic, major) for r, tonic, major in ranked if best - r <= KEY_CLOSE}
+            | {(tonic, major) for r, tonic, major in split_ranked if split_ranked[0][0] - r <= KEY_CLOSE})
+    tonic, major = max(near, key=lambda k: (in_scale(*k), fit[k]))
     return Key(tonic, major, fifths_of(tonic, major), float(best - second))
 
 
@@ -141,6 +155,33 @@ def absorb_short(sung: list[Sung], shortest: float, scoop: float) -> list[Sung]:
     return out
 
 
+def loudness(audio: np.ndarray) -> np.ndarray:
+    frames = audio[: len(audio) // FRAME * FRAME].reshape(-1, FRAME)
+    return 20 * np.log10(np.sqrt((frames ** 2).mean(1)) + 1e-9)
+
+
+def pushed(level: np.ndarray, at: float) -> bool:
+    i = int(at * RATE / FRAME)
+    if i < 20 or i + 12 > len(level):
+        return False
+    dip = level[i - 15:i + 3].min()
+    return level[i:i + 12].max() - dip >= PUSH_RISE and level[i - 20:i - 8].mean() - dip >= PUSH_FALL
+
+
+def split_pushes(sung: list[Sung], level: np.ndarray, step: float, latency: float) -> list[Sung]:
+    clear = max(0.6 * step, PUSH_CLEAR)
+    out = []
+    for s in sung:
+        start = s.start
+        for k in range(int(np.floor((s.start - latency) / step)) + 1, int(np.ceil((s.end - latency) / step))):
+            at = k * step + latency
+            if at - start > clear and s.end - at > clear and pushed(level, at):
+                out.append(Sung(start, at, s.semitone))
+                start = at
+        out.append(Sung(start, s.end, s.semitone))
+    return out
+
+
 def fix_octaves(pitches: list[int]) -> list[int]:
     out = list(pitches)
     for i in range(len(out)):
@@ -165,7 +206,7 @@ def snap(sung: list[Sung], pitches: list[int], step: float, latency: float, slot
             placed[-1].length = slot - placed[-1].slot
         placed.append(Placed(slot, min(end, slots) - slot, pitch))
     for a, following in zip(placed, [p.slot for p in placed[1:]] + [slots]):
-        if following - (a.slot + a.length) <= grid:
+        if following - (a.slot + a.length) < grid:
             a.length = following - a.slot
     return placed
 
@@ -186,6 +227,7 @@ def transcribe(audio: np.ndarray, beat: float, grid: int, latency: float, slots:
     sung, tuning = tuned(sung)
     key = find_key(sung)
     sung = absorb_short(sung, SHORT_STEPS * step, SCOOP_STEPS * step)
+    sung = split_pushes(sung, loudness(audio), step, latency)
     pitches = fix_octaves(in_key(sung, key))
     unsure = [i for i, s in enumerate(sung) if abs(s.semitone - round(s.semitone)) > 0.35]
     notes = snap(sung, pitches, step, latency, slots, grid)

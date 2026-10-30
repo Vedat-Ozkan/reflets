@@ -74,3 +74,5 @@ Follow `tests/hum-session.md`: 12 takes, from Twinkle on a blank flute score to 
 ## Update 2026-10-29
 - Known problem 1 was a misreading. Take `20261028-192934` is not room noise: it holds 16 confident notes on B2, the first note of the owner's Twinkle, so they hummed or spoke on it. Clicks and room noise alone give no notes (`tests/test_hum.py`), and `hum` then answers "No humming was heard". No fix was needed.
 - `hum` now writes a tempo mark at the first hummed bar when the take's tempo is not the score's there.
+- 2026-10-30: known problem 2 is mostly fixed: a tracked note is split where the owner gives a repeated note its own push (loudness dip then rise on a grid point). A one-beat silence now stays a rest, and a flat tonic no longer flips the key. See the last sections of `research/hum-accuracy-2026-10-28.md`.
+- MuseScore makes ties with its own tie command, which fails ("tie not made") while the window shows its Home page or the screen is locked; live checks need the score showing.

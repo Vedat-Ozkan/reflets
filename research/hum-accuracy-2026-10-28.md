@@ -120,3 +120,27 @@ The scoop and key changes above were tuned on the 440 test clips. Dynamic HumTra
 
 - Both changes help on every held-out set, by 0.004 to 0.014, so the gain on test was not luck.
 - The distance to the hummers' own ceiling is 0.017 to 0.054 on held-out clips, and smallest in 3/4.
+
+## Rests and a flat tonic (2026-10-29, headphone takes)
+- **Rests.** The owner sings Twinkle's, Frère Jacques' and Mary's long notes as a quarter and a quarter rest: in every take the note lasts 0.7 to 1.2 beats and the silence after it 0.9 to 1.3 beats, while the last note of Ode to Joy lasts 1.6 beats. A note was stretched over a following gap of up to a beat, which swallowed these rests ("Rests" above took them for short half notes). Now only gaps shorter than a beat are filled. The answer keys of `eval/hum_takes.py` follow the owner's singing. HumTrans scores note values by onset gaps, so it cannot see rests and is unchanged (0.639 / 0.709).
+- **Key.** In take `20261029-231918` (headphones, calibrated) the tonic B was sung 60 cents flat against the rest of the tune (the fifth above it measured 7.6 semitones; 6.8 to 7.7 over the owner's Twinkle takes), so it rounded to Bb, G♭ major won, and the triad rule pulled the B's down to Bb. Each note now also counts toward its two neighbouring semitones by how close it is, and keys within 0.15 of the best match of that split profile join the candidates; the tie-break by sung time in the scale is unchanged. Using the split profile alone cost 0.001 to 0.003 on held-out clips, so it only adds candidates.
+
+| Right note value | 16th grid | 8th grid |
+|---|---|---|
+| test, before / now | 0.639 / 0.639 | 0.709 / 0.709 |
+| valid, before / now | 0.587 / 0.589 | 0.671 / 0.672 |
+| train 3/4, before / now | 0.621 / 0.621 | 0.712 / 0.712 |
+
+Owner's 11 labelled takes, scored against the new answer keys before and after both changes: 98 → 118 of 154 with the right length; take `20261029-231918` 10 → 14 of 14.
+
+## Repeated notes: a push on a grid point (2026-10-30)
+Of the owner's remaining errors, 7 were repeated notes merged into one, and in 5 of them the pitch tracker itself returned one note over both. The owner gives each note its own push: a dip in loudness, then a rise. On 1,000 train clips, at grid points where the hummer was sounding inside one labelled note (5,203), a dip of 6 dB then a rise of 8 dB within about 0.15 s occurs 2.7% of the time; at the onsets of same-pitch repeats (3,575) 84.5% of the time. The earlier attempt (Phase 2) also counted points after the hummer had stopped, where the next note's attack sits, and so cost 0.02 to 0.06. Now a tracked note is split at a grid point with such a push, if the point is at least 0.2 s and 0.6 of a step from either end of the note; without the 0.2 s the 16th grid lost 0.08, as its steps are shorter than the loudness windows. Tuned on train, checked on the rest. Right note value:
+
+| Clips | 16th grid: before / now | 8th grid: before / now |
+|---|---|---|
+| train, 1,000 (tuned on) | 0.615 / 0.616 | 0.686 / 0.687 |
+| valid, 374 | 0.589 / 0.589 | 0.672 / 0.673 |
+| test, 440 | 0.639 / 0.639 | 0.709 / 0.708 |
+| train in 3/4, 650 | 0.621 / 0.621 | 0.712 / 0.712 |
+
+Owner's takes: 118 → 124 of 154 with the right length. The owner accepted the 0.001 loss on test's 8th grid (about 5 of 5,433 notes) against the gains elsewhere. Thresholds are rises and falls within the take, so they do not depend on microphone gain; a noisy room or a microphone with noise suppression fills the dips and falls back to merged repeats.
