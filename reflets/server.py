@@ -714,6 +714,9 @@ async def hum(
     tempo = tempo or marked or 90
     beat = 60 / tempo * 4 / denominator
     bar_quarters = Fraction(4 * numerator, denominator)
+    if (bar_quarters * grid).denominator != 1:
+        raise ToolError(f"A {info.measures[position].meter} bar is not a whole number of {'eighths' if grid == 2 else 'sixteenths'}"
+                        + ("; use grid=4." if grid == 2 and (bar_quarters * 4).denominator == 1 else "; this meter cannot be hummed yet."))
     if (bars + 1) * numerator * beat > LONGEST_TAKE:
         raise ToolError(f"That take would last over {LONGEST_TAKE} seconds; hum fewer bars at a time.")
     play, starts = audio.click_track(beat, numerator, (bars + 1) * numerator)

@@ -157,3 +157,8 @@ Owner's takes: 118 → 124 of 154 with the right length. The owner accepted the 
 | train in 3/4, 650 | 0.621 / 0.605 → 0.628 / 0.621 | 0.712 / 0.708 → 0.720 / 0.725 |
 
 Owner's takes 126 → 127 of 154 with the right length, 20 → 17 extra notes; one take (`20261028-193247`) loses 2, a repeat sung without a measurable push.
+
+## Same-slot notes and grids that don't fit the bar (2026-10-30)
+
+- **Same-slot notes.** When two notes snapped to the same slot, the second was compared by its real duration against the first's rounded length, so a 0.30 s note could lose to a 0.16 s one. Both are now compared by real duration. Right note value, recall / precision: test 16th .646/.644 (unchanged), 8th .713/.721 → .713/.722; valid 16th .597/.590 (unchanged), 8th .680/.682 → .681/.683; train (1,000 clips) 16th .623/.618 (unchanged), 8th .693/.698 → .694/.699. The owner's takes are unchanged (127/154 right length, 17 extra).
+- **Bars that are not a whole number of grid steps.** A 7/16 bar at grid=2 is 3.5 eighths; the bar's slots were cut to 3, so later bars started a sixteenth early and the last notes were dropped. `hum` now refuses such a meter before recording and suggests grid=4.

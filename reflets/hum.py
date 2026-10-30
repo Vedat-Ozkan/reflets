@@ -211,6 +211,7 @@ def fix_octaves(pitches: list[int]) -> list[int]:
 
 def snap(sung: list[Sung], pitches: list[int], step: float, latency: float, slots: int, rest: int) -> list[Placed]:
     placed: list[Placed] = []
+    held = 0.0
     for s, pitch in zip(sung, pitches):
         slot = round((s.start - latency) / step)
         end = max(slot + 1, round((s.end - latency) / step))
@@ -218,9 +219,10 @@ def snap(sung: list[Sung], pitches: list[int], step: float, latency: float, slot
             continue
         slot = max(slot, 0)
         if placed and placed[-1].slot == slot:
-            if s.end - s.start <= placed[-1].length * step:
+            if s.end - s.start <= held:
                 continue
             placed.pop()
+        held = s.end - s.start
         if placed and placed[-1].slot + placed[-1].length > slot:
             placed[-1].length = slot - placed[-1].slot
         placed.append(Placed(slot, min(end, slots) - slot, pitch))
