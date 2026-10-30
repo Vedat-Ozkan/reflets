@@ -455,11 +455,14 @@ def kept_chord(chord: n1x.Chord, old: n1x.Chord | None, where: str) -> n1x.Chord
     return replace(chord, notes=tuple(result), decorations=tuple(sorted(names)))
 
 
-def idea_range(text: str, info: ScoreInfo) -> tuple[int, int]:
+def parsed(text: str) -> n1x.Idea:
     try:
-        idea = n1x.decode(text)
+        return n1x.decode(text)
     except n1x.DecodeError as error:
         raise IdeaError(str(error)) from None
+
+
+def idea_range(idea: n1x.Idea, info: ScoreInfo) -> tuple[int, int]:
     numbers = info.numbers
     for bar in idea.bars:
         if bar.number not in numbers:
@@ -487,17 +490,13 @@ def current_fields(info: ScoreInfo, position: int) -> dict[str, str]:
     return fields
 
 
-def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: list[str], later: list[str] = (), recast: range = range(0), drawn: list[str] = ()) -> Plan:
-    try:
-        idea = n1x.decode(text)
-    except n1x.DecodeError as error:
-        raise IdeaError(str(error)) from None
+def compile_idea(idea: n1x.Idea, info: ScoreInfo, division: int, staves: int, pre: list[str], later: list[str] = (), recast: range = range(0), drawn: list[str] = ()) -> Plan:
     for line in idea.lines[1:]:
         for name, value in (("title", info.title), ("composer", info.composer)):
             if line.startswith(name + "=") and line != f"{name}={n1x.quote(value)}":
                 raise IdeaError(f"The {name} cannot be changed by an idea; leave the {name}= line out")
     numbers = info.numbers
-    idea_range(text, info)
+    idea_range(idea, info)
     written_bars = sorted(numbers.index(bar.number) for bar in idea.bars)
     olds = old_marks(pre, info, division)
     looks = {} if recast else old_looks(pre) | old_looks(drawn)
@@ -870,9 +869,9 @@ def meter_reach(info: ScoreInfo, position: int) -> int:
     return len(info.measures)
 
 
-def meter_span(text: str, info: ScoreInfo) -> tuple[int, int] | None:
+def meter_span(idea: n1x.Idea, info: ScoreInfo) -> tuple[int, int] | None:
     numbers = info.numbers
-    for bar in n1x.decode(text).bars:
+    for bar in idea.bars:
         if ("ts" in bar.fields or "-ts" in bar.fields) and bar.number in numbers:
             position = numbers.index(bar.number)
             reach = meter_reach(info, position)
@@ -1231,7 +1230,8 @@ def verify(plan: Plan, pre: list[str], post: list[str], info: ScoreInfo, divisio
         missing, extra = sorted(set(plan.expected_lines) - set(got)), sorted(set(got) - set(plan.expected_lines))
         return f"the lines differ: expected {described(missing, info, plan.idea.div, division)} but read back {described(extra, info, plan.idea.div, division)}", []
     positions = sorted(plan.expected_bars)
-    text = n1x.encode(info, build_index(info, post, division), numbers[positions[0]], numbers[positions[-1]])
+    after = copy.deepcopy(info)
+    text = n1x.encode(after, build_index(after, post, division), numbers[positions[0]], numbers[positions[-1]])
     back = n1x.decode(text)
     got_voices = {(bar.number, cell): voice for bar in back.bars for cell, voice in bar.voices.items()}
     for bar in plan.idea.bars:
@@ -1241,7 +1241,7 @@ def verify(plan: Plan, pre: list[str], post: list[str], info: ScoreInfo, divisio
             if written(plan.expected[(bar.number, cell)], voice.timed) != written(got, voice.timed):
                 return f"bar {bar.number} {label} was written as '{line_of(plan.idea, bar.number, label)}' and reads back as '{line_of(back, bar.number, label)}'", []
             want = plan.expected_lyrics[(bar.number, cell)]
-            sung = info.lyrics.get((numbers.index(bar.number), *cell), {})
+            sung = after.lyrics.get((numbers.index(bar.number), *cell), {})
             if [want[onset] for onset in sorted(want)] != [sung[onset] for onset in sorted(sung)]:
                 return f"bar {bar.number} {label} should have the lyrics {n1x.lyric_lines(label, want)} and reads back with {n1x.lyric_lines(label, sung)}", []
     return None, sorted(cut)
@@ -1265,11 +1265,7 @@ def verify_bars(plan: Plan, info: ScoreInfo, after: ScoreInfo) -> str | None:
     return None
 
 
-def recast_view(text: str, info: ScoreInfo, pre: list[str], division: int) -> Recast:
-    try:
-        idea = n1x.decode(text)
-    except n1x.DecodeError as error:
-        raise IdeaError(str(error)) from None
+def recast_view(idea: n1x.Idea, info: ScoreInfo, pre: list[str], division: int) -> Recast:
     numbers = info.numbers
     if any(bar.number not in numbers for bar in idea.bars):
         raise IdeaError(f"Bar {min(bar.number for bar in idea.bars if bar.number not in numbers)} does not exist")

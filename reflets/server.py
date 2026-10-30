@@ -36,6 +36,7 @@ from reflets.write import (
     meter_reach,
     meter_span,
     occupied,
+    parsed,
     recast_view,
     verify,
     verify_bars,
@@ -411,16 +412,14 @@ async def propose(idea: str, label: str = "idea", replace: bool = False, recast:
     return await write_idea(idea, label, replace, recast)
 
 
-async def write_idea(idea: str, label: str, replace: bool, recast: bool = False, drawn: list[str] = ()) -> str:
+async def write_idea(text: str, label: str, replace: bool, recast: bool = False, drawn: list[str] = ()) -> str:
     info = await load_info()
     division = int(bridge.hello["division"])
     staves = max(staff for _, part_staves in info.parts for staff in part_staves)
     numbers = info.numbers
     try:
-        try:
-            past = max(bar.number for bar in n1x.decode(idea).bars) - numbers[-1] if not recast else 0
-        except (n1x.DecodeError, ValueError):
-            past = 0
+        idea = parsed(text)
+        past = max((bar.number for bar in idea.bars), default=numbers[-1]) - numbers[-1] if not recast else 0
         if past > 0:
             closing = info.bars[-1].user_barline_type if info.bars[-1].user_barline_type not in n1x.REPEAT_BARLINES else None
             info = appended(info, past, division, closing)
@@ -492,7 +491,7 @@ async def write_idea(idea: str, label: str, replace: bool, recast: bool = False,
 
 
 def moved(lines: list[str], then: ScoreInfo, now: ScoreInfo, first: int, last: int) -> list[str]:
-    result, numbers, then_numbers = [], [m.number for m in now.measures], [m.number for m in then.measures]
+    result, numbers, then_numbers = [], now.numbers, then.numbers
     for number in numbers[numbers.index(first) : numbers.index(last) + 1]:
         position, then_position = numbers.index(number), then_numbers.index(number)
         start, end = then.ticks[then_position], then.ticks[then_position] + then.lengths[then_position] * int(bridge.hello["division"])
@@ -864,7 +863,7 @@ async def restore(checkpoint: int, bars: str) -> str:
         raise ToolError(f"There is no checkpoint {checkpoint}. " + listed_checkpoints(info))
     saved = json.loads(found[0].read_text())
     then_info = parse_info(saved["info"])
-    numbers, then_numbers = [m.number for m in info.measures], [m.number for m in then_info.measures]
+    numbers, then_numbers = info.numbers, then_info.numbers
     for number in numbers[numbers.index(first) : numbers.index(last) + 1]:
         if number not in then_numbers or then_info.lengths[then_numbers.index(number)] != info.lengths[numbers.index(number)]:
             raise ToolError(
