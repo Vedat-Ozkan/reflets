@@ -12,7 +12,7 @@ Phase 1 of the hum plan: does an off-the-shelf pitch tracker turn humming into t
 - **Tuning:** one offset per take, the duration-weighted circular mean of the notes' fractional semitones. Each note is then rounded to a semitone.
 - **Key snap** (`--key`): Krumhansl–Kessler profiles on duration-weighted pitch classes. A note outside the key, sung more than 15 cents toward a scale neighbour, moves to that neighbour.
 - **Raw metric:** mir_eval note F1, 50 ms onset tolerance, exact semitone, best octave shift per clip. This is the metric of the published comparison.
-- **Click-mode metric:** onsets are snapped to the MIDI's grid after one latency offset, the median gap between the labelled onsets and the MIDI onsets. That offset stands in for Reflets' calibrated click latency. A note counts when its pitch lands on the right grid slot; the stricter count also requires the right note value (the gap to the next onset). `--human` runs the same snap on the labelled onsets with true pitches. That is the ceiling any transcriber can reach on this data, since the hummers, or the label correction, are not always on the beat.
+- **Click-mode metric:** onsets are snapped to the MIDI's grid after one latency offset, the median gap between the labelled onsets and the MIDI onsets. That offset stands in for Reflets' calibrated click latency. A note counts when its pitch lands on the right grid slot; the stricter count also requires the right note value (the gap to the next onset). `--human` runs the same snap on the labelled onsets with true pitches. That is the ceiling any transcriber can reach on this data, since the hummers, or the label correction, are not always on the beat. (Superseded 2026-10-30: see "Auditing HumTrans" at the end.)
 
 ## Results
 
@@ -22,23 +22,23 @@ Phase 1 of the hum plan: does an off-the-shelf pitch tracker turn humming into t
 | SwiftF0 + segment_notes, hold 80 ms | 0.645 | 0.637 | 0.607 |
 | SwiftF0 + segment_notes, hold 120 ms | 0.657 | 0.638 | 0.608 |
 | **Hold 80 ms + key snap** | **0.672** | **0.666** | **0.632** |
-| Ceiling: the hummers' own onsets and pitches | 1.000 | 0.737 | 0.680 |
+| Ceiling: the hummers' own onsets and pitches | 1.000 | 0.737 | 0.680 (superseded) |
 | 8th grid, the 5,433 notes of tunes with no 16ths: hold 80 + key | 0.672 | 0.717 | **0.696** |
-| 8th grid ceiling | 1.000 | 0.813 | 0.774 |
+| 8th grid ceiling | 1.000 | 0.813 | 0.774 (superseded) |
 
 For comparison, published note F1 on this set (Dynamic HumTrans, 2024; octave-invariant, offsets ignored): Dynamic HumTrans 0.673, MIR-ST500 0.604, VOCANO 0.564, Basic Pitch 0.434.
 
 ## Findings
 - With key snapping, an untrained, MIT-licensed, 63 MB pipeline matches the best trained humming model (0.672 against 0.673). Key snapping adds about 0.03 on every measure.
-- In click mode we reach 93% of what this data allows on the 16th grid (0.632 of 0.680) and 90% on the 8th grid (0.696 of 0.774).
+- In click mode we reach 93% of what this data allows on the 16th grid (0.632 of 0.680) and 90% on the 8th grid (0.696 of 0.774). (Superseded 2026-10-30: see "Auditing HumTrans" at the end.)
   - A trained model could add at most the remaining 0.05–0.08. That doesn't justify SOME's 435 MB PyTorch checkpoint, which is dropped.
-- **Most of the loss is timing** (diagnosed on 60 clips). The detected onsets sit within 0.03 of a 16th of the labelled ones (median), and 4% are off by more than half a 16th. But 18% of the labelled onsets are more than half a 16th from the MIDI grid.
+- **Most of the loss is timing** (diagnosed on 60 clips). The detected onsets sit within 0.03 of a 16th of the labelled ones (median), and 4% are off by more than half a 16th. But 18% of the labelled onsets are more than half a 16th from the MIDI grid. (Superseded 2026-10-30: see "Auditing HumTrans" at the end.)
 - Following slow tempo drift with a refitted linear map gained only 0.007, so a single offset is kept.
 - A coarser grid helps when the music allows it: the right note value goes from 0.632 on 16ths to 0.696 on 8ths, measured on different subsets.
 - A longer pitch hold trades recall for precision. At 120 ms raw F1 is higher, but the notes fully right barely move, so 80 ms stays.
 
 ## Gate (restated)
-The plan's gate of 85% right note values is impossible on this data, because the human ceiling is 0.680. The gate becomes: within 0.05 of the ceiling with the key snap. On the 16th grid that is 0.632 against 0.680, so it passes (0.048 below). On the 8th grid it is 0.696 against 0.774 (0.078 below), and the 8th-grid quantizer needs another look.
+The plan's gate of 85% right note values is impossible on this data, because the human ceiling is 0.680. The gate becomes: within 0.05 of the ceiling with the key snap. On the 16th grid that is 0.632 against 0.680, so it passes (0.048 below). On the 8th grid it is 0.696 against 0.774 (0.078 below), and the 8th-grid quantizer needs another look. (Superseded 2026-10-30: see "Auditing HumTrans" at the end.)
 
 ## What this does not measure
 These hummers followed playback without a count-in. Reflets' takes, with its own count-in and click, are expected to sit closer to the grid, but that is unmeasured until Phase 0 takes exist. Three other things are not covered: the latency offset here comes from the labels, where in Reflets it comes from calibration; meter is always 4/4; triplets and syncopation are absent.
@@ -119,7 +119,7 @@ The scoop and key changes above were tuned on the 440 test clips. Dynamic HumTra
 | train in 3/4, all 650 | 0.609 / 0.621 / 0.638 | 0.699 / 0.712 / 0.741 |
 
 - Both changes help on every held-out set, by 0.004 to 0.014, so the gain on test was not luck.
-- The distance to the hummers' own ceiling is 0.017 to 0.054 on held-out clips, and smallest in 3/4.
+- The distance to the hummers' own ceiling is 0.017 to 0.054 on held-out clips, and smallest in 3/4. (Superseded 2026-10-30: see "Auditing HumTrans" at the end.)
 
 ## Rests and a flat tonic (2026-10-29, headphone takes)
 - **Rests.** The owner sings Twinkle's, Frère Jacques' and Mary's long notes as a quarter and a quarter rest: in every take the note lasts 0.7 to 1.2 beats and the silence after it 0.9 to 1.3 beats, while the last note of Ode to Joy lasts 1.6 beats. A note was stretched over a following gap of up to a beat, which swallowed these rests ("Rests" above took them for short half notes). Now only gaps shorter than a beat are filled. The answer keys of `eval/hum_takes.py` follow the owner's singing. HumTrans scores note values by onset gaps, so it cannot see rests and is unchanged (0.639 / 0.709).
@@ -175,3 +175,27 @@ Click mode used to score a note's value by the gap to the next onset, which cann
 | valid 3/4 (29) | .630 / .615 | .511 / .499 | .694 / .665 | .608 / .583 |
 
 On 200 train clips, today's misses by kind (share of reference notes, 8th / 16th grid): wrong pitch .173 / .142; no onset there .060 / .123; one step off .049 / .074; too short .056 / .053; too long .025 / .035; extra onsets .080 / .171.
+
+## Auditing HumTrans (2026-10-30)
+
+An audit of the labels against the audio and the MIDI, on test and valid, found most of what this report called the ceiling to be label noise, and the eval's latency the main route by which it reached the scores.
+
+- **The corrected onsets are not anyone's labels.** HumTrans has no onset labels: its labels are the score MIDI the hummer heard, after a 3-second beep, and its paper describes no audio-to-MIDI alignment. Dynamic HumTrans's corrected onsets come from an amplitude envelope crossing a threshold, the highest of ten tried that gives as many notes as the MIDI; clips that never match are dropped (so 440 of 769 test clips). Nobody checked them against hand labels. Against the onsets SwiftF0 finds, aligned to the MIDI by pitch, 25% of test labels (31% of valid) are more than 50 ms off: scattered, shifted by one note, or the whole clip off by up to 2 seconds.
+- **The hummers kept time.** Their audio onsets sit within half a 16th of the MIDI grid 92% of the time; the labels manage 74%. "Most of the loss is timing" and the 18% above were the labels' timing, and the 60-clip check matched each label to the nearest onset of any pitch, which succeeds by chance at this density.
+- **Duplicates.** 18 test and 12 valid pairs (16 more in the train clips used here) are the same recording under two take numbers, almost all M02.
+- **Pitch.** 87% of MIDI notes were hummed at the MIDI pitch; some clips are hummed 0.5 to 0.9 semitone flat throughout and read as transposed.
+- **Eval bugs.** The latency was the median gap between the labels and the MIDI, so a clip with bad labels was scored a beat or more off; the octave was chosen by right lengths alone, so a clip with none scored zero at −24; the audio often ends before the last MIDI note does; and `--human`'s "ceiling" measured the amplitude threshold.
+
+The eval now scores against a frozen reference that `eval/hum_reference.py` writes to `out/`: each clip's latency slid from the audio (the offset where the most MIDI notes sound at their pitch up to one transposition, refined by the median onset gap), and the clips left out because they repeat another take's recording, because too few notes agree, or because an offset half a beat away agrees almost as well. On the 244 test clips whose labels fit the MIDI, this latency is within 6 ms of the labels' (median; 21 ms at the 90th percentile; none more than half a 16th). Pitches count up to one transposition, chosen by right lengths and then right slots; a last note the audio cuts off is judged on its slot only; `--human` is gone. Raw F1 still uses the corrected onsets, for comparison with published numbers only.
+
+New baseline (`--key --reflets`, recall / precision), the bar the one-pass note boundaries must match within ±0.001:
+
+| Clips | 16th grid: slot | 16th grid: written length | 8th grid: slot | 8th grid: written length |
+|---|---|---|---|---|
+| test (421 of 440) | .865 / .859 | .786 / .780 | .916 / .921 | .852 / .856 |
+| valid (352 of 374) | .856 / .845 | .784 / .774 | .900 / .901 | .842 / .842 |
+| train (974 of 1,000) | .844 / .834 | .765 / .757 | .892 / .894 | .822 / .824 |
+| train in 3/4 | .835 / .819 | .756 / .741 | .883 / .882 | .817 / .816 |
+| valid in 3/4 | .897 / .875 | .782 / .763 | .910 / .852 | .850 / .796 |
+
+On the old eval the same code scored .676 / .586 and .733 / .653 on test. With clean latency the remaining misses, on test's 16th grid, are mostly note ends (about 800 wrong lengths, 325 of them rests the tool fills although the hummer left a gap), then extra onsets (about 290), semitone slips from the key clean-up (145 correctly tracked notes moved), and merged or missed notes (about 190).

@@ -1,19 +1,21 @@
 """How well humming becomes notes: SwiftF0 and its note splitter, on the HumTrans test clips.
 
-    uv run --group hum-eval python -m eval.hum_eval [--key] [--eighths] [--human] [--hold MS] [--split valid|train] [--meter 3/4] [--clips N]
+    uv run --group hum-eval python -m eval.hum_eval [--key] [--eighths] [--hold MS] [--split valid|train] [--meter 3/4] [--clips N]
 
 HumTrans (CC BY-NC 4.0) and the corrected onsets of Dynamic HumTrans (no licence) are fetched into out/hum-eval/
 and never committed; only clips with corrected onsets are read from the 14.7 GB archive: 440 in test (the default),
-374 in valid, 6,827 in train, of which --clips takes N spread evenly. Two scores:
-raw note F1 (50 ms onsets, octave-invariant, the published metric), and click mode: notes snapped to the grid of
-the melody's own MIDI after one latency offset, counted right when the pitch lands on the right grid slot and,
-stricter, when its written length is right too, so a rest held or lost counts. --human snaps the hummers' own
-labelled onsets and true pitches, the ceiling any transcriber can reach on this data.
+374 in valid, 6,827 in train, of which --clips takes N spread evenly. Two scores: raw note F1 against the corrected
+onsets (50 ms onsets, octave-invariant, the published metric; those onsets come from an amplitude threshold and are
+often off, so this is for comparison only), and click mode: notes snapped to the grid of the melody's own MIDI after
+the clip's latency from eval.hum_reference, counted right, up to one transposition, when the pitch lands on the right
+grid slot and, stricter, when its written length is right too, so a rest held or lost counts; a last note the audio
+cuts off is judged on its slot only. Clips eval.hum_reference leaves out are skipped.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -103,15 +105,16 @@ def lengths(slots: np.ndarray, ends: np.ndarray, step: int) -> np.ndarray:
     return np.minimum(np.maximum(ends, slots + step), following) - slots
 
 
-def graded(slots, ends, pitches, ref_slots, ref_ends, ref_pitches, step):
+def graded(slots, ends, pitches, ref_slots, ref_ends, ref_pitches, step, cut):
     values, ref_values = lengths(slots, ends, step), lengths(ref_slots, ref_ends, step)
+    judged = [True] * (len(ref_slots) - 1) + [not cut]
 
     def counts(shift):
         found = dict(zip(zip(slots, pitches + shift), values))
-        return (sum((s, p) in found for s, p in zip(ref_slots, ref_pitches)),
-                sum(found.get((s, p)) == v for s, p, v in zip(ref_slots, ref_pitches, ref_values)))
+        return (sum(found.get((s, p)) == v or (s, p) in found and not j for s, p, v, j in zip(ref_slots, ref_pitches, ref_values, judged)),
+                sum((s, p) in found for s, p in zip(ref_slots, ref_pitches)))
 
-    placed, whole = counts(octave(lambda s: counts(s)[1]))
+    whole, placed = max(counts(shift) for shift in range(-24, 25))
     return placed, whole, len(slots), len(ref_slots)
 
 
@@ -137,13 +140,21 @@ def main() -> None:
     parser.add_argument("--hold", type=float, default=80.0, help="SwiftF0 segment_notes pitch_hold_ms")
     parser.add_argument("--key", action="store_true", help="snap out-of-key notes that lean toward a scale note")
     parser.add_argument("--eighths", action="store_true", help="8th grid, on the clips whose melody has no 16ths")
-    parser.add_argument("--human", action="store_true", help="the ceiling: the hummers' own onsets and true pitches")
     parser.add_argument("--reflets", action="store_true", help="click mode as reflets/hum.py does it, with its clean-up")
     parser.add_argument("--split", default="test", choices=["test", "valid", "train"])
     parser.add_argument("--meter", help="only clips whose MIDI is in this meter, such as 3/4")
     parser.add_argument("--clips", type=int, help="this many clips of the split, spread evenly")
     args = parser.parse_args()
     corrected, wanted = fetch(args.split, args.meter, args.clips)
+    frozen = OUT / f"reference-{args.split}.json"
+    if not frozen.exists():
+        raise SystemExit(f"No {frozen.name}: run python -m eval.hum_reference with the same --split, --meter and --clips first")
+    saved = json.loads(frozen.read_text())
+    latencies = saved["latency"]
+    missing = [key for key in wanted if key not in latencies and key not in saved["excluded"]]
+    if missing:
+        raise SystemExit(f"{len(missing)} clips are not in {frozen.name}: run python -m eval.hum_reference with the same options")
+    wanted = [key for key in wanted if key in latencies]
     detector = swift_f0.SwiftF0()
     f1s, totals = [], np.zeros(4)
     step = 2 if args.eighths else 1
@@ -153,8 +164,9 @@ def main() -> None:
             continue
         ref_slots, ref_ends = on_steps(ref_notes[:, 0], sixteenth, 1), on_steps(ref_notes[:, 1], sixteenth, step)
         scored = not (step == 2 and np.any(ref_slots % 2))
-        latency = float(np.median(ref_times[:, 0] - ref_notes[:, 0]))
-        intervals, pitches = (ref_times, ref_pitches.astype(float)) if args.human else hummed(path, detector, args.hold, args.key)
+        latency = latencies[path.stem]
+        cut = ref_notes[-1, 1] + latency > soundfile.info(path).duration
+        intervals, pitches = hummed(path, detector, args.hold, args.key)
         if not len(pitches):
             f1s.append(0.0)
             totals += [0, 0, 0, len(ref_pitches) if scored else 0]
@@ -165,10 +177,10 @@ def main() -> None:
         if scored:
             found = (reflets_grid(path, latency, sixteenth, step, int(ref_ends[-1])) if args.reflets
                      else on_grid(intervals, pitches, latency, sixteenth, step))
-            totals += graded(*found, ref_slots, ref_ends, ref_pitches, step)
+            totals += graded(*found, ref_slots, ref_ends, ref_pitches, step, cut)
     placed, whole, found, wanted = totals
     print(f"{len(f1s)} clips, {int(wanted)} notes scored on the {'8th' if args.eighths else '16th'} grid")
-    print(f"raw note F1 (50 ms, octave-invariant): {np.mean(f1s):.3f}")
+    print(f"raw note F1 against the corrected onsets (50 ms, octave-invariant): {np.mean(f1s):.3f}")
     print(f"right pitch on the right grid slot: recall {placed / wanted:.3f}, precision {placed / found:.3f}")
     print(f"and the right written length:      recall {whole / wanted:.3f}, precision {whole / found:.3f}")
 
