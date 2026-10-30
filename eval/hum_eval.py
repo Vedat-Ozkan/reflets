@@ -24,7 +24,7 @@ import pretty_midi
 import soundfile
 import swift_f0
 
-from reflets.hum import MAJOR, MINOR
+from reflets import hum
 
 OUT = Path(__file__).parent.parent / "out" / "hum-eval"
 HUMTRANS = "https://huggingface.co/datasets/dadinghh2/HumTrans/resolve/main/"
@@ -71,19 +71,6 @@ def reference(key: str, corrected: zipfile.ZipFile):
     return times, np.array([n.pitch for n in notes]), np.array([n.start for n in notes]), sixteenth
 
 
-def in_key(raw: np.ndarray, rounded: np.ndarray, weights: np.ndarray) -> np.ndarray:
-    profile = np.bincount(rounded.astype(int) % 12, weights=weights, minlength=12)
-    _, tonic, major = max((np.corrcoef(profile, np.roll(shape, tonic))[0, 1], tonic, shape is MAJOR)
-                          for tonic in range(12) for shape in (MAJOR, MINOR))
-    scale = {(tonic + step) % 12 for step in ([0, 2, 4, 5, 7, 9, 11] if major else [0, 2, 3, 5, 7, 8, 10])}
-    out = rounded.copy()
-    for i, (r, n) in enumerate(zip(raw, rounded)):
-        near = n + (1 if r > n else -1)
-        if int(n) % 12 not in scale and abs(r - n) > 0.15 and int(near) % 12 in scale:
-            out[i] = near
-    return out
-
-
 def hummed(path: Path, detector, hold: float, keyed: bool):
     audio, rate = soundfile.read(path, always_2d=True)
     notes = swift_f0.segment_notes(detector.detect(audio.mean(axis=1), rate), pitch_hold_ms=hold)
@@ -92,8 +79,11 @@ def hummed(path: Path, detector, hold: float, keyed: bool):
     semitones = np.array([69 + 12 * np.log2(n.pitch_hz / 440) for n in notes])
     weights = np.array([n.end - n.start for n in notes])
     raw = semitones - np.angle(np.sum(weights * np.exp(2j * np.pi * semitones))) / (2 * np.pi)
-    rounded = np.round(raw)
-    return np.array([[n.start, n.end] for n in notes]), in_key(raw, rounded, weights) if keyed else rounded
+    intervals = np.array([[n.start, n.end] for n in notes])
+    if not keyed:
+        return intervals, np.round(raw)
+    sung = [hum.Sung(n.start, n.end, r) for n, r in zip(notes, raw)]
+    return intervals, np.array(hum.in_key(sung, hum.find_key(sung)), float)
 
 
 def hz(midi) -> np.ndarray:
@@ -125,8 +115,6 @@ def on_grid(onsets, pitches, ref_pitches, ref_starts, ref_times, sixteenth, step
 
 
 def reflets_grid(path: Path, ref_pitches, ref_starts, ref_times, sixteenth, step):
-    from reflets import hum
-
     ref_slots = np.round(ref_starts / sixteenth).astype(int)
     if step == 2 and np.any(ref_slots % 2):
         return None

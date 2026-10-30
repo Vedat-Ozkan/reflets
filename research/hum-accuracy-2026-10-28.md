@@ -1,6 +1,6 @@
 # Humming to notes: accuracy on HumTrans (2026-10-28)
 
-Phase 1 of the hum plan: does an off-the-shelf pitch tracker turn humming into the right notes, before any device code is written? Reproduce with `uv run --group hum-eval python -m eval.hum_eval [--key] [--eighths] [--human]`.
+Phase 1 of the hum plan: does an off-the-shelf pitch tracker turn humming into the right notes, before any device code is written? Reproduce with `uv run --group hum-eval python -m eval.hum_eval [--key] [--eighths] [--human]` at commit acd0fc6; after it, `--key` uses `reflets/hum.py`'s `find_key` and `in_key`.
 
 ## Data
 - **HumTrans** test split (CC BY-NC 4.0, evaluation only). Ten music students hum "da" melodies while hearing them played, at 52–156 BPM, in 4/4.
