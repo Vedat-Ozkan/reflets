@@ -188,7 +188,7 @@ An audit of the labels against the audio and the MIDI, on test and valid, found 
 
 The eval now scores against a frozen reference that `eval/hum_reference.py` writes to `out/`: each clip's latency slid from the audio (the offset where the most MIDI notes sound at their pitch up to one transposition, refined by the median onset gap), and the clips left out because they repeat another take's recording, because too few notes agree, or because an offset half a beat away agrees almost as well. On the 244 test clips whose labels fit the MIDI, this latency is within 6 ms of the labels' (median; 21 ms at the 90th percentile; none more than half a 16th). Pitches count up to one transposition, chosen by right lengths and then right slots; a last note the audio cuts off is judged on its slot only; `--human` is gone. Raw F1 still uses the corrected onsets, for comparison with published numbers only.
 
-New baseline (`--key --reflets`, recall / precision), the bar the one-pass note boundaries must match within ±0.001:
+New baseline (`--key --reflets`, recall / precision), the bar the one-pass note boundaries must match within ±0.001 (superseded by the one after `SHORT_STEPS` 0.35, below):
 
 | Clips | 16th grid: slot | 16th grid: written length | 8th grid: slot | 8th grid: written length |
 |---|---|---|---|---|
@@ -199,3 +199,30 @@ New baseline (`--key --reflets`, recall / precision), the bar the one-pass note 
 | valid in 3/4 | .897 / .875 | .782 / .763 | .910 / .852 | .850 / .796 |
 
 On the old eval the same code scored .676 / .586 and .733 / .653 on test. With clean latency the remaining misses, on test's 16th grid, are mostly note ends (about 800 wrong lengths, 325 of them rests the tool fills although the hummer left a gap), then extra onsets (about 290), semitone slips from the key clean-up (145 correctly tracked notes moved), and merged or missed notes (about 190).
+
+## Past decisions on the clean eval (2026-10-30)
+
+Every tuned step was undone or moved and scored on 1,000 train clips (`--key --reflets`, written length, recall / precision; 16th grid, then 8th). Today's code: .765 / .757 and .822 / .824.
+
+| Change | 16th grid | 8th grid | Verdict |
+|---|---|---|---|
+| no split at loudness pushes | .764 / .758 | .820 / .825 | keep the split |
+| no join of unpushed same-pitch notes | .761 / .744 | .818 / .811 | keep the join |
+| no rest fill (every hummed gap a rest) | .487 / .482 | .793 / .794 | keep the fill |
+| `SCOOP_STEPS` 0 / 0.45 / 0.7 (0.55) | .766 / .757, .766 / .757, .759 / .755 | .821 / .821, .821 / .821, .817 / .824 | keep 0.55 |
+| `KEY_CLOSE` 0 (0.15) | .758 / .749 | .814 / .816 | keep 0.15 |
+| `SHORT_STEPS` 0.3 / 0.6 (0.45) | .768 / .757, .751 / .752 | .826 / .823, .792 / .818 | lower it |
+
+`SHORT_STEPS` is now 0.35, the best of 0.3, 0.35 and 0.4 on test and valid: 16th grid .789 / .781 on test and .786 / .774 on valid, 8th grid .857 / .857 and .844 / .841. The 0.45 came from the old eval, whose latency errors turned short real notes into misplaced ones. The owner's takes are unchanged (127 of 154 right length, 17 extra).
+
+Rests by the singer's own gaps do not help. A gap shorter than a beat is filled; leaving it open when it is longer than the clip's median gap by a margin cost the 16th grid at every margin tried (.745 / .737 at half a step, back to today's at 3 steps) and gained .003 on the 8th grid at one step. Gap length cannot tell rests apart: on test, at one 16th over the clip's median gap, 384 of 447 MIDI rests have the gap but so do 399 of 7,549 legato joins, and rests are about 5% of gaps, so each rest recovered costs a legato note.
+
+New baseline, the bar for the one-pass note boundaries:
+
+| Clips | 16th grid: slot | 16th grid: written length | 8th grid: slot | 8th grid: written length |
+|---|---|---|---|---|
+| test (421 of 440) | .867 / .858 | .789 / .781 | .920 / .920 | .857 / .857 |
+| valid (352 of 374) | .857 / .844 | .786 / .774 | .902 / .899 | .844 / .841 |
+| train (974 of 1,000) | .845 / .834 | .768 / .758 | .894 / .892 | .825 / .823 |
+| train in 3/4 | .836 / .819 | .756 / .741 | .885 / .881 | .820 / .816 |
+| valid in 3/4 | .897 / .875 | .782 / .763 | .910 / .852 | .850 / .796 |
