@@ -107,7 +107,9 @@ def pieces(quarters: Fraction, where: str) -> list[Fraction]:
         raise IdeaError(f"{where}: a duration of {quarters} quarter notes needs a tuplet; write it in braces, as in 3:2{{ 16 C5 D5 E5 }}")
     result = []
     while whole:
-        value = next(value for value in VALUES if value <= whole)
+        value = next((value for value in VALUES if value <= whole), None)
+        if value is None:
+            raise IdeaError(f"{where}: a duration of {quarters} quarter notes is shorter than a 128th note")
         result.append(value)
         whole -= value
     return result
@@ -342,7 +344,7 @@ def mark_element(token: str, where: str) -> tuple[str, float, str]:
         return "DYNAMIC", n1x.DYNAMICS.index(name), name
     if token.startswith('"'):
         return "HARMONY", 0, n1x.unquoted(token)
-    if match := re.fullmatch(r'q([\d.]+)("(?:[^"\\]|\\.)*")?', token):
+    if match := re.fullmatch(rf"{n1x.TEMPO}({n1x.QUOTED})?", token):
         return "TEMPO_TEXT", float(match[1]) / 60, n1x.unquoted(match[2]) if match[2] else f"<sym>metNoteQuarterUp</sym> = {match[1]}"
     if token.startswith("clef="):
         if token[5:] not in CLEF_NUMBERS:

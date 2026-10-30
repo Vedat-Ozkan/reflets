@@ -542,10 +542,11 @@ class Idea:
 TOKEN = re.compile(r'(?:[^\s"]|"(?:[^"\\]|\\.)*")+')
 QUOTED = r'"(?:[^"\\]|\\.)*"'
 PITCH = r"[A-G](?:#{1,2}|b{1,2})?-?\d+"
+TEMPO = r"q(\d+(?:\.\d+)?)"
 NOTE = re.compile(rf"({PITCH})((?:'[^':~]*)*)((?::[^:~]+)*)(~?)")
 CHORD = re.compile(r"([^\[]+?)(\[[^\]]*\])?(~?)")
 GROUP = re.compile(r"(?:(\d+):(\d+))?(\[[^\]]*\])?\{")
-MARK = re.compile(rf'-?(?:!\S+|{QUOTED}|(?:x|s|S|R|fb|pt){QUOTED}|q[\d.]+(?:{QUOTED})?|clef=\S+|\[[^\]]*\]|[a-z0-9<>-]*(?:{QUOTED})?[()]\d*)')
+MARK = re.compile(rf'-?(?:!\S+|{QUOTED}|(?:x|s|S|R|fb|pt){QUOTED}|{TEMPO}(?:{QUOTED})?|clef=\S+|\[[^\]]*\]|[a-z0-9<>-]*(?:{QUOTED})?[()]\d*)')
 LINE_TOKEN = re.compile(rf'([a-z0-9<>-]*)({QUOTED})?([()])(\d*)')
 
 
@@ -668,6 +669,8 @@ def decode(text: str) -> Idea:
                 if not equals:
                     raise DecodeError(f"{words[0]}: {word!r} is not a field like len=192")
                 fields[name] = value
+            if any(earlier.number == int(words[0][1:]) for earlier in idea.bars):
+                raise DecodeError(f"{words[0]} is written twice; write each bar once")
             bar = IdeaBar(int(words[0][1:]), fields, {})
             idea.bars.append(bar)
             continue

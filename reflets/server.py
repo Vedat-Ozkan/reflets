@@ -273,6 +273,8 @@ async def read_bars(bars: str, whole_score: bool = False) -> tuple[ScoreInfo, Sc
     for number in (first, last):
         if number not in numbers:
             raise ToolError(f"Bar {number} does not exist; the score has bars {numbers[0]} to {numbers[-1]}")
+    if first > last:
+        raise ToolError(f'bars runs from the lower bar to the higher one, as in "{last}-{first}"')
     start_tick = info.ticks[0 if whole_score or first == 1 and numbers[0] == 0 else numbers.index(first)]
     end_index = len(numbers) if whole_score else numbers.index(last) + 1
     end_tick = info.ticks[end_index] if end_index < len(info.ticks) else 2**31 - 1
