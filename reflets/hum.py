@@ -18,6 +18,8 @@ SHORT_STEPS = 0.35
 SCOOP_STEPS = 0.55
 SCOOP_SEMITONES = 2.5
 KEY_CLOSE = 0.15
+SCALE_LEAN = 0.15
+TRIAD_LEAN = 0.3
 TOUCHING = 0.06
 PUSH_RISE = 8
 PUSH_FALL = 6
@@ -134,9 +136,9 @@ def in_key(sung: list[Sung], key: Key) -> list[int]:
     for s in sung:
         rounded = round(s.semitone)
         near = rounded + (1 if s.semitone > rounded else -1)
-        if rounded % 12 not in key.scale and abs(s.semitone - rounded) > 0.15 and near % 12 in key.scale:
+        if rounded % 12 not in key.scale and abs(s.semitone - rounded) > SCALE_LEAN and near % 12 in key.scale:
             rounded = near
-        elif abs(s.semitone - rounded) > 0.3 and near % 12 in key.triad and rounded % 12 not in key.triad:
+        elif abs(s.semitone - rounded) > TRIAD_LEAN and near % 12 in key.triad and rounded % 12 not in key.triad:
             rounded = near
         pitches.append(rounded)
     return pitches
