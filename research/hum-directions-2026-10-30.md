@@ -8,17 +8,17 @@ Every reference note of the 421 test clips on the 16th grid, by what the tool wr
 
 | Outcome | Notes | Share |
 |---|---|---|
-| right pitch, slot and written length | 8,003 | .753 |
-| right pitch and slot, length off by one step | 377 | .035 |
-| right pitch and slot, length off by more | 835 | .079 |
+| right pitch, slot and written length (a last note the audio cuts off on its slot only) | 8,384 | .789 |
 | a note at the slot one semitone off | 593 | .056 |
+| right pitch and slot, length off by more than one step | 549 | .052 |
 | a note one step early or late at the right pitch | 471 | .044 |
+| right pitch and slot, length off by one step | 282 | .027 |
+| no note near | 189 | .018 |
 | a note at the slot two semitones or an octave off | 127 | .012 |
 | any other pitch at the slot | 29 | .003 |
-| no note near | 189 | .018 |
 | extra notes (not part of the shares) | 1,519 | |
 
-About 21 of the 25 missing points are a choice between candidates the audio already offers: a written length, the neighbouring semitone, the neighbouring slot. Only about 3 points have no candidate. That is the ceiling of any decoder that picks among acoustic candidates, before a trained model is needed.
+About 18 of the 21 missing points are a choice between candidates the audio already offers: a written length, the neighbouring semitone, the neighbouring slot. About 3 points have no candidate. That is the ceiling of any decoder that picks among acoustic candidates, before a trained model is needed.
 
 Threshold tuning has reached its end. Of the key clean-up's two rules, moving fewer notes onto the tonic triad (`TRIAD_LEAN` 0.4) gained .002 to .004 on every HumTrans set but cost two notes of the owner's take `20261029-231918`, so it stays at 0.3. Moving every leaning out-of-key note into the key (`SCALE_LEAN` 0) scored best of all on train (.775 / .766 and .833 / .833) by never writing a chromatic note:
 
@@ -28,9 +28,9 @@ Threshold tuning has reached its end. Of the key clean-up's two rules, moving fe
 | today (`SCALE_LEAN` 0.15) | .878 | .324 |
 | `SCALE_LEAN` 0, `TRIAD_LEAN` 0.4 | .891 | .000 |
 
-HumTrans is 98% diatonic, so it rewards a hard snap that a user writing chromatic music would find wrong every time; today's clean-up already loses half of those notes. Any later change is also scored on this split, and on HumTrans alone a gain that comes from the chromatic column is a loss.
+Chromatic here means outside the key the tool found, so some of the 204 may be clips whose key it got wrong. HumTrans is 98% diatonic, so it rewards a hard snap that a user writing chromatic music would find wrong every time; today's clean-up already loses half of those notes. Any later change is also scored on this split, and on HumTrans alone a gain that comes from the chromatic column is a loss.
 
-For comparison with the published numbers: today's raw note F1 against Dynamic HumTrans's corrected onsets (50 ms, octave-invariant) is .687 on 421 test clips; their own CNN trained on humming reports .673 on the test clips they kept, and off-the-shelf singing models .43 to .60 (Basic Pitch .434, VOCANO .564, the MIR-ST500 model .604; arXiv 2410.05455).
+For comparison with the published numbers: raw note F1 against Dynamic HumTrans's corrected onsets (50 ms, octave-invariant) is .687 on 421 test clips for SwiftF0's own note splitter with the key clean-up, without the click (`hummed` in `eval/hum_eval.py`, not the click pipeline), and the clips are not exactly theirs; their own CNN trained on humming reports .673 on the test clips they kept, and off-the-shelf singing models .43 to .60 (Basic Pitch .434, VOCANO .564, the MIR-ST500 model .604; arXiv 2410.05455).
 
 ## Data beyond HumTrans
 
@@ -51,9 +51,21 @@ The only human ceiling found is Vocadito's: one annotator against the other give
 
 ## E: onboarding to fit the singer
 
-Simulated on HumTrans, which names each hummer: each of 9 hummers (M03 has 16 clips) had their settings tuned on their own train clips (`SHORT_STEPS`, `SCOOP_STEPS`, `SCALE_LEAN`, `TRIAD_LEAN`, and rests by the singer's gaps at margins of one or two steps), and the best pick was scored on their own test clips. Rests were the only setting that moved much on train (+.047 / +.064 for M04, +.026 for M02, +.012 for F02); on the held-out clips every rest pick lost (F02 .833 → .813, M04 .767 → .753, M02 .656 → .645, F05 .808 → .805, 16th grid length recall), and the triad picks gained .001. With about 100 clips per singer, the gains on train belonged to those tunes, not to a stable habit of the singer.
+Simulated on HumTrans, which names each hummer: each of 9 hummers (M03 has 16 clips) had their settings tuned on their own train clips (`SHORT_STEPS`, `SCOOP_STEPS`, `SCALE_LEAN`, `TRIAD_LEAN`, and rests by the singer's gaps at margins of one or two steps), and the best pick was scored on their own test clips (16th grid, written length):
 
-So tuning the clean-up per singer does not pay on these ten music students. Elsewhere, the closest precedent (Microsoft Research, AAAI 2010: a calibration of melodies with known pitch and rhythm, then a per-user pitch predictor) cut pitch errors 20–30% for an average singer against a commercial baseline; speech recognition's few-shot adaptation gains are a few percent and overfit unless only a few parameters move. Products ask for little: a vocal range (Yousician, Dubler), a microphone check, or nothing (Hum to Search).
+| Hummer | Pick on train | Test, today → pick |
+|---|---|---|
+| F01, F04 | `TRIAD_LEAN` 0.4 | +.001 / +.001 |
+| F02 | `SCOOP_STEPS` 0.4 | .833 / .852 → .833 / .849 |
+| F03 | rests at one step | .843 / .832 → .848 / .837 |
+| F05 | `TRIAD_LEAN` 0.4 | .808 / .805 → .811 / .808 |
+| M02 | `SCOOP_STEPS` 0.7 | .656 / .635 → .656 / .641 |
+| M04 | `SCOOP_STEPS` 0.7 | .767 / .760 → .766 / .763 |
+| M01, M05 | today's | |
+
+Rests by the singer's gaps helped only F03 on train (+.003); for every other hummer they lost there too, so the failed global rule is not a habit some singers have. The picks gain at most .005, and about .002 on average.
+
+So tuning the clean-up per singer pays little on these ten music students. Elsewhere, the closest precedent (Microsoft Research, AAAI 2010: a calibration of melodies with known pitch and rhythm, then a per-user pitch predictor) cut pitch errors 20–30% for an average singer against a commercial baseline; speech recognition's few-shot adaptation gains are a few percent and overfit unless only a few parameters move. Products ask for little: a vocal range (Yousician, Dubler), a microphone check, or nothing (Hum to Search).
 
 What onboarding can carry: what Reflets already calibrates (the device delay), the singer's range and octave, their tuning offset, and a syllable that gives clean onsets ("da" rather than "mm"). Three short styles on the click, each 8 to 15 seconds after the target is played: detached quarter notes on "da" up and down a five-note scale (delay, tuning, range); legato steps and leaps in eighths on "mm" (slides, octave handling); repeated notes and sixteenths with rests and one syncopation (repeated-note splits, note lengths). Its value would be checked on the owner and other real users, which HumTrans cannot do: it has no singers who are not musicians and no device spread.
 
@@ -65,7 +77,7 @@ What the literature measured:
 - Against a tuned hidden Markov model the gains are small and need a gate: a fixed-weight language model scored piano note F1 63.0 against the HMM's 69.1, recall falling 66.4 → 55.7, and only a learned gate on both models' uncertainty gained (71.7; Ycart et al., ISMIR 2019).
 - Priors rewrite unusual music: a wrong key dropped recall 63 → 37 (Ryynänen and Klapuri 2006), and Nishikimi's prior added missing notes. The mitigations are a mild out-of-key penalty (Nishikimi used 10:1 "because non-diatonic notes are often used"), gating on acoustic confidence, and never a hard snap. No paper evaluated chromatic or modal material separately.
 
-The design that fits: one decoder on the click's grid (with triplet positions) over states pitch × {onset, held, rest}, emissions from SwiftF0's pitch and loudness at each grid point, and a prior of note lengths by metrical position and a mild key-relative interval table, counted from freely usable melodies (Lakh MIDI CC BY 4.0, POP909 MIT; deduplicated against HumTrans). It would replace `absorb_short`, `split_pushes`, `in_key`, `fix_octaves`, `join_unpushed` and `snap` with one model whose few weights are tuned on train and checked on valid, test, the chromatic split and the owner's takes. Its ceiling is the 21 points above. A cheaper first step is rescoring: generate the current output's neighbours (split, merge, ±1 semitone, ±1 step, length ±1) and accept one only when its acoustic margin is small.
+The design that fits: one decoder on the click's grid (with triplet positions) over states pitch × {onset, held, rest}, emissions from SwiftF0's pitch and loudness at each grid point, and a prior of note lengths by metrical position and a mild key-relative interval table, counted from freely usable melodies (Lakh MIDI CC BY 4.0, POP909 MIT; deduplicated against HumTrans). It would replace `absorb_short`, `split_pushes`, `in_key`, `fix_octaves`, `join_unpushed` and `snap` with one model whose few weights are tuned on train and checked on valid, test, the chromatic split and the owner's takes. Its ceiling is the 18 points above. A cheaper first step is rescoring: generate the current output's neighbours (split, merge, ±1 semitone, ±1 step, length ±1) and accept one only when its acoustic margin is small.
 
 ## C: confidence and alternatives
 
@@ -77,7 +89,7 @@ Off-the-shelf singing models transfer poorly to humming (.43 to .60 raw F1 above
 
 ## Recommendation
 
-1. A, as the tatum-grid decoder, measured on the 21 points it can reach, the chromatic split and the owner's takes; the rescoring step first if a smaller change is wanted.
+1. A, as the tatum-grid decoder, measured on the 18 points it can reach, the chromatic split and the owner's takes; the rescoring step first if a smaller change is wanted.
 2. Add Vocadito (CC BY) and Molina 2014 (local only) to the eval, as sets labelled with what was sung.
 3. C on top of A's second-best readings.
 4. E as onboarding for range, tuning, syllable and delay, tried on real users rather than tuned on HumTrans.
