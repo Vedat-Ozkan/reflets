@@ -63,16 +63,14 @@ class Bridge:
 
     async def request(self, line: str) -> tuple[list[str], list[str]]:
         async with self.lock:
-            for attempt in (1, 2):
+            for _ in range(2):
                 try:
                     if self.socket is None:
                         await self._connect()
                     return await self._send(line)
                 except (OSError, asyncio.TimeoutError, websockets.ConnectionClosed):
                     self.socket = None
-                    if attempt == 2:
-                        raise BridgeError(NOT_RUNNING) from None
-        raise AssertionError("unreachable")
+            raise BridgeError(NOT_RUNNING)
 
     async def _connect(self) -> None:
         try:
@@ -190,7 +188,3 @@ class Bridges:
     @property
     def socket(self):
         return self.current.socket
-
-    @property
-    def url(self) -> str:
-        return self.first.url

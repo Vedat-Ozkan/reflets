@@ -13,7 +13,6 @@ from engine.score import beat_length
 from reflets.score import FIFTHS, SEMITONES, SYSTEM_LINES, SYSTEM_MARKS, Bar, Jump, Marker, Mark, ScoreInfo, build_index, unescape
 
 VALUES = sorted({Fraction(1, 2**k) * dots for k in range(8) for dots in (1, Fraction(3, 2), Fraction(7, 4))}, reverse=True)
-GRACE_TYPES = {"acciaccatura": 1, "grace16": 8}
 
 
 class IdeaError(Exception):
@@ -508,9 +507,7 @@ def compile_idea(text: str, info: ScoreInfo, division: int, staves: int, pre: li
     plan = Plan(0, 0, ops, set(), idea, recast=bool(recast))
     voices: dict[int, list[tuple[int, Fraction, list[tuple[int, int, bool]], tuple[int, int]]]] = {}
     rests = grace_notes = 0
-    for bar in sorted(idea.bars, key=lambda bar: numbers.index(bar.number) if bar.number in numbers else -1):
-        if bar.number not in numbers:
-            raise IdeaError(f"Bar {bar.number} does not exist; the score has bars {numbers[0]} to {numbers[-1]}")
+    for bar in sorted(idea.bars, key=lambda bar: numbers.index(bar.number)):
         position = numbers.index(bar.number)
         length, bar_tick = info.lengths[position], info.ticks[position]
         meter_op = meter_change(bar, position, info, idea, later)
