@@ -7,8 +7,8 @@ and never committed; only clips with corrected onsets are read from the 14.7 GB 
 374 in valid, 6,827 in train, of which --clips takes N spread evenly. Two scores:
 raw note F1 (50 ms onsets, octave-invariant, the published metric), and click mode: notes snapped to the grid of
 the melody's own MIDI after one latency offset, counted right when the pitch lands on the right grid slot and,
-stricter, when the note value is right too. --human snaps the hummers' own labelled onsets and true pitches, the
-ceiling any transcriber can reach on this data.
+stricter, when its written length is right too, so a rest held or lost counts. --human snaps the hummers' own
+labelled onsets and true pitches, the ceiling any transcriber can reach on this data.
 """
 
 from __future__ import annotations
@@ -68,7 +68,7 @@ def reference(key: str, corrected: zipfile.ZipFile):
     rows = [line.split() for line in corrected.read(f"{key}_onsets_offsets.txt").decode().splitlines() if line.strip()]
     times = np.array([[float(a) / 44100, float(b) / 44100] for a, b in rows])
     sixteenth = 60 / midi.get_tempo_changes()[1][0] / 4
-    return times, np.array([n.pitch for n in notes]), np.array([n.start for n in notes]), sixteenth
+    return times, np.array([n.pitch for n in notes]), np.array([[n.start, n.end] for n in notes]), sixteenth
 
 
 def hummed(path: Path, detector, hold: float, keyed: bool):
@@ -94,16 +94,17 @@ def octave(score) -> int:
     return max(range(-24, 25, 12), key=score)
 
 
-def on_grid(onsets, pitches, ref_pitches, ref_starts, ref_times, sixteenth, step):
-    ref_slots = np.round(ref_starts / sixteenth).astype(int)
-    if step == 2 and np.any(ref_slots % 2):
-        return None
-    latency = np.median(ref_times[:, 0] - ref_starts)
-    slots = np.round((onsets - latency) / (sixteenth * step)).astype(int) * step
-    first = np.concatenate([[True], np.diff(slots) > 0])
-    slots, pitches = slots[first], pitches[first]
-    ref_values, values = np.diff(np.append(ref_slots, 0)), np.diff(np.append(slots, 0))
-    ref_values[-1] = values[-1] = 0
+def on_steps(times, sixteenth: float, step: int) -> np.ndarray:
+    return np.round(np.asarray(times) / (sixteenth * step)).astype(int) * step
+
+
+def lengths(slots: np.ndarray, ends: np.ndarray, step: int) -> np.ndarray:
+    following = np.append(slots[1:], np.iinfo(int).max)
+    return np.minimum(np.maximum(ends, slots + step), following) - slots
+
+
+def graded(slots, ends, pitches, ref_slots, ref_ends, ref_pitches, step):
+    values, ref_values = lengths(slots, ends, step), lengths(ref_slots, ref_ends, step)
 
     def counts(shift):
         found = dict(zip(zip(slots, pitches + shift), values))
@@ -114,33 +115,21 @@ def on_grid(onsets, pitches, ref_pitches, ref_starts, ref_times, sixteenth, step
     return placed, whole, len(slots), len(ref_slots)
 
 
-def reflets_grid(path: Path, ref_pitches, ref_starts, ref_times, sixteenth, step):
-    ref_slots = np.round(ref_starts / sixteenth).astype(int)
-    if step == 2 and np.any(ref_slots % 2):
-        return None
-    audio, rate = soundfile.read(path, always_2d=True)
-    latency = float(np.median(ref_times[:, 0] - ref_starts))
+def on_grid(intervals, pitches, latency, sixteenth, step):
+    slots, ends = on_steps(intervals[:, 0] - latency, sixteenth, step), on_steps(intervals[:, 1] - latency, sixteenth, step)
+    first = np.concatenate([[True], np.diff(slots) > 0])
+    return slots[first], ends[first], pitches[first]
+
+
+def reflets_grid(path: Path, latency, sixteenth, step, last_end):
     import soxr
 
+    audio, rate = soundfile.read(path, always_2d=True)
     mono = soxr.resample(audio.mean(axis=1), rate, hum.RATE).astype(np.float32)
-    grid = 4 // step
-    result = hum.transcribe(mono, 4 * sixteenth, grid, latency, int(ref_slots[-1] // step) + 8)
+    result = hum.transcribe(mono, 4 * sixteenth, 4 // step, latency, last_end // step + 8)
     notes = result.notes if result else []
-    slots = np.array([n.slot * step for n in notes], int)
-    pitches = np.array([n.pitch for n in notes], float)
-    values = np.diff(np.append(slots, 0))
-    ref_values = np.diff(np.append(ref_slots, 0))
-    ref_values[-1] = 0
-    if len(values):
-        values[-1] = 0
-
-    def counts(shift):
-        found = dict(zip(zip(slots, pitches + shift), values))
-        return (sum((s, p) in found for s, p in zip(ref_slots, ref_pitches)),
-                sum(found.get((s, p)) == v for s, p, v in zip(ref_slots, ref_pitches, ref_values)))
-
-    placed, whole = counts(octave(lambda s: counts(s)[1]))
-    return placed, whole, len(slots), len(ref_slots)
+    return (np.array([n.slot * step for n in notes], int), np.array([(n.slot + n.length) * step for n in notes], int),
+            np.array([n.pitch for n in notes], float))
 
 
 def main() -> None:
@@ -157,28 +146,31 @@ def main() -> None:
     corrected, wanted = fetch(args.split, args.meter, args.clips)
     detector = swift_f0.SwiftF0()
     f1s, totals = [], np.zeros(4)
+    step = 2 if args.eighths else 1
     for path in (OUT / "wav" / f"{key}.wav" for key in wanted):
-        ref_times, ref_pitches, ref_starts, sixteenth = reference(path.stem, corrected)
+        ref_times, ref_pitches, ref_notes, sixteenth = reference(path.stem, corrected)
         if len(ref_times) != len(ref_pitches):
             continue
+        ref_slots, ref_ends = on_steps(ref_notes[:, 0], sixteenth, 1), on_steps(ref_notes[:, 1], sixteenth, step)
+        scored = not (step == 2 and np.any(ref_slots % 2))
+        latency = float(np.median(ref_times[:, 0] - ref_notes[:, 0]))
         intervals, pitches = (ref_times, ref_pitches.astype(float)) if args.human else hummed(path, detector, args.hold, args.key)
         if not len(pitches):
             f1s.append(0.0)
-            totals += [0, 0, 0, len(ref_pitches)]
+            totals += [0, 0, 0, len(ref_pitches) if scored else 0]
             continue
         f1 = lambda s: mir_eval.transcription.precision_recall_f1_overlap(
             ref_times, hz(ref_pitches + s), intervals, hz(pitches), onset_tolerance=0.05, pitch_tolerance=1.0, offset_ratio=None)[2]
         f1s.append(f1(octave(f1)))
-        step = 2 if args.eighths else 1
-        counted = (reflets_grid(path, ref_pitches, ref_starts, ref_times, sixteenth, step) if args.reflets
-                   else on_grid(intervals[:, 0], pitches, ref_pitches, ref_starts, ref_times, sixteenth, step))
-        if counted:
-            totals += counted
+        if scored:
+            found = (reflets_grid(path, latency, sixteenth, step, int(ref_ends[-1])) if args.reflets
+                     else on_grid(intervals, pitches, latency, sixteenth, step))
+            totals += graded(*found, ref_slots, ref_ends, ref_pitches, step)
     placed, whole, found, wanted = totals
     print(f"{len(f1s)} clips, {int(wanted)} notes scored on the {'8th' if args.eighths else '16th'} grid")
     print(f"raw note F1 (50 ms, octave-invariant): {np.mean(f1s):.3f}")
     print(f"right pitch on the right grid slot: recall {placed / wanted:.3f}, precision {placed / found:.3f}")
-    print(f"and the right note value:           recall {whole / wanted:.3f}, precision {whole / found:.3f}")
+    print(f"and the right written length:      recall {whole / wanted:.3f}, precision {whole / found:.3f}")
 
 
 if __name__ == "__main__":

@@ -162,3 +162,16 @@ Owner's takes 126 → 127 of 154 with the right length, 20 → 17 extra notes; o
 
 - **Same-slot notes.** When two notes snapped to the same slot, the second was compared by its real duration against the first's rounded length, so a 0.30 s note could lose to a 0.16 s one. Both are now compared by real duration. Right note value, recall / precision: test 16th .646/.644 (unchanged), 8th .713/.721 → .713/.722; valid 16th .597/.590 (unchanged), 8th .680/.682 → .681/.683; train (1,000 clips) 16th .623/.618 (unchanged), 8th .693/.698 → .694/.699. The owner's takes are unchanged (127/154 right length, 17 extra).
 - **Bars that are not a whole number of grid steps.** A 7/16 bar at grid=2 is 3.5 eighths; the bar's slots were cut to 3, so later bars started a sixteenth early and the last notes were dropped. `hum` now refuses such a meter before recording and suggests grid=4.
+
+## Scoring written lengths, rests included (2026-10-30)
+
+Click mode used to score a note's value by the gap to the next onset, which cannot see a rest. It now scores the written length: the note's end rounded to the grid, capped at the next onset, against the MIDI note's end rounded the same way (HumTrans MIDI notes are mostly 0.1 of a sixteenth short of the next onset, which rounds away; real rests are whole steps). Both click modes share one counter. This is the baseline the one-pass note boundaries must match within ±0.001 (`--key --reflets`, recall / precision):
+
+| | 16th grid, slot and pitch | 16th grid, written length | 8th grid, slot and pitch | 8th grid, written length |
+|---|---|---|---|---|
+| test (440) | .676 / .674 | .586 / .584 | .733 / .742 | .653 / .660 |
+| valid (374) | .628 / .621 | .547 / .540 | .697 / .700 | .629 / .632 |
+| train (1,000) | .654 / .650 | .568 / .564 | .708 / .714 | .629 / .633 |
+| valid 3/4 (29) | .630 / .615 | .511 / .499 | .694 / .665 | .608 / .583 |
+
+On 200 train clips, today's misses by kind (share of reference notes, 8th / 16th grid): wrong pitch .173 / .142; no onset there .060 / .123; one step off .049 / .074; too short .056 / .053; too long .025 / .035; extra onsets .080 / .171.
