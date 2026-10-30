@@ -373,22 +373,7 @@ def units(value: Fraction, div: int) -> int:
     return int(count)
 
 
-def voice(
-    events: list[Event],
-    div: int,
-    marks: list[tuple[Fraction, str]],
-    details: dict[str, tuple[list[str], list[str]]],
-    attached: list[Mark],
-    tuplets: list[tuple[Fraction, Fraction, str]],
-    closers: list[tuple[Fraction, str, bool]],
-) -> str:
-    onsets: dict[tuple[Fraction, bool, str], list[Event]] = {}
-    for event in events:
-        onsets.setdefault((event.onset, event.grace, event.attack if event.grace else ""), []).append(event)
-    graces: dict[Fraction, int] = {}
-    for onset, grace, _ in onsets:
-        if grace:
-            graces[onset] = graces.get(onset, 0) + 1
+def rhythm_pieces(onsets: dict[tuple[Fraction, bool, str], list[Event]], tuplets: list[tuple[Fraction, Fraction, str]]) -> list[tuple[str, Fraction, Fraction]]:
     boundaries = {time for start, stop, _ in tuplets for time in (start, stop)}
 
     def rests(start: Fraction, until: Fraction) -> list[tuple[str, Fraction, Fraction]]:
@@ -400,19 +385,13 @@ def voice(
         pieces += rests(end, onset)
         end = onset + onsets[(onset, False, "")][0].duration
         pieces.append(("n", onset, end))
-    pieces += rests(end, max([end, *(stop for _, stop, _ in tuplets)]))
-    extra: dict[tuple[str, Fraction], list[str]] = {}
-    marks = list(marks)
-    for mark in attached:
-        name = decoration(mark.value)
-        side = 1 if mark.kind == "Fermata" else 2
-        piece = next((piece for piece in pieces if piece[side] == mark.onset), None)
-        if piece:
-            extra.setdefault(piece[:2], []).append(name)
-        else:
-            marks.append((mark.onset, f"[{name}]"))
-    names = {start: chord_names(onsets[(start, False, "")], details, extra.get(("n", start), []), graces.get(start, 0))
-             for kind, start, _ in pieces if kind == "n"}
+    return pieces + rests(end, max([end, *(stop for _, stop, _ in tuplets)]))
+
+
+def decoration_groups(
+    pieces: list[tuple[str, Fraction, Fraction]], names: dict[Fraction, list[str]], graces: dict[Fraction, int], tuplets: list[tuple[Fraction, Fraction, str]],
+) -> tuple[list[tuple[Fraction, Fraction, str]], set[Fraction]]:
+    boundaries = {time for start, stop, _ in tuplets for time in (start, stop)}
     groups = list(tuplets)
     shared: set[Fraction] = set()
     run: list[tuple[str, Fraction, Fraction]] = []
@@ -435,6 +414,39 @@ def voice(
         if own:
             run.append(piece)
     close_run()
+    return groups, shared
+
+
+def voice(
+    events: list[Event],
+    div: int,
+    marks: list[tuple[Fraction, str]],
+    details: dict[str, tuple[list[str], list[str]]],
+    attached: list[Mark],
+    tuplets: list[tuple[Fraction, Fraction, str]],
+    closers: list[tuple[Fraction, str, bool]],
+) -> str:
+    onsets: dict[tuple[Fraction, bool, str], list[Event]] = {}
+    for event in events:
+        onsets.setdefault((event.onset, event.grace, event.attack if event.grace else ""), []).append(event)
+    graces: dict[Fraction, int] = {}
+    for onset, grace, _ in onsets:
+        if grace:
+            graces[onset] = graces.get(onset, 0) + 1
+    pieces = rhythm_pieces(onsets, tuplets)
+    extra: dict[tuple[str, Fraction], list[str]] = {}
+    marks = list(marks)
+    for mark in attached:
+        name = decoration(mark.value)
+        side = 1 if mark.kind == "Fermata" else 2
+        piece = next((piece for piece in pieces if piece[side] == mark.onset), None)
+        if piece:
+            extra.setdefault(piece[:2], []).append(name)
+        else:
+            marks.append((mark.onset, f"[{name}]"))
+    names = {start: chord_names(onsets[(start, False, "")], details, extra.get(("n", start), []), graces.get(start, 0))
+             for kind, start, _ in pieces if kind == "n"}
+    groups, shared = decoration_groups(pieces, names, graces, tuplets)
     opening = sorted(groups, key=lambda group: (group[0], -group[1]))
     edges = {time for _, start, stop in pieces for time in (start, stop)}
     starts = {start for kind, start, _ in pieces if kind == "n" and graces.get(start)}
