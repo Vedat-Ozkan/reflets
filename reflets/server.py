@@ -724,11 +724,11 @@ async def hum(
     except Exception as error:
         raise ToolError(NO_RECORDING.format(error)) from None
     heard = audio.echo(take, numerator)
-    stored = audio.stored_latency(folder, take.device)
+    calibrated = audio.stored_latency(folder, take.device)
     if heard is not None:
         latency, timing = heard, "measured from the click this take"
-    elif stored is not None:
-        latency, timing = stored, "calibrated earlier"
+    elif calibrated is not None:
+        latency, timing = calibrated, "calibrated earlier"
     else:
         latency, timing = take.gap, "the driver's estimate, uncalibrated"
     first = starts[numerator]
@@ -740,9 +740,9 @@ async def hum(
     score_has_notes = any(event.pitch for measure in index.measures for event in measure.events)
     signature = key_fifths(key_at(info, info.ticks[position]))
     pitches = [note.pitch for note in result.notes]
-    moved, set_key = 0, None
+    to_key, set_key = 0, None
     if score_has_notes:
-        moved = humming.moved_to(result.key, signature)
+        to_key = humming.moved_to(result.key, signature)
         fifths = signature
     else:
         fifths = result.key.fifths if signature == 0 else signature
@@ -751,12 +751,12 @@ async def hum(
         elif signature == 0 and fifths != 0:
             set_key = fifths
         elif signature != 0:
-            moved = humming.moved_to(result.key, signature)
+            to_key = humming.moved_to(result.key, signature)
     instrument, staves = owner
     target = humming.centre(instrument, staves.index(staff), len(staves))
-    shift = moved + humming.placed_octave([p + moved for p in pitches], target) + 12 * octave
+    shift = to_key + humming.placed_octave([p + to_key for p in pitches], target) + 12 * octave
     for note in result.notes:
-        note.pitch = humming.tonic_near(target, result.key.tonic + moved) + 12 * octave if kind == "rhythm" else note.pitch + shift
+        note.pitch = humming.tonic_near(target, result.key.tonic + to_key) + 12 * octave if kind == "rhythm" else note.pitch + shift
     division = 48
     lines = humming.voice_lines(result.notes, [int(bar_quarters * grid)] * bars, division // grid, fifths)
     tempo_marks = []
@@ -779,19 +779,19 @@ async def hum(
         })
     written = await write_idea("\n".join(idea), "hummed", replace)
     heard_key = result.key.name + (" (or close to another key; check by ear)" if result.key.margin < 0.05 else "")
-    notes = [
+    report = [
         f"Heard {len(result.notes)} notes in {heard_key}, the singer {100 * result.tuning:+.0f} cents off concert pitch; "
         f"tempo {tempo:g}, {'eighth' if grid == 2 else 'sixteenth'} grid, delay {1000 * latency:.0f} ms ({timing}).",
     ]
-    if moved:
-        notes.append(f"Moved {abs(moved)} semitone{'s' if abs(moved) > 1 else ''} {'up' if moved > 0 else 'down'} into the score's key.")
+    if to_key:
+        report.append(f"Moved {abs(to_key)} semitone{'s' if abs(to_key) > 1 else ''} {'up' if to_key > 0 else 'down'} into the score's key.")
     if set_key is not None:
-        notes.append("The key signature was set from the humming, from the first bar of the take on.")
+        report.append("The key signature was set from the humming, from the first bar of the take on.")
     if tempo_marks:
-        notes.append(f"The tempo mark was set to {tempo:g}, from bar {start_bar} on.")
+        report.append(f"The tempo mark was set to {tempo:g}, from bar {start_bar} on.")
     if timing.startswith("the driver"):
-        notes.append("If the notes land late or early, the user is probably on headphones: run hum with calibrate=True once.")
-    return " ".join(notes) + "\n" + written
+        report.append("If the notes land late or early, the user is probably on headphones: run hum with calibrate=True once.")
+    return " ".join(report) + "\n" + written
 
 
 def checkpoint_folder(title: str) -> Path:

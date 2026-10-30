@@ -806,11 +806,7 @@ def bar_changes(bar: n1x.IdeaBar, position: int, info: ScoreInfo) -> tuple[Bar, 
     changes, volta = [], None
     for name, value in bar.fields.items():
         removal, key = name.startswith("-"), name.removeprefix("-")
-        if key == "len":
-            continue
-        if key == "ts":
-            continue
-        if key == "ks":
+        if key in ("len", "ts", "ks"):
             continue
         if key in LISTED:
             values = value.split(",")
@@ -1126,12 +1122,12 @@ def cells(lines: list[str], info: ScoreInfo) -> dict[tuple[int, int], list[tuple
         words = line.split(" ")
         if words[0] not in ("C", "R"):
             continue
-        tick, track, written = int(words[1]), int(words[2]), Fraction(words[3])
+        tick, track, value = int(words[1]), int(words[2]), Fraction(words[3])
         cell = (bar_at(info.ticks, tick), track)
         flags = chord_flags(words)
         grace = next((int(flag[1:]) for flag in flags if flag[0] == "G"), 0)
         if words[0] == "R":
-            key = (tick, "R", written, 0, 0, ())
+            key = (tick, "R", value, 0, 0, ())
         else:
             members = []
             for note in words[-1].split(","):
@@ -1142,7 +1138,7 @@ def cells(lines: list[str], info: ScoreInfo) -> dict[tuple[int, int], list[tuple
                 graces[(tick, track)] = sequence + 1
                 key = (tick, "G", None, grace, sequence, tuple(sorted((p, t, False, False) for p, t, _, _ in members)))
             else:
-                key = (tick, "C", written, 0, 0, tuple(sorted(members)))
+                key = (tick, "C", value, 0, 0, tuple(sorted(members)))
         result.setdefault(cell, []).append(key)
     for keys in result.values():
         keys.sort(key=_order)
@@ -1322,9 +1318,9 @@ def recast_view(idea: n1x.Idea, info: ScoreInfo, pre: list[str], division: int) 
     length = 4 * Fraction(meter)
     if info.lengths[first] == length:
         raise IdeaError(f"m{changed[0].number}: ts={meter} keeps the bar's length, so it needs no recast; leave recast=True out")
-    written = sorted(numbers.index(bar.number) for bar in idea.bars)
-    positions = range(first, ends[0] if ends else written[-1] + 1)
-    if any(position not in written for position in positions):
+    idea_positions = sorted(numbers.index(bar.number) for bar in idea.bars)
+    positions = range(first, ends[0] if ends else idea_positions[-1] + 1)
+    if any(position not in idea_positions for position in positions):
         raise IdeaError(f"m{changed[0].number}: a recast idea starts at the bar with ts= and writes every bar it recasts, in order, without gaps")
     ticks = info.ticks
     after = ticks[positions[-1]] + round(info.lengths[positions[-1]] * division)
