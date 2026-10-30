@@ -1,6 +1,6 @@
 """How humming becomes notes on melodies HumTrans hardly has: chromatic notes, modes, syncopation, rests, repeats.
 
-    uv run --extra hum python -m eval.hum_synth [--renders N]
+    uv run --extra hum python -m eval.hum_synth [--renders N] [--score tests/data/hum-targets.musicxml]
 
 Each melody is synthesised as a hummed voice (scoop into each note, vibrato, a tuning offset and drift, each note
 off pitch by 14 to 26 cents as HumTrans's hummers are, timing spread, a held or detached articulation, room noise
@@ -8,7 +8,8 @@ and a latency), in several renders with a different tonic, tempo and singer, the
 the grid the melody needs. The labels are exact, so a note is right when its
 pitch, up to one transposition, lands on its grid slot, and right in length when its written length is right too.
 Notes outside the melody's own mode are counted apart, since HumTrans is 98% diatonic and a clean-up that snaps
-toward the key wins there by never writing them.
+toward the key wins there by never writing them. --score writes the melodies as a score to play before humming each
+one, so the owner's takes of them are scored by eval.hum_takes against the same labels.
 """
 
 from __future__ import annotations
@@ -38,19 +39,19 @@ class Melody:
 
 
 MELODIES = [
-    Melody("steps and leaps in major", "control", "major",
+    Melody("major-steps", "control", "major",
            [(0, 4, 0), (4, 4, 4), (8, 4, 7), (12, 4, 4), (16, 2, 5), (18, 2, 4), (20, 2, 2), (22, 2, 0), (24, 8, 2),
             (32, 4, 7), (36, 4, 9), (40, 4, 7), (44, 4, 5), (48, 4, 4), (52, 4, 2), (56, 8, 0)]),
-    Melody("chromatic run up and down", "chromatic", "major",
+    Melody("chromatic-run", "chromatic", "major",
            [(0, 4, 0), (4, 2, 2), (6, 2, 3), (8, 2, 4), (10, 2, 5), (12, 2, 6), (14, 2, 7), (16, 8, 9),
             (24, 2, 8), (26, 2, 7), (28, 2, 6), (30, 2, 5), (32, 4, 4), (36, 4, 3), (40, 8, 2), (48, 8, 0)]),
-    Melody("chromatic neighbours", "chromatic", "major",
+    Melody("chromatic-neighbours", "chromatic", "major",
            [(0, 4, 7), (4, 2, 6), (6, 2, 7), (8, 4, 4), (12, 2, 3), (14, 2, 4), (16, 4, 0), (20, 4, 1), (24, 8, 2),
             (32, 4, 9), (36, 2, 8), (38, 2, 9), (40, 4, 11), (44, 4, 10), (48, 8, 12)]),
     Melody("blues", "chromatic", "major",
            [(0, 4, 0), (4, 4, 3), (8, 2, 5), (10, 2, 6), (12, 4, 7), (16, 4, 10), (20, 4, 7), (24, 8, 6),
             (32, 4, 5), (36, 4, 3), (40, 4, 0), (44, 4, 3), (48, 4, 4), (52, 4, 0), (56, 8, 0)]),
-    Melody("harmonic minor", "chromatic", "harmonic minor",
+    Melody("harmonic-minor", "chromatic", "harmonic minor",
            [(0, 4, 0), (4, 4, 3), (8, 4, 7), (12, 4, 8), (16, 4, 11), (20, 4, 12), (24, 8, 11),
             (32, 4, 8), (36, 4, 7), (40, 4, 5), (44, 4, 3), (48, 4, 2), (52, 4, -1), (56, 8, 0)]),
     Melody("dorian", "mode", "dorian",
@@ -71,16 +72,16 @@ MELODIES = [
     Melody("rests", "rhythm", "major",
            [(0, 2, 0), (4, 2, 4), (8, 2, 7), (12, 4, 12), (20, 4, 7), (24, 2, 4), (28, 4, 0),
             (32, 2, 5), (34, 2, 4), (36, 2, 2), (40, 4, 7), (48, 2, 0), (52, 2, 2), (56, 4, 0)]),
-    Melody("repeated notes", "rhythm", "major",
+    Melody("repeats", "rhythm", "major",
            [(0, 2, 4), (2, 2, 4), (4, 2, 4), (6, 2, 4), (8, 4, 5), (12, 4, 5), (16, 2, 7), (18, 2, 7), (20, 1, 7),
             (21, 1, 7), (22, 2, 7), (24, 8, 4), (32, 2, 2), (34, 2, 2), (36, 2, 2), (38, 2, 2), (40, 8, 0)]),
-    Melody("dotted rhythms and sixteenths", "rhythm", "major",
+    Melody("dotted", "rhythm", "major",
            [(0, 3, 0), (3, 1, 2), (4, 3, 4), (7, 1, 5), (8, 4, 7), (12, 1, 9), (13, 1, 7), (14, 1, 5), (15, 1, 4),
             (16, 6, 2), (22, 2, 4), (24, 8, 0), (32, 3, 7), (35, 1, 5), (36, 3, 4), (39, 1, 2), (40, 8, 0)]),
-    Melody("wide leaps", "control", "minor",
+    Melody("leaps", "control", "minor",
            [(0, 4, 0), (4, 4, 12), (8, 4, 7), (12, 4, -5), (16, 4, 3), (20, 4, 10), (24, 8, 8),
             (32, 4, 15), (36, 4, 3), (40, 4, 7), (44, 4, -2), (48, 8, 0)]),
-    Melody("chromatic waltz", "chromatic", "major",
+    Melody("chromatic-waltz", "chromatic", "major",
            [(0, 4, 4), (4, 4, 3), (8, 4, 4), (12, 8, 7), (20, 4, 6), (24, 4, 7), (28, 4, 9), (32, 4, 8),
             (36, 12, 7), (48, 4, 5), (52, 4, 4), (56, 4, 2), (60, 12, 0)], (3, 4)),
 ]
@@ -154,10 +155,35 @@ def scored(melody: Melody, singer: Singer, seed: int) -> dict[str, int]:
     return tally
 
 
+def write_score(path: str) -> None:
+    from music21 import clef, duration, expressions, meter, note, stream
+
+    part = stream.Part([clef.TrebleClef()])
+    for melody in MELODIES:
+        numerator, denominator = melody.meter
+        bar = numerator * 16 // denominator
+        end = max(slot + length for slot, length, _ in melody.notes)
+        measures = [stream.Measure() for _ in range(-(-end // bar))]
+        measures[0].append([meter.TimeSignature(f"{numerator}/{denominator}"), expressions.RehearsalMark(melody.name)])
+        at = 0
+        for slot, length, degree in melody.notes + [(len(measures) * bar, 0, 0)]:
+            if slot > at:
+                measures[at // bar].append(note.Rest(duration=duration.Duration(quarterLength=(slot - at) / 4)))
+            if length:
+                measures[slot // bar].append(note.Note(60 + degree, duration=duration.Duration(quarterLength=length / 4)))
+            at = slot + length
+        part.append(measures)
+    stream.Score([part]).write("musicxml", fp=path)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--renders", type=int, default=24, help="renders of each melody, each by another singer")
+    parser.add_argument("--score", help="write the melodies as MusicXML here instead")
     args = parser.parse_args()
+    if args.score:
+        write_score(args.score)
+        return
     voices = singers(args.renders)
     totals: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     for melody in MELODIES:

@@ -3,8 +3,9 @@
     uv run --extra hum python -m eval.hum_takes [--folder spikes/hum/takes] [--save-baseline]
     uv run --extra hum python -m eval.hum_takes --label <take> <tune | right>
 
-A take is scored once it is labelled: with a known tune, or 'right' when the notes it wrote were right, which makes
-them its answer. Pitches count up to one transposition, since people hum in a key of their own.
+A take is scored once it is labelled: with a known tune, with a melody of eval.hum_synth (played from
+tests/data/hum-targets.musicxml before humming it), or 'right' when the notes it wrote were right, which makes them
+its answer. Pitches count up to one transposition, since people hum in a key of their own.
 """
 
 from __future__ import annotations
@@ -16,19 +17,21 @@ from pathlib import Path
 
 import numpy as np
 
+from eval.hum_synth import MELODIES
 from reflets import hum, n1x
 from reflets.write import midi_tpc
 
 FOLDER = Path(__file__).parent.parent / "spikes" / "hum" / "takes"
 TUNES = {
-    "twinkle": [(0, 2, 0), (2, 2, 0), (4, 2, 7), (6, 2, 7), (8, 2, 9), (10, 2, 9), (12, 2, 7),
-                (16, 2, 5), (18, 2, 5), (20, 2, 4), (22, 2, 4), (24, 2, 2), (26, 2, 2), (28, 2, 0)],
-    "ode": [(0, 2, 4), (2, 2, 4), (4, 2, 5), (6, 2, 7), (8, 2, 7), (10, 2, 5), (12, 2, 4), (14, 2, 2),
-            (16, 2, 0), (18, 2, 0), (20, 2, 2), (22, 2, 4), (24, 3, 4), (27, 1, 2), (28, 4, 2)],
-    "frere": [(0, 2, 0), (2, 2, 2), (4, 2, 4), (6, 2, 0), (8, 2, 0), (10, 2, 2), (12, 2, 4), (14, 2, 0),
-              (16, 2, 4), (18, 2, 5), (20, 2, 7), (24, 2, 4), (26, 2, 5), (28, 2, 7)],
-    "mary": [(0, 2, 4), (2, 2, 2), (4, 2, 0), (6, 2, 2), (8, 2, 4), (10, 2, 4), (12, 2, 4),
-             (16, 2, 2), (18, 2, 2), (20, 2, 2), (24, 2, 4), (26, 2, 7), (28, 4, 7)],
+    "twinkle": [(0, 4, 0), (4, 4, 0), (8, 4, 7), (12, 4, 7), (16, 4, 9), (20, 4, 9), (24, 4, 7),
+                (32, 4, 5), (36, 4, 5), (40, 4, 4), (44, 4, 4), (48, 4, 2), (52, 4, 2), (56, 4, 0)],
+    "ode": [(0, 4, 4), (4, 4, 4), (8, 4, 5), (12, 4, 7), (16, 4, 7), (20, 4, 5), (24, 4, 4), (28, 4, 2),
+            (32, 4, 0), (36, 4, 0), (40, 4, 2), (44, 4, 4), (48, 6, 4), (54, 2, 2), (56, 8, 2)],
+    "frere": [(0, 4, 0), (4, 4, 2), (8, 4, 4), (12, 4, 0), (16, 4, 0), (20, 4, 2), (24, 4, 4), (28, 4, 0),
+              (32, 4, 4), (36, 4, 5), (40, 4, 7), (48, 4, 4), (52, 4, 5), (56, 4, 7)],
+    "mary": [(0, 4, 4), (4, 4, 2), (8, 4, 0), (12, 4, 2), (16, 4, 4), (20, 4, 4), (24, 4, 4),
+             (32, 4, 2), (36, 4, 2), (40, 4, 2), (48, 4, 4), (52, 4, 7), (56, 8, 7)],
+    **{melody.name: melody.notes for melody in MELODIES},
 }
 
 
@@ -68,8 +71,7 @@ def answer(meta: dict) -> list[tuple[int, int, int]] | None:
     if tune == "right":
         return written(meta)
     if tune in TUNES:
-        scale = meta["grid"] // 2
-        return [(slot * scale, length * scale, pitch) for slot, length, pitch in TUNES[tune]]
+        return [(slot * meta["grid"] // 4, length * meta["grid"] // 4, pitch) for slot, length, pitch in TUNES[tune]]
     return None
 
 
@@ -109,7 +111,7 @@ def main() -> None:
         totals += now[path.stem]
         before = baseline.get(path.stem)
         change = "" if not before or before == now[path.stem] else f"  (was {before[0]}/{before[1]}/{before[2]} extra)"
-        print(f"{path.stem}  {meta['tune']:8s} {placed}/{len(truth)} placed, {whole} with the right length, {extra} extra{change}")
+        print(f"{path.stem}  {meta['tune']:20s} {placed}/{len(truth)} placed, {whole} with the right length, {extra} extra{change}")
     placed, whole, extra, wanted = totals
     if wanted:
         print(f"all: {placed}/{wanted} placed ({placed / wanted:.3f}), {whole} right length ({whole / wanted:.3f}), {extra} extra")

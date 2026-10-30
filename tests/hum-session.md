@@ -61,3 +61,21 @@ uv run --extra hum python tests/live_hum.py --staff 1 --rhythm
 The first checks take 5 (refused before recording, as the staff has notes) and take 7 (moved into the chorale's key, bars appended and removed); the second take 6 (the bass register); the third take 9. Accuracy in 3/4 (take 8) is measured on HumTrans: `python -m eval.hum_eval --key --reflets --split train --meter 3/4`. Takes 10 and 11 still need headphones and the owner; take 12 is `keep`, covered by `tests/live_proposals.py`.
 
 Take `20261029-231528` (headphones, started an eighth late) is kept on purpose: its scoops land on beats as extra notes, so on a score that has notes, such as `bwv66.6`, its "in the score's key" check fails. That failure is expected, not a regression.
+
+## Unusual material (2026-10-30)
+
+HumTrans is 98% diatonic and the tunes above are too, so these takes check that the tool does not rewrite chromatic notes, modes and rhythms it rarely meets. Open `tests/data/hum-targets.musicxml` in MuseScore (an import; written by `python -m eval.hum_synth --score`): each melody starts at a rehearsal mark with its name. Play it once or twice, then hum it into a blank flute score at a tempo that is comfortable (80 to 100), on "da", and say the grid:
+
+| # | Melody (rehearsal mark) | Ask Claude | What it tests |
+|---|---|---|---|
+| 13 | `chromatic-run` | 4 bars, eighth grid | Every semitone from the 2nd to the 6th and back |
+| 14 | `chromatic-neighbours` | 4 bars, eighth grid | Notes a semitone below or above their neighbour |
+| 15 | `blues` | 4 bars, eighth grid | Flat third, flat fifth and flat seventh over a major tonic |
+| 16 | `harmonic-minor` | 4 bars, eighth grid | The raised seventh and its augmented second |
+| 17 | `dorian` | 4 bars, eighth grid | A minor tune with a raised sixth |
+| 18 | `syncopation` | 4 bars, eighth grid | Notes held across the beat |
+| 19 | `rests` | 4 bars, eighth grid | Short notes and rests; hum them detached |
+| 20 | `dotted` | 3 bars, sixteenth grid | Dotted eighths and sixteenths |
+| 21 | `chromatic-waltz` | 6 bars in 3/4, eighth grid | Chromatic notes in three beats |
+
+Label each take by its melody's name, `uv run --extra hum python -m eval.hum_takes --label <take> chromatic-run`, then save the baseline as above.
