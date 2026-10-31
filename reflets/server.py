@@ -838,7 +838,7 @@ async def hum(
     return " ".join(report) + "\n" + written
 
 
-TAKES_URL = "https://reflets-takes.invalid"
+TAKES_URL = "https://reflets-takes.awenda.workers.dev"
 TAKE_TYPES = {".wav": "audio/wav", ".json": "application/json"}
 
 
