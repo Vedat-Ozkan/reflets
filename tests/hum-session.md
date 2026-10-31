@@ -33,7 +33,7 @@ For each step, tell Claude what you will hum, hum after the count-in, then liste
 | 7 | A score with notes in another key (e.g. `tests/data/bwv66.6.musicxml`, add a staff or use bars past the end) | Twinkle past the last bar | Moved into the score's key; bars appended, removed again on discard |
 | 8 | New score, 3/4 | A waltz tune of your own, 4 bars | Bars of three beats |
 | 9 | Blank flute score | "Hum just a rhythm" (kind rhythm), 4 bars | One pitch, your rhythm |
-| 10 | Blank flute score, headphones on | Twinkle without calibrating | Claude says the delay is uncalibrated; the notes may land late |
+| 10 | Blank flute score, headphones on | Twinkle without calibrating | The delay is found from where the notes start (Claude says so); only if it is not, Claude says the delay is uncalibrated and the notes may land late |
 | 11 | Same, headphones | "Calibrate humming", then Twinkle again | Calibration reports a delay; the notes land on the beats |
 | 12 | Blank flute score | Any take, then keep it | Notes turn black |
 

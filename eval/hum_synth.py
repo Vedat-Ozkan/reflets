@@ -23,6 +23,7 @@ import numpy as np
 
 from reflets import hum
 
+
 @dataclass
 class Melody:
     name: str
@@ -140,7 +141,7 @@ def scored(melody: Melody, singer: Singer, seed: int) -> dict[str, int]:
     beat = 60 / singer.tempo * 4 / denominator
     bar = numerator * grid * 4 // denominator
     end = max(slot + length for slot, length, _ in melody.notes) // scale
-    result = hum.transcribe(sung(melody, singer, seed), beat, grid, singer.latency, -(-end // bar) * bar)
+    result = hum.transcribe(sung(melody, singer, seed), beat, grid, singer.latency, 0, -(-end // bar) * bar)
     notes = result.notes if result else []
     truth = [(slot // scale, length // scale, singer.tonic + degree) for slot, length, degree in melody.notes]
 

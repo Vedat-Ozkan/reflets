@@ -22,6 +22,7 @@ from reflets import hum, n1x
 from reflets.write import midi_tpc
 
 FOLDER = Path(__file__).parent.parent / "spikes" / "hum" / "takes"
+MEASURED = ("echo", "measured from the click this take")
 TUNES = {
     "twinkle": [(0, 4, 0), (4, 4, 0), (8, 4, 7), (12, 4, 7), (16, 4, 9), (20, 4, 9), (24, 4, 7),
                 (32, 4, 5), (36, 4, 5), (40, 4, 4), (44, 4, 4), (48, 4, 2), (52, 4, 2), (56, 4, 0)],
@@ -45,7 +46,8 @@ def transcribed(audio: np.ndarray, meta: dict) -> list[hum.Placed]:
     numerator, denominator = (int(x) for x in meta["meter"].split("/"))
     grid = meta["grid"]
     slots = meta["bars"] * numerator * 4 // denominator * grid
-    result = hum.transcribe(audio[meta["starts"][numerator]:], 60 / meta["tempo"], grid, meta["latency"], slots, max(1, grid * 4 // denominator))
+    reach = 0 if meta["timing"] in MEASURED else hum.DELAY_RANGE
+    result = hum.transcribe(audio[meta["starts"][numerator]:], 60 / meta["tempo"], grid, meta["latency"], reach, slots, max(1, grid * 4 // denominator))
     return result.notes if result else []
 
 

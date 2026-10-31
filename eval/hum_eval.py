@@ -129,7 +129,7 @@ def reflets_grid(path: Path, latency, sixteenth, step, last_end):
 
     audio, rate = soundfile.read(path, always_2d=True)
     mono = soxr.resample(audio.mean(axis=1), rate, hum.RATE).astype(np.float32)
-    result = hum.transcribe(mono, 4 * sixteenth, 4 // step, latency, last_end // step + 8)
+    result = hum.transcribe(mono, 4 * sixteenth, 4 // step, latency, 0, last_end // step + 8)
     notes = result.notes if result else []
     return (np.array([n.slot * step for n in notes], int), np.array([(n.slot + n.length) * step for n in notes], int),
             np.array([n.pitch for n in notes], float))

@@ -26,6 +26,10 @@ PUSH_RISE = 8
 PUSH_FALL = 6
 PUSH_CLEAR = 0.2
 ONSET_PULL = 0.2
+ALIGNED = 0.5
+ALIGNED_NOTES = 8
+ALIGNED_MARGIN = 0.2
+DELAY_RANGE = 0.5
 FRAME = 160
 
 
@@ -250,13 +254,15 @@ class Transcription:
     notes: list[Placed]
     key: Key
     tuning: float
+    latency: float
 
 
-def transcribe(audio: np.ndarray, beat: float, grid: int, latency: float, slots: int, click: int | None = None) -> Transcription | None:
+def transcribe(audio: np.ndarray, beat: float, grid: int, guess: float, reach: float, slots: int, click: int | None = None) -> Transcription | None:
     step = beat / grid
     sung = track(audio)
     if not sung:
         return None
+    latency = aligned_latency(sung, step, click or grid, guess, reach)
     sung, tuning = tuned(sung)
     key = find_key(sung)
     sung = absorb_short(sung, SHORT_STEPS * step, SCOOP_STEPS * step)
@@ -264,7 +270,7 @@ def transcribe(audio: np.ndarray, beat: float, grid: int, latency: float, slots:
     sung = split_pushes(sung, level, step, latency)
     sung, pitches = join_unpushed(sung, fix_octaves(in_key(sung, key)), level)
     notes = snap(sung, pitches, step, latency, slots, click or grid)
-    return Transcription(notes, key, tuning)
+    return Transcription(notes, key, tuning, latency)
 
 
 CENTRES = [
@@ -318,6 +324,23 @@ def voice_lines(notes: list[Placed], bar_slots: list[int], div_per_slot: int, fi
         lines.append(" ".join(tokens) or f"{length * div_per_slot} r")
         start = end
     return lines
+
+
+def aligned_latency(sung: list[Sung], step: float, beat: int, guess: float, reach: float) -> float:
+    onsets = np.array([s.start for s in sung])
+    half = max(1, beat // 2)
+    period = step * half
+    pull = np.mean(np.exp(2j * np.pi * onsets / period)) if len(onsets) else 0
+    if len(onsets) < ALIGNED_NOTES or abs(pull) < ALIGNED:
+        return guess
+    fine = float(np.angle(pull)) / (2 * np.pi) * period
+    first = fine + period * math.ceil((guess - reach - period / 2 - fine) / period)
+    candidates = np.arange(first, guess + reach + period / 2, period)
+    on_beat = np.array([np.mean(np.round((onsets - c) / step) % beat == 0) for c in candidates])
+    likely = candidates[on_beat > on_beat.max() - ALIGNED_MARGIN]
+    whole_beats = np.round((likely - likely[0]) / period) % (beat // half) == 0
+    pool = likely if whole_beats.all() else candidates
+    return float(min(pool, key=lambda c: abs(c - guess)))
 
 
 def calibration(audio: np.ndarray, clicks: list[float]) -> float | None:

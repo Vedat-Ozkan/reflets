@@ -59,7 +59,7 @@ To work on Reflets itself, clone this repository, run `uv sync`, copy `.mcp.json
 ## Use
 
 1. Open a score in MuseScore and run Plugins > Reflets Bridge once per session. It keeps running until MuseScore quits. A small blue pill at the top middle of MuseScore's window says "Reflets listening" when it starts, and for a few seconds after each thing Reflets does (connected, wrote an idea, kept it, undo). It shows only over MuseScore: if you are in another app, it waits until you switch back. After each idea is written, MuseScore scrolls to it and selects it, so Play starts just before it.
-2. Ask Claude about the score, or to let you hum a line ("let me hum a melody into the flute from bar 9"). Reflets plays a bar of count-in clicks, then records you for the bars asked while the click goes on, and writes what you hummed as a blue idea. Speakers work best: each take then measures the delay between click and microphone from its own clicks. On headphones, ask Claude to calibrate humming once per device (you say "ta" on 8 clicks).
+2. Ask Claude about the score, or to let you hum a line ("let me hum a melody into the flute from bar 9"). Reflets plays a bar of count-in clicks, then records you for the bars asked while the click goes on, and writes what you hummed as a blue idea. Speakers work best: each take then measures the delay between click and microphone from its own clicks. On headphones the delay is found from where your notes start; if notes still land late or early, ask Claude to calibrate humming (you say "ta" on 8 clicks).
    With scores open in several MuseScore windows, run the bridge in each; Claude works on the window you used last, so click into a window to work on its score.
 
 ## Docs

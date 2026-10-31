@@ -254,3 +254,7 @@ Every test reference note, with the tracked note under its middle rounded to a s
 | 0.15 (today) | .805 / .799 | .858 / .857 | 66 of 204 | .807 / .852 | 641 of 840 | .903 | 130 of 154, 13 |
 | 0.25 | .798 / .791 | .853 / .852 | 95 of 204 | .833 / .873 | 718 of 840 | .903 | 129 of 154, 14 |
 | no clean-up (both rules off) | .751 / .741 | .821 / .818 | 134 of 217 | .838 / .872 | 784 of 840 | .875 | 125 of 154, 18 |
+
+## The delay from the hummed onsets (2026-10-30)
+
+On headphones the click has no echo, and a stored calibration is wrong when the device changes: under WSL every device is `default / default`. The owner's take `20261029-231528`, transcribed with its stored 209 ms, scored 2 of 14 notes right; its onsets put it at 434 ms. `hum.aligned_latency` takes the phase of the hummed onsets on the eighth-note grid and, of the eighth-note shifts within a reach of the delay given, the one that puts the most onsets on beats; when shifts that disagree on where the beat falls come within 0.2 of the best, it takes the shift nearest the given delay. On HumTrans clips with the given delay moved 50, 150 or 250 ms from the reference, it finds the reference within 40 ms on 72%, 58% and 26% of test clips on the 16th grid (90%, 68%, 33% on the 8th), and otherwise keeps the delay given (27%, too few clustered onsets) or lands elsewhere. With the reference delay given and a reach of zero (as when the echo was heard) HumTrans is unchanged within .002 and the synthesised set within .001. The owner's takes: 130 → 142 of 154 right length, 13 → 3 extra.

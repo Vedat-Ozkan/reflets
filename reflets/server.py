@@ -623,6 +623,7 @@ async def keep(proposal_id: str) -> str:
 
 
 LONGEST_TAKE = 40
+ALIGNED_CHANGE = 0.01
 CALIBRATION_CLICKS = 8
 HUM_SETUP = (
     "Humming needs the audio extra: install Reflets with uvx --from 'reflets[hum] @ git+…' (see the README); on Linux "
@@ -660,8 +661,9 @@ def tempo_at(info: ScoreInfo, position: int) -> float | None:
         "them. kind='rhythm' writes only the rhythm, on one pitch. If the score has no notes and its key is C, the "
         "key heard is written as the key signature; if the score has notes in another key, the humming is moved "
         "to that key, as most people hum in a key of their own. replace=True as for propose. calibrate=True "
-        "measures the delay between click and microphone instead: 8 clicks, the user says 'ta' on each; needed once "
-        "per audio device when using headphones, since on speakers each take measures the delay from its own clicks."
+        "measures the delay between click and microphone instead: 8 clicks, the user says 'ta' on each. On speakers "
+        "each take measures the delay from its own clicks; on headphones it is found from where the hummed notes "
+        "start, so calibrate only if the notes still land late or early."
     ),
     annotations=writes("Hum a line", destructive=True),
     structured_output=False,
@@ -734,9 +736,12 @@ async def hum(
     first = starts[numerator]
     slots = int(bars * bar_quarters * grid)
     click_slots = max(1, int(grid * 4 // denominator))
-    result = await asyncio.to_thread(humming.transcribe, take.audio[first:], 60 / tempo, grid, latency, slots, click_slots)
+    reach = 0 if heard is not None else humming.DELAY_RANGE
+    result = await asyncio.to_thread(humming.transcribe, take.audio[first:], 60 / tempo, grid, latency, reach, slots, click_slots)
     if not result or not result.notes:
         raise ToolError("No humming was heard after the count-in. Check the microphone, then try again.")
+    if abs(result.latency - latency) > ALIGNED_CHANGE:
+        latency, timing = result.latency, f"found from where the notes start, {timing} {1000 * latency:.0f} ms"
     score_has_notes = any(event.pitch for measure in index.measures for event in measure.events)
     signature = key_fifths(key_at(info, info.ticks[position]))
     pitches = [note.pitch for note in result.notes]

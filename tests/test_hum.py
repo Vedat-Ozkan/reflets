@@ -24,7 +24,7 @@ def sung(tonic: int, beat: float, latency: float, cents: float) -> np.ndarray:
 
 
 def test_twinkle_in_b_major_sung_sharp_with_latency():
-    result = hum.transcribe(sung(47, 60 / 90, 0.19, 20), 60 / 90, 2, 0.19, 32)
+    result = hum.transcribe(sung(47, 60 / 90, 0.19, 20), 60 / 90, 2, 0.19, 0, 32)
     assert result.key.name == "B major"
     lines = hum.voice_lines(result.notes, [8] * 4, 24, result.key.fifths)
     assert lines == [
@@ -46,5 +46,5 @@ def test_clicks_and_room_noise_give_no_notes():
 
     clicks, _ = audio.click_track(60 / 90, 4, 20)
     room = 0.003 * np.random.default_rng(2).standard_normal(len(clicks)).astype(np.float32)
-    result = hum.transcribe(0.3 * clicks + room, 60 / 90, 2, 0.19, 32)
+    result = hum.transcribe(0.3 * clicks + room, 60 / 90, 2, 0.19, 0, 32)
     assert result is None or not result.notes
