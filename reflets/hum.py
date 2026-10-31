@@ -25,6 +25,11 @@ TOUCHING = 0.06
 PUSH_RISE = 8
 PUSH_FALL = 6
 PUSH_CLEAR = 0.2
+PUSH_DIP_BEFORE = 15
+PUSH_DIP_AFTER = 3
+PUSH_RISE_FRAMES = 12
+PUSH_FALL_FROM = 20
+PUSH_FALL_TO = 8
 ONSET_PULL = 0.2
 ALIGNED = 0.5
 ALIGNED_NOTES = 8
@@ -32,6 +37,14 @@ ALIGNED_MARGIN = 0.2
 DELAY_RANGE = 0.5
 KEY_NOTES = 8
 FRAME = 160
+VOICED = 0.9
+SETTLE = 0.08
+SETTLE_SHARE = 0.25
+RELEASE_SHARE = 0.1
+CALIBRATION_EARLY = 0.15
+CALIBRATION_LATE = 0.6
+CALIBRATION_AGREE = 0.05
+CALIBRATION_HEARD = 0.6
 
 
 @dataclass
@@ -94,10 +107,10 @@ def detector() -> swift_f0.SwiftF0:
 def track(audio: np.ndarray) -> list[Sung]:
     result = detector().detect(audio.astype(np.float32), RATE)
     found = swift_f0.segment_notes(result, pitch_hold_ms=80)
-    times, hz, voiced = np.asarray(result.timestamps), np.asarray(result.pitch_hz), np.asarray(result.confidence) > 0.9
+    times, hz, voiced = np.asarray(result.timestamps), np.asarray(result.pitch_hz), np.asarray(result.confidence) > VOICED
     sung = []
     for n in found:
-        settled = voiced & (times >= n.start + min(0.08, 0.25 * (n.end - n.start))) & (times <= n.end - 0.1 * (n.end - n.start))
+        settled = voiced & (times >= n.start + min(SETTLE, SETTLE_SHARE * (n.end - n.start))) & (times <= n.end - RELEASE_SHARE * (n.end - n.start))
         pitch = np.median(hz[settled]) if settled.any() else n.pitch_hz
         sung.append(Sung(n.start, n.end, 69 + 12 * np.log2(pitch / 440)))
     return sung
@@ -177,10 +190,11 @@ def loudness(audio: np.ndarray) -> np.ndarray:
 
 def pushed(level: np.ndarray, at: float) -> bool | None:
     i = int(at * RATE / FRAME)
-    if i < 20 or i + 12 > len(level):
+    if i < PUSH_FALL_FROM or i + PUSH_RISE_FRAMES > len(level):
         return None
-    dip = level[i - 15:i + 3].min()
-    return bool(level[i:i + 12].max() - dip >= PUSH_RISE and level[i - 20:i - 8].mean() - dip >= PUSH_FALL)
+    dip = level[i - PUSH_DIP_BEFORE:i + PUSH_DIP_AFTER].min()
+    return bool(level[i:i + PUSH_RISE_FRAMES].max() - dip >= PUSH_RISE
+                and level[i - PUSH_FALL_FROM:i - PUSH_FALL_TO].mean() - dip >= PUSH_FALL)
 
 
 def split_pushes(sung: list[Sung], level: np.ndarray, step: float, latency: float) -> list[Sung]:
@@ -209,20 +223,20 @@ def join_unpushed(sung: list[Sung], pitches: list[int], level: np.ndarray) -> tu
     return out, kept
 
 
-def strength(slot: int, beat: int) -> int:
-    return 0 if slot % beat == 0 else 1 if beat % 2 == 0 and slot % (beat // 2) == 0 else 2
+def strength(slot: int, click_slots: int) -> int:
+    return 0 if slot % click_slots == 0 else 1 if click_slots % 2 == 0 and slot % (click_slots // 2) == 0 else 2
 
 
-def onset_slot(at: float, beat: int) -> int:
+def onset_slot(at: float, click_slots: int) -> int:
     low = math.floor(at)
-    return min((low, low + 1), key=lambda slot: abs(at - slot) + ONSET_PULL * strength(slot, beat))
+    return min((low, low + 1), key=lambda slot: abs(at - slot) + ONSET_PULL * strength(slot, click_slots))
 
 
-def snap(sung: list[Sung], pitches: list[int], step: float, latency: float, slots: int, beat: int) -> list[Placed]:
+def snap(sung: list[Sung], pitches: list[int], step: float, latency: float, slots: int, click_slots: int) -> list[Placed]:
     placed: list[Placed] = []
     held = 0.0
     for s, pitch in zip(sung, pitches):
-        slot = onset_slot((s.start - latency) / step, beat)
+        slot = onset_slot((s.start - latency) / step, click_slots)
         end = max(slot + 1, round((s.end - latency) / step))
         if end <= 0 or slot >= slots:
             continue
@@ -236,7 +250,7 @@ def snap(sung: list[Sung], pitches: list[int], step: float, latency: float, slot
             placed[-1].length = slot - placed[-1].slot
         placed.append(Placed(slot, min(end, slots) - slot, pitch))
     for a, following in zip(placed, [p.slot for p in placed[1:]] + [slots]):
-        if following - (a.slot + a.length) < beat:
+        if following - (a.slot + a.length) < click_slots:
             a.length = following - a.slot
     return placed
 
@@ -251,15 +265,15 @@ class Transcription:
     as_given: list[Placed] | None
 
 
-def transcribe(audio: np.ndarray, beat: float, grid: int, guess: float, reach: float, slots: int, click: int | None = None,
-               known: Key | None = None) -> Transcription | None:
-    step = beat / grid
+def transcribe(audio: np.ndarray, quarter: float, grid: int, guess: float, reach: float, slots: int,
+               click_slots: int | None = None, known: Key | None = None) -> Transcription | None:
+    step = quarter / grid
     sung = track(audio)
     if not sung:
         return None
-    beat_slots = click or grid
-    latency = aligned_latency(sung, step, beat_slots, guess, reach)
-    given = aligned_latency(sung, step, beat_slots, guess, 0)
+    click_slots = click_slots or grid
+    latency = aligned_latency(sung, step, click_slots, guess, reach)
+    given = aligned_latency(sung, step, click_slots, guess, 0)
     sung, tuning = tuned(sung)
     key = known if known and len(sung) < KEY_NOTES else find_key(sung)
     sung = absorb_short(sung, SHORT_STEPS * step, SCOOP_STEPS * step)
@@ -268,7 +282,7 @@ def transcribe(audio: np.ndarray, beat: float, grid: int, guess: float, reach: f
     def placed(at: float) -> list[Placed]:
         split = split_pushes(sung, level, step, at)
         split, pitches = join_unpushed(split, in_key(split, key), level)
-        return snap(split, pitches, step, at, slots, beat_slots)
+        return snap(split, pitches, step, at, slots, click_slots)
 
     shifted = abs(latency - given) > step / 4
     return Transcription(placed(latency), key, tuning, latency, given, placed(given) if shifted else None)
@@ -334,9 +348,9 @@ def voice_lines(notes: list[Placed], bar_slots: list[int], div_per_slot: int, fi
     return lines
 
 
-def aligned_latency(sung: list[Sung], step: float, beat: int, guess: float, reach: float) -> float:
+def aligned_latency(sung: list[Sung], step: float, click_slots: int, guess: float, reach: float) -> float:
     onsets = np.array([s.start for s in sung])
-    half = max(1, beat // 2)
+    half = max(1, click_slots // 2)
     period = step * half
     pull = np.mean(np.exp(2j * np.pi * onsets / period)) if len(onsets) else 0
     if len(onsets) < ALIGNED_NOTES or abs(pull) < ALIGNED:
@@ -344,10 +358,10 @@ def aligned_latency(sung: list[Sung], step: float, beat: int, guess: float, reac
     fine = float(np.angle(pull)) / (2 * np.pi) * period
     first = fine + period * math.ceil((guess - reach - period / 2 - fine) / period)
     candidates = np.arange(first, guess + reach + period / 2, period)
-    on_beat = np.array([np.mean(np.round((onsets - c) / step) % beat == 0) for c in candidates])
-    likely = candidates[on_beat > on_beat.max() - ALIGNED_MARGIN]
-    whole_beats = np.round((likely - likely[0]) / period) % (beat // half) == 0
-    pool = likely if whole_beats.all() else candidates
+    on_click = np.array([np.mean(np.round((onsets - c) / step) % click_slots == 0) for c in candidates])
+    likely = candidates[on_click > on_click.max() - ALIGNED_MARGIN]
+    whole_clicks = np.round((likely - likely[0]) / period) % (click_slots // half) == 0
+    pool = likely if whole_clicks.all() else candidates
     return float(min(pool, key=lambda c: abs(c - guess)))
 
 
@@ -355,11 +369,11 @@ def calibration(audio: np.ndarray, clicks: list[float]) -> float | None:
     sung = track(audio)
     offsets = []
     for at in clicks:
-        near = [s for s in sung if -0.15 < s.start - at < 0.6]
+        near = [s for s in sung if -CALIBRATION_EARLY < s.start - at < CALIBRATION_LATE]
         if near:
             offsets.append(max(near, key=lambda s: s.end - s.start).start - at)
-    if len(offsets) < len(clicks) * 0.6:
+    if len(offsets) < len(clicks) * CALIBRATION_HEARD:
         return None
     middle = float(np.median(offsets))
-    agreeing = [o for o in offsets if abs(o - middle) < 0.05]
-    return float(np.median(agreeing)) if len(agreeing) >= len(clicks) * 0.6 else None
+    agreeing = [o for o in offsets if abs(o - middle) < CALIBRATION_AGREE]
+    return float(np.median(agreeing)) if len(agreeing) >= len(clicks) * CALIBRATION_HEARD else None

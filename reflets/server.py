@@ -689,8 +689,8 @@ async def hum(
         raise ToolError("tempo is 20 to 300 quarter notes per minute.")
     folder = token_file().parent
     if calibrate:
-        beat = 60 / (tempo or 90)
-        play, starts = audio.click_track(beat, 4, CALIBRATION_CLICKS)
+        click = 60 / (tempo or 90)
+        play, starts = audio.click_track(click, 4, CALIBRATION_CLICKS)
         try:
             take = await asyncio.to_thread(audio.record, play, starts)
         except Exception as error:
@@ -729,16 +729,16 @@ async def hum(
     numerator, denominator = (int(x) for x in info.measures[position].meter.split("/"))
     marked = tempo_at(info, numbers.index(start_bar) if start_bar in numbers else len(numbers))
     tempo = tempo or marked or 90
-    beat = 60 / tempo * 4 / denominator
+    click = 60 / tempo * 4 / denominator
     bar_quarters = Fraction(4 * numerator, denominator)
     if (bar_quarters * grid).denominator != 1:
         raise ToolError(f"A {info.measures[position].meter} bar is not a whole number of {'eighths' if grid == 2 else 'sixteenths'}"
                         + ("; use grid=4." if grid == 2 and (bar_quarters * 4).denominator == 1 else "; this meter cannot be hummed yet."))
     if tune and info.measures[position].meter != "{}/{}".format(*tune.meter):
         raise ToolError(f"{test} is in {'{}/{}'.format(*tune.meter)}; hum it where the score is in that meter, or in a new score.")
-    if (bars + 1) * numerator * beat > LONGEST_TAKE:
+    if (bars + 1) * numerator * click > LONGEST_TAKE:
         raise ToolError(f"That take would last over {LONGEST_TAKE} seconds; hum fewer bars at a time.")
-    play, starts = audio.click_track(beat, numerator, (bars + 1) * numerator)
+    play, starts = audio.click_track(click, numerator, (bars + 1) * numerator)
     try:
         if tune:
             await asyncio.to_thread(audio.play, audio.melody_track(tune.notes, TEST_TONIC, 15 / tempo))
