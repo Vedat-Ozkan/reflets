@@ -626,6 +626,8 @@ def decode_voice(text: str, div: int, where: str) -> Voice:
                 actual, normal, bracketed = group.groups()
                 stack.append((time, f"{actual}:{normal}" if actual else "", names(bracketed)))
             elif token.isdigit():
+                if int(token) == 0:
+                    raise DecodeError("a duration is at least 1")
                 current = Fraction(int(token), div)
                 voice.timed = True
             elif re.fullmatch(r"r(\[[^\]]*\])?", token):
@@ -679,8 +681,6 @@ def decode(text: str) -> Idea:
                 if not equals:
                     raise DecodeError(f"{words[0]}: {word!r} is not a field like len=192")
                 fields[name] = value
-            if any(earlier.number == int(words[0][1:]) for earlier in idea.bars):
-                raise DecodeError(f"{words[0]} is written twice; write each bar once")
             bar = IdeaBar(int(words[0][1:]), fields, {})
             idea.bars.append(bar)
             continue

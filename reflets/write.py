@@ -112,7 +112,7 @@ def pieces(quarters: Fraction, where: str) -> list[Fraction]:
     while whole:
         value = next((value for value in VALUES if value <= whole), None)
         if value is None:
-            raise IdeaError(f"{where}: a duration of {quarters} quarter notes is shorter than a 128th note")
+            raise IdeaError(f"{where}: this duration needs a note value shorter than a 128th note")
         result.append(value)
         whole -= value
     return result
@@ -457,9 +457,14 @@ def kept_chord(chord: n1x.Chord, old: n1x.Chord | None, where: str) -> n1x.Chord
 
 def parsed(text: str) -> n1x.Idea:
     try:
-        return n1x.decode(text)
+        idea = n1x.decode(text)
     except n1x.DecodeError as error:
         raise IdeaError(str(error)) from None
+    written = [(bar.number, cell) for bar in idea.bars for cell in bar.voices]
+    for number, (staff, layer) in written:
+        if written.count((number, (staff, layer))) > 1:
+            raise IdeaError(f"m{number} {staff}.{layer} is written twice; write each voice of a bar once")
+    return idea
 
 
 def idea_range(idea: n1x.Idea, info: ScoreInfo) -> tuple[int, int]:
