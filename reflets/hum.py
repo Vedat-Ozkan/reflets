@@ -255,6 +255,8 @@ class Transcription:
     key: Key
     tuning: float
     latency: float
+    given: float
+    as_given: list[Placed] | None
 
 
 def transcribe(audio: np.ndarray, beat: float, grid: int, guess: float, reach: float, slots: int, click: int | None = None) -> Transcription | None:
@@ -262,15 +264,21 @@ def transcribe(audio: np.ndarray, beat: float, grid: int, guess: float, reach: f
     sung = track(audio)
     if not sung:
         return None
-    latency = aligned_latency(sung, step, click or grid, guess, reach)
+    beat_slots = click or grid
+    latency = aligned_latency(sung, step, beat_slots, guess, reach)
+    given = aligned_latency(sung, step, beat_slots, guess, 0)
     sung, tuning = tuned(sung)
     key = find_key(sung)
     sung = absorb_short(sung, SHORT_STEPS * step, SCOOP_STEPS * step)
     level = loudness(audio)
-    sung = split_pushes(sung, level, step, latency)
-    sung, pitches = join_unpushed(sung, fix_octaves(in_key(sung, key)), level)
-    notes = snap(sung, pitches, step, latency, slots, click or grid)
-    return Transcription(notes, key, tuning, latency)
+
+    def placed(at: float) -> list[Placed]:
+        split = split_pushes(sung, level, step, at)
+        split, pitches = join_unpushed(split, fix_octaves(in_key(split, key)), level)
+        return snap(split, pitches, step, at, slots, beat_slots)
+
+    shifted = abs(latency - given) > step / 4
+    return Transcription(placed(latency), key, tuning, latency, given, placed(given) if shifted else None)
 
 
 def hummed(audio: np.ndarray, starts: list[int], tempo: float, meter: str, bars: int, grid: int, guess: float, reach: float) -> Transcription | None:

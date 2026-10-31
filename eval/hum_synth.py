@@ -79,6 +79,12 @@ MELODIES = [
     Melody("chromatic-waltz", "chromatic", "major",
            [(0, 4, 4), (4, 4, 3), (8, 4, 4), (12, 8, 7), (20, 4, 6), (24, 4, 7), (28, 4, 9), (32, 4, 8),
             (36, 12, 7), (48, 4, 5), (52, 4, 4), (56, 4, 2), (60, 12, 0)], (3, 4)),
+    Melody("offbeat", "rhythm", "major",
+           [(2, 2, 0), (6, 2, 2), (10, 2, 4), (14, 2, 2), (18, 2, 4), (22, 2, 5), (26, 2, 7), (30, 2, 5),
+            (34, 2, 7), (38, 2, 9), (42, 2, 7), (46, 2, 5), (50, 2, 4), (54, 2, 2), (58, 2, 0), (62, 2, 0)]),
+    Melody("anticipated", "rhythm", "major",
+           [(0, 6, 0), (6, 4, 2), (10, 4, 4), (14, 2, 5), (16, 6, 7), (22, 4, 5), (26, 4, 4), (30, 2, 2),
+            (32, 6, 4), (38, 4, 5), (42, 4, 7), (46, 2, 9), (48, 6, 7), (54, 4, 4), (58, 6, 0)]),
 ]
 
 
@@ -134,17 +140,21 @@ def sung(melody: Melody, singer: Singer, seed: int) -> np.ndarray:
     return (0.2 * voice * level + 0.004 * rng.standard_normal(size)).astype(np.float32)
 
 
-def scored(melody: Melody, singer: Singer, seed: int) -> dict[str, int]:
+def scored(melody: Melody, singer: Singer, seed: int, reach: float) -> tuple[dict[str, int], dict[str, int]]:
     grid = 2 if all(slot % 2 == 0 and length % 2 == 0 for slot, length, _ in melody.notes) else 4
     scale = 4 // grid
     numerator, denominator = melody.meter
-    beat = 60 / singer.tempo * 4 / denominator
     bar = numerator * grid * 4 // denominator
     end = max(slot + length for slot, length, _ in melody.notes) // scale
-    result = hum.transcribe(sung(melody, singer, seed), beat, grid, singer.latency, 0, -(-end // bar) * bar)
-    notes = result.notes if result else []
+    result = hum.transcribe(sung(melody, singer, seed), 60 / singer.tempo, grid, singer.latency, reach, -(-end // bar) * bar,
+                            max(1, grid * 4 // denominator))
     truth = [(slot // scale, length // scale, singer.tonic + degree) for slot, length, degree in melody.notes]
+    main = tally(melody, result.notes if result else [], truth)
+    given = tally(melody, result.as_given, truth) if result and result.as_given is not None else main
+    return main, max(main, given, key=lambda t: t["whole"])
 
+
+def tally(melody: Melody, notes: list[hum.Placed], truth: list[tuple[int, int, int]]) -> dict[str, int]:
     def counts(shift: int) -> tuple[int, int]:
         found = {(n.slot, n.pitch + shift): n.length for n in notes}
         return sum(found.get((s, p)) == length for s, length, p in truth), sum((s, p) in found for s, _, p in truth)
@@ -153,13 +163,13 @@ def scored(melody: Melody, singer: Singer, seed: int) -> dict[str, int]:
     found = {(n.slot, n.pitch + shift): n.length for n in notes}
     scale_steps = hum.MAJOR_STEPS if melody.key == "major" else hum.MINOR_STEPS
     outside = [(degree % 12) not in scale_steps for _, _, degree in melody.notes]
-    tally = {"notes": len(truth), "placed": 0, "whole": 0, "found": len(notes), "outside": sum(outside), "outside placed": 0}
+    counted = {"notes": len(truth), "placed": 0, "whole": 0, "found": len(notes), "outside": sum(outside), "outside placed": 0}
     for (s, length, p), out in zip(truth, outside):
         if (s, p) in found:
-            tally["placed"] += 1
-            tally["whole"] += found[s, p] == length
-            tally["outside placed"] += out
-    return tally
+            counted["placed"] += 1
+            counted["whole"] += found[s, p] == length
+            counted["outside placed"] += out
+    return counted
 
 
 def write_score(path: str) -> None:
@@ -191,19 +201,27 @@ def main() -> None:
     if args.score:
         write_score(args.score)
         return
-    voices = singers(args.renders)
-    totals: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    print(f"{len(MELODIES)} melodies, {args.renders} renders each; recall / precision")
+    paths = [("delay measured", 0, 0), ("delay searched", hum.DELAY_RANGE, 0), ("searched, or as given", hum.DELAY_RANGE, 1)]
+    for label, by_kind in zip([label for label, *_ in paths], totals(singers(args.renders), paths)):
+        print(label)
+        for kind in ["control", "chromatic", "mode", "rhythm", "all"]:
+            t = by_kind[kind]
+            outside = f", outside the key {t['outside placed']}/{t['outside']} placed" if t["outside"] else ""
+            print(f"  {kind:10} on the slot {t['placed'] / t['notes']:.3f} / {t['placed'] / t['found']:.3f}, "
+                  f"right length {t['whole'] / t['notes']:.3f} / {t['whole'] / t['found']:.3f}{outside}")
+
+
+def totals(voices: list[Singer], paths: list[tuple[str, float, int]]) -> list[dict[str, dict[str, int]]]:
+    results = [defaultdict(lambda: defaultdict(int)) for _ in paths]
     for melody in MELODIES:
         for seed, singer in enumerate(voices):
-            for key, value in scored(melody, singer, seed).items():
-                totals[melody.kind][key] += value
-                totals["all"][key] += value
-    print(f"{len(MELODIES)} melodies, {args.renders} renders each; recall / precision")
-    for kind in ["control", "chromatic", "mode", "rhythm", "all"]:
-        t = totals[kind]
-        outside = f", outside the key {t['outside placed']}/{t['outside']} placed" if t["outside"] else ""
-        print(f"{kind:10} on the slot {t['placed'] / t['notes']:.3f} / {t['placed'] / t['found']:.3f}, "
-              f"right length {t['whole'] / t['notes']:.3f} / {t['whole'] / t['found']:.3f}{outside}")
+            readings = {reach: scored(melody, singer, seed, reach) for reach in {reach for _, reach, _ in paths}}
+            for (_, reach, reading), result in zip(paths, results):
+                for key, value in readings[reach][reading].items():
+                    result[melody.kind][key] += value
+                    result["all"][key] += value
+    return results
 
 
 if __name__ == "__main__":

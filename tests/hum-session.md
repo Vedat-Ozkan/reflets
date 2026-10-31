@@ -77,5 +77,7 @@ HumTrans is 98% diatonic and the tunes above are too, so these takes check that 
 | 19 | `rests` | 4 bars, eighth grid | Short notes and rests; hum them detached |
 | 20 | `dotted` | 3 bars, sixteenth grid | Dotted eighths and sixteenths |
 | 21 | `chromatic-waltz` | 6 bars in 3/4, eighth grid | Chromatic notes in three beats |
+| 22 | `offbeat` | 4 bars, eighth grid | Every note on the "and", rests on the beats; on headphones Claude should offer the reading at the delay as given |
+| 23 | `anticipated` | 4 bars, eighth grid | A pop line that pushes three notes in four ahead of the beat |
 
 Label each take by its melody's name, `uv run --extra hum python -m eval.hum_takes --label <take> chromatic-run`, then save the baseline as above.

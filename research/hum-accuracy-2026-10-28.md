@@ -258,3 +258,15 @@ Every test reference note, with the tracked note under its middle rounded to a s
 ## The delay from the hummed onsets (2026-10-30)
 
 On headphones the click has no echo, and a stored calibration is wrong when the device changes: under WSL every device is `default / default`. The owner's take `20261029-231528`, transcribed with its stored 209 ms, scored 2 of 14 notes right; its onsets put it at 434 ms. `hum.aligned_latency` takes the phase of the hummed onsets on the eighth-note grid and, of the eighth-note shifts within a reach of the delay given, the one that puts the most onsets on beats; when shifts that disagree on where the beat falls come within 0.2 of the best, it takes the shift nearest the given delay. On HumTrans clips with the given delay moved 50, 150 or 250 ms from the reference, it finds the reference within 40 ms on 72%, 58% and 26% of test clips on the 16th grid (90%, 68%, 33% on the 8th), and otherwise keeps the delay given (27%, too few clustered onsets) or lands elsewhere. With the reference delay given and a reach of zero (as when the echo was heard) HumTrans is unchanged within .002 and the synthesised set within .001. The owner's takes: 130 → 142 of 154 right length, 13 → 3 extra.
+
+## Off-beat lines and the delay search (2026-10-31)
+
+A review found that searching for the delay within half a second moves a line meant to sit off the beat by an eighth, even when the delay given was right: the shift that puts more onsets on beats wins. `eval/hum_synth.py` now has two such melodies, `offbeat` (every note on the "and") and `anticipated` (three notes in four pushed ahead of the beat), and scores every melody three ways: with the delay measured (reach 0, as on speakers), searched (reach 0.5 s from the right delay, as on headphones), and searched but counting the reading at the delay as given when the search moved the notes a whole step, which `hum` now adds to its result for Claude to offer.
+
+| 17 melodies, 24 renders | Rhythm, on the slot | Rhythm, right length | All, on the slot | All, right length |
+|---|---|---|---|---|
+| delay measured | .904 | .633 | .895 | .768 |
+| delay searched | .604 | .468 | .781 | .705 |
+| searched, or as given | .904 | .633 | .895 | .768 |
+
+The control, chromatic and mode melodies score the same on all three paths. Of the owner's takes only `20261029-231528` (no echo, a stale calibration) is moved by the search, and there the moved reading is right (13 of 14 placed) and the one as given wrong (1 of 14), so the moved one stays the one written. Beat position alone cannot tell the two cases apart; the right-length scores of the off-beat line are low on every path because a gap under a beat after a note is filled (the rest loss above). `tests/test_hum.py` now runs these melodies with four singers and fails below a floor on the measured and the searched-or-as-given paths. The synthetic eval also passed seconds per click where `transcribe` takes seconds per quarter, right only in x/4; it passes the quarter now.

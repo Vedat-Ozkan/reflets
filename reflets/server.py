@@ -739,7 +739,15 @@ async def hum(
     if not result or not result.notes:
         raise ToolError("No humming was heard after the count-in. Check the microphone, then try again.")
     guess, source = latency, timing
-    if abs(result.latency - latency) > ALIGNED_CHANGE:
+    step_name = "eighth" if grid == 2 else "sixteenth"
+    if result.as_given is not None:
+        steps = round(abs(result.latency - result.given) * tempo * grid / 60)
+        direction = "earlier" if result.latency > result.given else "later"
+        latency, timing = result.latency, f"from where the notes start, {timing} {1000 * guess:.0f} ms"
+        moved = (f"The notes were placed {steps} {step_name}{'s' if steps > 1 else ''} {direction} than that delay puts them, "
+                 "as more of them then start on beats. If the line is meant to sit off the beat, discard this and propose "
+                 "the reading at the delay as given:")
+    elif abs(result.latency - latency) > ALIGNED_CHANGE:
         latency, timing = result.latency, f"found from where the notes start, {timing} {1000 * latency:.0f} ms"
     score_has_notes = any(event.pitch for measure in index.measures for event in measure.events)
     signature = key_fifths(key_at(info, info.ticks[position]))
@@ -759,33 +767,38 @@ async def hum(
     instrument, staves = owner
     target = humming.centre(instrument, staves.index(staff), len(staves))
     shift = to_key + humming.placed_octave([p + to_key for p in pitches], target) + 12 * octave
-    for note in result.notes:
-        note.pitch = humming.tonic_near(target, result.key.tonic + to_key) + 12 * octave if kind == "rhythm" else note.pitch + shift
     division = 48
-    lines = humming.voice_lines(result.notes, [int(bar_quarters * grid)] * bars, division // grid, fifths)
     tempo_marks = []
     if marked is None or abs(marked - tempo) > 0.5:
         old = [mark for mark in info.bars[position].marks if mark.kind == "Tempo" and mark.onset == 0] if start_bar in numbers else []
         tempo_marks = ["-" + n1x.mark_token(mark) for mark in old] + [f"q{tempo:g}"]
-    idea = [f"N1x div={division} ts={info.measures[position].meter}"]
-    for n, line in enumerate(lines):
-        header = f"m{start_bar + n} len={int(bar_quarters * division)}" + (f" ks={key_name(set_key)}" if n == 0 and set_key is not None else "")
-        if n == 0 and tempo_marks and staff == 1:
-            line = " ".join(tempo_marks + [line])
-        idea += [header, f"{staff}.1: {line}"]
-        if n == 0 and tempo_marks and staff != 1:
-            idea.append("1.1: " + " ".join(tempo_marks))
+
+    def idea_of(notes: list[humming.Placed]) -> str:
+        for note in notes:
+            note.pitch = humming.tonic_near(target, result.key.tonic + to_key) + 12 * octave if kind == "rhythm" else note.pitch + shift
+        lines = humming.voice_lines(notes, [int(bar_quarters * grid)] * bars, division // grid, fifths)
+        idea = [f"N1x div={division} ts={meter}"]
+        for n, line in enumerate(lines):
+            header = f"m{start_bar + n} len={int(bar_quarters * division)}" + (f" ks={key_name(set_key)}" if n == 0 and set_key is not None else "")
+            if n == 0 and tempo_marks and staff == 1:
+                line = " ".join(tempo_marks + [line])
+            idea += [header, f"{staff}.1: {line}"]
+            if n == 0 and tempo_marks and staff != 1:
+                idea.append("1.1: " + " ".join(tempo_marks))
+        return "\n".join(idea)
+
+    idea = idea_of(result.notes)
     if saving := os.environ.get("REFLETS_HUM_SAVE"):
         audio.save(Path(saving), take, {
             "tempo": tempo, "meter": meter, "bars": bars, "grid": grid, "latency": guess, "timing": source,
             "reach": reach, "found": result.latency, "start_bar": start_bar, "staff": staff, "instrument": instrument, "kind": kind,
-            "key": result.key.name, "idea": "\n".join(idea),
+            "key": result.key.name, "idea": idea,
         })
-    written = await write_idea("\n".join(idea), "hummed", replace)
+    written = await write_idea(idea, "hummed", replace)
     heard_key = result.key.name + (" (or close to another key; check by ear)" if result.key.margin < 0.05 else "")
     report = [
         f"Heard {len(result.notes)} notes in {heard_key}, the singer {100 * result.tuning:+.0f} cents off concert pitch; "
-        f"tempo {tempo:g}, {'eighth' if grid == 2 else 'sixteenth'} grid, delay {1000 * latency:.0f} ms ({timing}).",
+        f"tempo {tempo:g}, {step_name} grid, delay {1000 * latency:.0f} ms ({timing}).",
     ]
     if to_key:
         report.append(f"Moved {abs(to_key)} semitone{'s' if abs(to_key) > 1 else ''} {'up' if to_key > 0 else 'down'} into the score's key.")
@@ -795,6 +808,8 @@ async def hum(
         report.append(f"The tempo mark was set to {tempo:g}, from bar {start_bar} on.")
     if timing.startswith("the driver"):
         report.append("If the notes land late or early, the user is probably on headphones: run hum with calibrate=True once.")
+    if result.as_given is not None:
+        written += f"\n{moved}\n{idea_of(result.as_given)}"
     return " ".join(report) + "\n" + written
 
 

@@ -48,3 +48,13 @@ def test_clicks_and_room_noise_give_no_notes():
     room = 0.003 * np.random.default_rng(2).standard_normal(len(clicks)).astype(np.float32)
     result = hum.transcribe(0.3 * clicks + room, 60 / 90, 2, 0.19, 0, 32)
     assert result is None or not result.notes
+
+
+def test_synthesised_melodies_keep_their_floor_with_the_delay_measured_or_searched():
+    from eval.hum_synth import singers, totals
+
+    paths = [("measured", 0, 0), ("searched, or as given", hum.DELAY_RANGE, 1)]
+    for by_kind in totals(singers(4), paths):
+        t = by_kind["all"]
+        assert t["placed"] / t["notes"] > 0.87 and t["whole"] / t["notes"] > 0.73 and t["outside placed"] >= 100
+        assert by_kind["rhythm"]["placed"] / by_kind["rhythm"]["notes"] > 0.86
