@@ -273,6 +273,12 @@ def transcribe(audio: np.ndarray, beat: float, grid: int, guess: float, reach: f
     return Transcription(notes, key, tuning, latency)
 
 
+def hummed(audio: np.ndarray, starts: list[int], tempo: float, meter: str, bars: int, grid: int, guess: float, reach: float) -> Transcription | None:
+    numerator, denominator = (int(x) for x in meter.split("/"))
+    slots = bars * numerator * 4 * grid // denominator
+    return transcribe(audio[starts[numerator]:], 60 / tempo, grid, guess, reach, slots, max(1, grid * 4 // denominator))
+
+
 CENTRES = [
     ("piccolo", 86), ("alto-flute", 67), ("bass-flute", 55), ("flute", 79), ("oboe", 74), ("english-horn", 65), ("bass-clarinet", 50), ("clarinet", 67),
     ("contrabassoon", 38), ("bassoon", 50), ("soprano-saxophone", 70), ("alto-saxophone", 63), ("tenor-saxophone", 56),

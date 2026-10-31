@@ -733,13 +733,12 @@ async def hum(
         latency, timing = calibrated, "calibrated earlier"
     else:
         latency, timing = take.gap, "the driver's estimate, uncalibrated"
-    first = starts[numerator]
-    slots = int(bars * bar_quarters * grid)
-    click_slots = max(1, int(grid * 4 // denominator))
     reach = 0 if heard is not None else humming.DELAY_RANGE
-    result = await asyncio.to_thread(humming.transcribe, take.audio[first:], 60 / tempo, grid, latency, reach, slots, click_slots)
+    meter = info.measures[position].meter
+    result = await asyncio.to_thread(humming.hummed, take.audio, starts, tempo, meter, bars, grid, latency, reach)
     if not result or not result.notes:
         raise ToolError("No humming was heard after the count-in. Check the microphone, then try again.")
+    guess, source = latency, timing
     if abs(result.latency - latency) > ALIGNED_CHANGE:
         latency, timing = result.latency, f"found from where the notes start, {timing} {1000 * latency:.0f} ms"
     score_has_notes = any(event.pitch for measure in index.measures for event in measure.events)
@@ -778,8 +777,8 @@ async def hum(
             idea.append("1.1: " + " ".join(tempo_marks))
     if saving := os.environ.get("REFLETS_HUM_SAVE"):
         audio.save(Path(saving), take, {
-            "tempo": tempo, "meter": info.measures[position].meter, "bars": bars, "grid": grid, "latency": latency,
-            "timing": timing, "start_bar": start_bar, "staff": staff, "instrument": instrument, "kind": kind,
+            "tempo": tempo, "meter": meter, "bars": bars, "grid": grid, "latency": guess, "timing": source,
+            "reach": reach, "found": result.latency, "start_bar": start_bar, "staff": staff, "instrument": instrument, "kind": kind,
             "key": result.key.name, "idea": "\n".join(idea),
         })
     written = await write_idea("\n".join(idea), "hummed", replace)
