@@ -19,7 +19,9 @@ FOLDER = Path(__file__).parent.parent / "out" / "hum-tests"
 
 def call(method: str, path: str) -> bytes:
     url = os.environ.get("REFLETS_TAKES_URL", TAKES_URL)
-    request = Request(f"{url}/takes{path}", method=method, headers={"Authorization": f"Bearer {os.environ['REFLETS_TAKES_ADMIN']}"})
+    request = Request(f"{url}/takes{path}", method=method, headers={
+        "Authorization": f"Bearer {os.environ['REFLETS_TAKES_ADMIN']}", "User-Agent": "reflets-pull",
+    })
     with urlopen(request, timeout=60) as response:
         return response.read()
 

@@ -847,7 +847,7 @@ def send_take(path: Path, code: str) -> None:
 
     url = os.environ.get("REFLETS_TAKES_URL", TAKES_URL)
     with urlopen(Request(f"{url}/takes/{path.name}", path.read_bytes(), method="PUT", headers={
-        "Authorization": f"Bearer {code}", "Content-Type": TAKE_TYPES[path.suffix],
+        "Authorization": f"Bearer {code}", "Content-Type": TAKE_TYPES[path.suffix], "User-Agent": f"reflets/{version('reflets')}",
     }), timeout=30):
         pass
 
