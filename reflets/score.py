@@ -83,6 +83,26 @@ class ScoreInfo:
     def numbers(self) -> list[int]:
         return [measure.number for measure in self.measures]
 
+    @property
+    def labels(self) -> list[str]:
+        return bar_labels(self.numbers)
+
+
+def bar_labels(numbers: list[int]) -> list[str]:
+    seen: dict[int, int] = {}
+    labels = []
+    for number in numbers:
+        repeat = seen.get(number, 0)
+        seen[number] = repeat + 1
+        labels.append(f"{number}{chr(ord('a') + repeat) if repeat else ''}")
+    return labels
+
+
+def bars_past_end(numbers: list[int], labels: set[str]) -> int:
+    reach = max((int(re.match(r"\d+", label)[0]) for label in labels), default=0) - numbers[-1]
+    extended = bar_labels(numbers + list(range(numbers[-1] + 1, numbers[-1] + 1 + max(reach, 0))))
+    return max((extended.index(label) + 1 - len(numbers) for label in labels if label in extended[len(numbers):]), default=0)
+
 
 def bar_at(ticks: list[int], tick: int) -> int:
     return bisect.bisect_right(ticks, tick) - 1

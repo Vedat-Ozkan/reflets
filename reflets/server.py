@@ -28,7 +28,7 @@ from mcp.types import ToolAnnotations
 from reflets import n1x
 from reflets.restore import bare_idea, body, marks, target_idea, writable
 from reflets.bridge import NOT_RUNNING, PROTO, Bridge, BridgeError, Bridges, chosen, token_file
-from reflets.score import END, ScoreInfo, appended, bar_start, build_index, key_at, key_fifths, key_name, parse_info, retimed
+from reflets.score import END, ScoreInfo, appended, bar_labels, bar_start, bars_past_end, build_index, key_at, key_fifths, key_name, parse_info, retimed
 from reflets.write import (
     IdeaError,
     add_lines,
@@ -56,7 +56,8 @@ mcp = MCPServer(
     instructions=(
         "Reflets connects you to the score open in the user's MuseScore Studio. Call score_info first, then "
         "read_score for the notes. Notes come in N1x: a header line, then the title, composer and one 'P' line per "
-        "part; each bar starts 'mN len=' with fields where they apply: ts= and ks= at a meter or key change, "
+        "part; each bar starts 'mN len=' (N as MuseScore numbers it; a later bar with the same number, after a bar "
+        "left out of the count or where the numbering restarts, is mNb, then mNc) with fields where they apply: ts= and ks= at a meter or key change, "
         "rep=start|end|both and x= (times played), volta=, bar= (a bar line the user set), break=, jump=, mark=. "
         "Then one 'staff.voice:' line per voice per bar, a bare number "
         "sets the duration in div units per quarter note, '+' joins a chord, 'r' is a rest, a leading 'g' marks "
@@ -177,7 +178,8 @@ async def score_info() -> str:
     title="Read the score",
     description=(
         "Use this to see the notes of the score open in MuseScore, as N1x text (see the server instructions). "
-        'bars is "all" or a range like "5-12", numbered as MuseScore shows them, a pickup being bar 0. '
+        'bars is "all" or a range like "5-12", numbered as MuseScore shows them, a pickup being bar 0 and a later bar '
+        'with the same number taking its letter, as in "3b-4". '
         f"A long score read as \"all\" returns the first {FIRST_BARS} bars and says how many there are; "
         "then read further ranges as needed."
     ),
@@ -186,18 +188,18 @@ async def score_info() -> str:
     structured_output=False,
 )
 async def read_score(bars: str = "all") -> str:
-    info, index, first, last, whole = await read_bars(bars)
-    numbers = info.numbers
+    info, index, start, end, whole = await read_bars(bars)
+    labels = info.labels
     try:
-        text = n1x.encode(info, index, first, last)
+        text = n1x.encode(info, index, start, end)
         if whole and len(text) / 3.5 > WHOLE_SCORE_TOKENS:
-            cut = numbers[min(len(numbers) - 1, numbers.index(first) + FIRST_BARS - 1)]
-            text = n1x.encode(info, index, first, cut) + (
-                f"\n(The score has bars {numbers[0]}-{numbers[-1]}; this is bars {first}-{cut}. "
+            cut = min(len(labels) - 1, start + FIRST_BARS - 1)
+            text = n1x.encode(info, index, start, cut) + (
+                f"\n(The score has bars {labels[0]}-{labels[-1]}; this is bars {labels[start]}-{labels[cut]}. "
                 "Call read_score with a range for more.)"
             )
     except (notes.NotesError, PositionError) as error:
-        raise ToolError(f"Could not encode bars {first}-{last}: {error}") from None
+        raise ToolError(f"Could not encode bars {labels[start]}-{labels[end]}: {error}") from None
     return text
 
 
@@ -216,7 +218,8 @@ async def read_score(bars: str = "all") -> str:
     structured_output=False,
 )
 async def check(bars: str = "all") -> str:
-    _, index, first, last, _ = await read_bars(bars)
+    info, index, start, end, _ = await read_bars(bars)
+    first, last = info.numbers[start], info.numbers[end]
     table = await asyncio.to_thread(reduce.as_text, index, first, last)
     if not part_writing.applies(index):
         return table + (
@@ -244,7 +247,8 @@ async def check(bars: str = "all") -> str:
     structured_output=False,
 )
 async def analyze(bars: str = "all") -> str:
-    _, index, first, last, _ = await read_bars(bars, whole_score=True)
+    info, index, start, end, _ = await read_bars(bars, whole_score=True)
+    first, last = info.numbers[start], info.numbers[end]
     table = reduce.as_text(index, first, last)
     missing = missing_model()
     if missing:
@@ -266,28 +270,26 @@ def missing_model() -> str:
 
 async def read_bars(bars: str, whole_score: bool = False) -> tuple[ScoreInfo, ScoreIndex, int, int, bool]:
     info = await load_info()
-    numbers = info.numbers
+    labels = info.labels
     if bars.strip().lower() == "all":
-        first, last, whole = numbers[0], numbers[-1], True
+        first, last, whole = labels[0], labels[-1], True
+    elif match := re.fullmatch(r"\s*(\d+[b-z]?)\s*(?:-\s*(\d+[b-z]?)\s*)?", bars):
+        first, last, whole = match[1], match[2] or match[1], False
     else:
-        try:
-            start, _, end = bars.partition("-")
-            first, last, whole = int(start), int(end or start), False
-        except ValueError:
-            raise ToolError(f'bars must be "all" or a range like "5-12", not {bars!r}') from None
-    for number in (first, last):
-        if number not in numbers:
-            raise ToolError(f"Bar {number} does not exist; the score has bars {numbers[0]} to {numbers[-1]}")
-    if not whole and numbers.index(first) > numbers.index(last):
+        raise ToolError(f'bars must be "all" or a range like "5-12", not {bars!r}')
+    for label in (first, last):
+        if label not in labels:
+            raise ToolError(f"Bar {label} does not exist; the score has bars {labels[0]} to {labels[-1]}")
+    start, end = labels.index(first), labels.index(last)
+    if start > end:
         raise ToolError(f'bars runs from the earlier bar to the later one, as in "{last}-{first}"')
-    start_tick = info.ticks[0 if whole_score or first == 1 and numbers[0] == 0 else numbers.index(first)]
-    end_index = len(numbers) if whole_score else numbers.index(last) + 1
-    end_tick = bar_start(info, end_index)
+    start_tick = info.ticks[0 if whole_score or start == 1 and info.numbers[0] == 0 else start]
+    end_tick = bar_start(info, len(labels) if whole_score else end + 1)
     try:
         _, lines = await bridge.request(f"read {start_tick} {end_tick}")
     except BridgeError as error:
         raise ToolError(str(error)) from None
-    return info, build_index(info, lines, int(bridge.hello["division"])), first, last, whole
+    return info, build_index(info, lines, int(bridge.hello["division"])), start, end, whole
 
 
 @mcp.tool(
@@ -302,7 +304,8 @@ async def read_bars(bars: str, whole_score: bool = False) -> tuple[ScoreInfo, Sc
     structured_output=False,
 )
 async def render(bars: str, check: bool = False) -> str:
-    _, index, first, last, _ = await read_bars(bars)
+    info, index, start, end, _ = await read_bars(bars)
+    first, last = info.numbers[start], info.numbers[end]
     found = await asyncio.to_thread(part_writing.as_text, index) if check else ""
     marks, spots = drawings(found)
     export = token_file().parent / f"reflets-export-{uuid.uuid4().hex}.musicxml"
@@ -421,14 +424,14 @@ async def write_idea(text: str, label: str, replace: bool, recast: bool = False,
     info = await load_info()
     division = int(bridge.hello["division"])
     staves = max(staff for _, part_staves in info.parts for staff in part_staves)
-    numbers = info.numbers
+    labels = info.labels
     try:
         idea = parsed(text)
-        past = max((bar.number for bar in idea.bars), default=numbers[-1]) - numbers[-1] if not recast else 0
+        past = bars_past_end(info.numbers, {bar.label for bar in idea.bars}) if not recast else 0
         if past > 0:
             closing = info.bars[-1].user_barline_type if info.bars[-1].user_barline_type not in n1x.REPEAT_BARLINES else None
             info = appended(info, past, division, closing)
-            numbers = info.numbers
+            labels = info.labels
         start_tick, end_tick = idea_range(idea, info)
         original = pre = await request(f"read {start_tick} {end_tick}")
         if past > 0:
@@ -454,7 +457,7 @@ async def write_idea(text: str, label: str, replace: bool, recast: bool = False,
         plan.ops[0:0] = [f"m {past}"] + ([] if info.bars[-past - 1].repeat_end else [f"b {info.ticks[-past - 1]} bar 1"]) + ([f"b {info.ticks[-1]} bar {closing}"] if closing else [])
     taken = occupied(plan, cells(pre, info))
     if taken and not replace:
-        where = ", ".join(f"bar {numbers[p]} {t // 4 + 1}.{t % 4 + 1}" for p, t in taken)
+        where = ", ".join(f"bar {labels[p]} {t // 4 + 1}.{t % 4 + 1}" for p, t in taken)
         raise ToolError(f"These voices already have notes: {where}. Ask the user, then call again with replace=True.")
     label = " ".join(label.split()) or "idea"
     reply = await request(f"write {plan.start_tick} {plan.end_tick} {label}\n" + "\n".join(plan.ops))
@@ -472,15 +475,15 @@ async def write_idea(text: str, label: str, replace: bool, recast: bool = False,
         state = "The write was undone." if sorted(after) == sorted(original) else "Undoing it did not restore the bars; ask the user to check them."
         raise ToolError(f"The idea did not land as written ({mismatch}). {state}")
     positions = sorted(plan.expected_bars)
-    bars = f"bars {numbers[positions[0]]}-{numbers[positions[-1]]}" if len(positions) > 1 else f"bar {numbers[positions[0]]}"
+    bars = f"bars {labels[positions[0]]}-{labels[positions[-1]]}" if len(positions) > 1 else f"bar {labels[positions[0]]}"
     tracks = sorted({t for _, t in plan.cells})
     proposal_id = opened(Proposal(label, plan.start_tick, plan.end_tick, tracks, bars, original, reply, end_tick, info.title))
     counts = ", ".join(f"{n} {what if n > 1 else what[:-1]}" for what, n in plan.counts.items() if n)
     voices = ", ".join(f"{t // 4 + 1}.{t % 4 + 1}" for t in tracks)
     cut = sorted(set(cut) | plan.cut_ties)
-    note = f" The tie into or out of bar(s) {', '.join(map(str, cut))} was cut, as the idea replaced its note." if cut else ""
+    note = f" The tie into or out of bar(s) {', '.join(labels[position] for position in cut)} was cut, as the idea replaced its note." if cut else ""
     if past > 0:
-        added = f"Bar {numbers[-1]} was" if past == 1 else f"Bars {numbers[-past]}-{numbers[-1]} were"
+        added = f"Bar {labels[-1]} was" if past == 1 else f"Bars {labels[-past]}-{labels[-1]} were"
         note += f" {added} added at the end of the score; discard removes {'it' if past == 1 else 'them'} again."
     if plan.dropped:
         note += f" These syllables had no note left and were removed: {'; '.join(plan.dropped)}."
@@ -495,10 +498,10 @@ async def write_idea(text: str, label: str, replace: bool, recast: bool = False,
     )
 
 
-def moved(lines: list[str], then: ScoreInfo, now: ScoreInfo, first: int, last: int) -> list[str]:
-    result, numbers, then_numbers = [], now.numbers, then.numbers
-    for number in numbers[numbers.index(first) : numbers.index(last) + 1]:
-        position, then_position = numbers.index(number), then_numbers.index(number)
+def moved(lines: list[str], then: ScoreInfo, now: ScoreInfo, start: int, end: int) -> list[str]:
+    result, labels, then_labels = [], now.labels, then.labels
+    for position in range(start, end + 1):
+        then_position = then_labels.index(labels[position])
         start, end = then.ticks[then_position], then.ticks[then_position] + then.lengths[then_position] * int(bridge.hello["division"])
         bar = [line for line in lines if line.startswith("C ") and start <= int(line.split(" ")[1]) < end]
         result += shifted(bar, now.ticks[position] - start)
@@ -718,16 +721,18 @@ async def hum(
     owner = next(((instrument, staves) for instrument, staves in parts if staff in staves), None)
     if owner is None:
         raise ToolError(f"Staff {staff} does not exist; the score has staves 1 to {max(s for _, staves in parts for s in staves)}.")
-    position = numbers.index(start_bar) if start_bar in numbers else len(numbers) - 1
+    first = numbers.index(start_bar) if start_bar in numbers else len(numbers)
+    position = min(first, len(numbers) - 1)
     covered = info.measures[position:position + bars]
     if any(measure.meter != info.measures[position].meter for measure in covered):
         raise ToolError("The meter changes inside those bars; hum fewer bars, up to the change.")
-    taken = [measure.number for measure in covered if measure.number >= start_bar and any(
+    labels = bar_labels(numbers + list(range(numbers[-1] + 1, numbers[-1] + 1 + bars)))
+    taken = [labels[first + n] for n, measure in enumerate(info.measures[first:first + bars]) if any(
         event.pitch and event.staff == staff and event.layer == 1 for event in measure.events)]
     if taken and not replace:
         raise ToolError(f"Staff {staff} already has notes in bar(s) {', '.join(map(str, taken))}. Ask the user, then call again with replace=True, before they hum.")
     numerator, denominator = (int(x) for x in info.measures[position].meter.split("/"))
-    marked = tempo_at(info, numbers.index(start_bar) if start_bar in numbers else len(numbers))
+    marked = tempo_at(info, first)
     tempo = tempo or marked or 90
     click = 60 / tempo * 4 / denominator
     bar_quarters = Fraction(4 * numerator, denominator)
@@ -803,7 +808,7 @@ async def hum(
         lines = humming.voice_lines(notes, [int(bar_quarters * grid)] * bars, division // grid, fifths)
         idea = [f"N1x div={division} ts={meter}"]
         for n, line in enumerate(lines):
-            header = f"m{start_bar + n} len={int(bar_quarters * division)}" + (f" ks={key_name(set_key)}" if n == 0 and set_key is not None else "")
+            header = f"m{labels[first + n]} len={int(bar_quarters * division)}" + (f" ks={key_name(set_key)}" if n == 0 and set_key is not None else "")
             if n == 0 and tempo_marks and staff == 1:
                 line = " ".join(tempo_marks + [line])
             idea += [header, f"{staff}.1: {line}"]
@@ -957,7 +962,7 @@ def listed_checkpoints(info: ScoreInfo) -> str:
     description=(
         "Use this when the user wants bars back as they were at a checkpoint: it writes them as the checkpoint has "
         'them, notes, marks, decorations, lines and lyrics, as a proposal. checkpoint is its number, which score_info '
-        'lists; bars is a range like "5-12" or "all". '
+        'lists; bars is a range like "5-12" or "all", named as read_score names the bars ("3b-4"). '
         "Bars outside it keep the user's later edits. Refused when a bar's length changed since; then the user can "
         "open the checkpoint's file."
     ),
@@ -965,23 +970,24 @@ def listed_checkpoints(info: ScoreInfo) -> str:
     structured_output=False,
 )
 async def restore(checkpoint: int, bars: str) -> str:
-    info, index, first, last, _ = await read_bars(bars, whole_score=True)
+    info, index, start, end, _ = await read_bars(bars, whole_score=True)
     folder = checkpoint_folder(info.title)
     found = [path for path in folder.glob(f"{checkpoint:03d}*.json") if path.stem.split(" ", 1)[0] == f"{checkpoint:03d}"]
     if not found:
         raise ToolError(f"There is no checkpoint {checkpoint}. " + listed_checkpoints(info))
     saved = json.loads(found[0].read_text())
     then_info = parse_info(saved["info"])
-    numbers, then_numbers = info.numbers, then_info.numbers
-    for number in numbers[numbers.index(first) : numbers.index(last) + 1]:
-        if number not in then_numbers or then_info.lengths[then_numbers.index(number)] != info.lengths[numbers.index(number)]:
+    labels, then_labels = info.labels, then_info.labels
+    first, last = labels[start], labels[end]
+    for position in range(start, end + 1):
+        if labels[position] not in then_labels or then_info.lengths[then_labels.index(labels[position])] != info.lengths[position]:
             raise ToolError(
-                f"Bar {number} is not the same length as in checkpoint {checkpoint}, so it cannot be restored in place. "
+                f"Bar {labels[position]} is not the same length as in checkpoint {checkpoint}, so it cannot be restored in place. "
                 f"The user can open {windows_path(found[0].with_suffix('.musicxml'))}."
             )
     then_index = build_index(then_info, saved["read"], int(bridge.hello["division"]))
     try:
-        now, then = n1x.encode(info, index, first, last), n1x.encode(then_info, then_index, first, last)
+        now, then = n1x.encode(info, index, start, end), n1x.encode(then_info, then_index, then_labels.index(first), then_labels.index(last))
     except (notes.NotesError, PositionError) as error:
         raise ToolError(f"Could not encode bars {first}-{last}: {error}") from None
     if body(now) == body(then):
@@ -992,7 +998,7 @@ async def restore(checkpoint: int, bars: str) -> str:
     except Unchanged:
         cleared = None
     try:
-        result = await write_idea(target_idea(body(now), writable(then), then.splitlines()[0]), label, True, drawn=moved(saved["read"], then_info, info, first, last))
+        result = await write_idea(target_idea(body(now), writable(then), then.splitlines()[0]), label, True, drawn=moved(saved["read"], then_info, info, start, end))
     except ToolError as error:
         if cleared:
             await discard(cleared)

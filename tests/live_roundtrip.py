@@ -40,33 +40,33 @@ def looks(lines: list[str]) -> list[tuple[str, ...]]:
 def bare(text: str) -> list[str]:
     left = []
     for bar in n1x.decode(text).bars:
-        left += [f"m{bar.number}: {name}={value}" for name, value in bar.fields.items() if name not in ("len", "ts", "ks")]
+        left += [f"m{bar.label}: {name}={value}" for name, value in bar.fields.items() if name not in ("len", "ts", "ks")]
         for cell, voice in bar.voices.items():
-            left += [f"m{bar.number} {cell}: {token}" for _, token in voice.marks]
-            left += [f"m{bar.number} {cell}: {chord.decorations}" for chord in voice.chords if chord.decorations and not chord.grace]
-            left += [f"m{bar.number} {cell}: {note}" for chord in voice.chords for note in chord.notes if note.decorations]
-            left += [f"m{bar.number} {cell}: rest {names}" for _, _, names in voice.rests if names]
-            left += [f"m{bar.number} {cell} L{number}: {tokens}" for number, tokens in voice.lyrics.items()]
+            left += [f"m{bar.label} {cell}: {token}" for _, token in voice.marks]
+            left += [f"m{bar.label} {cell}: {chord.decorations}" for chord in voice.chords if chord.decorations and not chord.grace]
+            left += [f"m{bar.label} {cell}: {note}" for chord in voice.chords for note in chord.notes if note.decorations]
+            left += [f"m{bar.label} {cell}: rest {names}" for _, _, names in voice.rests if names]
+            left += [f"m{bar.label} {cell} L{number}: {tokens}" for number, tokens in voice.lyrics.items()]
     return left
 
 
 async def main() -> None:
     start = await server.read_score("all")
     info = await server.load_info()
-    numbers = [measure.number for measure in info.measures]
+    labels = info.labels
     failures = []
-    for first, number in enumerate(numbers):
-        for last in numbers[first:]:
-            bars = f"{number}-{last}"
+    for first, label in enumerate(labels):
+        for last in labels[first:]:
+            bars = f"{label}-{last}"
             text = await server.read_score(bars)
             header, lines = text.splitlines()[0], writable(text)
-            last_index = numbers.index(last)
+            last_index = labels.index(last)
             span = f"read {info.ticks[first]} {info.ticks[last_index + 1] if last_index + 1 < len(info.ticks) else 2**31 - 1}"
             drawn = looks(await server.request(span))
             try:
                 same = await server.propose(idea(body(text), header, as_read), f"bars {bars} as read", replace=True)
             except ToolError as error:
-                if "has no closer in the idea" in str(error) and last != numbers[-1]:
+                if "has no closer in the idea" in str(error) and last != labels[-1]:
                     continue
                 if "plugin API" in str(error):
                     print(f"SKIP bars {bars}: {error}")
@@ -95,7 +95,7 @@ async def main() -> None:
             break
     if await server.read_score("all") != start:
         failures.append("the score is not as it was after the discards")
-    print("\n".join(failures) or f"PASS every bar of {len(numbers)} written as read, bare and restored")
+    print("\n".join(failures) or f"PASS every bar of {len(labels)} written as read, bare and restored")
     sys.exit(1 if failures else 0)
 
 

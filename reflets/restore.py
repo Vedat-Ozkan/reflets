@@ -14,7 +14,7 @@ def unglissed(match: re.Match) -> str:
 
 
 def body(text: str) -> list[str]:
-    return [line for line in n1x.expand(text).splitlines() if re.match(r"m\d+ |\d+\.\d+( L\d+)?:", line)]
+    return [line for line in n1x.expand(text).splitlines() if re.match(rf"{n1x.BAR} |\d+\.\d+( L\d+)?:", line)]
 
 
 def writable(text: str) -> list[str]:
@@ -41,7 +41,7 @@ def closed(lines: list[str]) -> set[tuple[int, int]]:
 def marks(lines: list[str], header: str) -> set[tuple[str, str, Fraction, str]]:
     idea = n1x.decode("\n".join([header, *lines]))
     return {
-        (f"m{bar.number}", f"{staff}.{layer}", moment, token)
+        (f"m{bar.label}", f"{staff}.{layer}", moment, token)
         for bar in idea.bars
         for (staff, layer), voice in bar.voices.items()
         for moment, token in voice.marks
@@ -56,13 +56,13 @@ def bare_idea(lines: list[str], header: str, keep: set[tuple[str, str, Fraction,
     result, bar = [header], ""
     for row, line in enumerate(lines):
         match = VOICE.fullmatch(line)
-        if re.match(r"m\d+ ", line):
+        if re.match(rf"{n1x.BAR} ", line):
             bar = line.split()[0]
         if not match:
             if " L" in line:
                 result.append(line.split(":")[0] + ":")
             else:
-                result.append(" ".join(word if re.fullmatch(r"m\d+", word) or word.startswith(("len=", "ts=", "ks=")) else "-" + word for word in line.split()))
+                result.append(" ".join(word if re.fullmatch(n1x.BAR, word) or word.startswith(("len=", "ts=", "ks=")) else "-" + word for word in line.split()))
             continue
         words = n1x.TOKEN.findall(match[2])
         cell = match[1].split(":")[0]
@@ -91,19 +91,19 @@ def removed(word: str) -> str:
 def bars(lines: list[str]) -> dict[str, list[str]]:
     result: dict[str, list[str]] = {}
     for line in lines:
-        if re.match(r"m\d+ ", line):
-            number = line.split()[0]
-            result[number] = []
-        result[number].append(line)
+        if re.match(rf"{n1x.BAR} ", line):
+            label = line.split()[0]
+            result[label] = []
+        result[label].append(line)
     return result
 
 
 def target_idea(now: list[str], then: list[str], header: str) -> str:
     result = [header]
     current = bars(now)
-    for number, lines in bars(then).items():
+    for label, lines in bars(then).items():
         length = re.search(r"len=(\d+)", lines[0])[1]
         written = {line.split(":")[0] for line in lines if VOICE.fullmatch(line)}
-        cells = [line.split(":")[0] for line in current.get(number, []) if VOICE.fullmatch(line)]
+        cells = [line.split(":")[0] for line in current.get(label, []) if VOICE.fullmatch(line)]
         result += lines + [f"{cell}: {length} r" for cell in cells if cell not in written]
     return "\n".join(result)

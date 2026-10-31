@@ -15,6 +15,7 @@ from engine.score import Event, ScoreIndex
 from reflets.score import Bar, Mark, ScoreInfo, key_at
 
 VERSION = "N1x"
+BAR = r"m\d+[b-z]?"
 BARLINES = {2: "double", 0x10: "dashed", 0x20: "final", 0x80: "dotted", 0x100: "reverse-final", 0x200: "heavy", 0x400: "double-heavy"}
 REPEAT_BARLINES = {1, 4, 8, 0x40}
 LAYOUT_BREAKS = ["page", "line", "section", "nobreak"]
@@ -85,10 +86,8 @@ HEADS = (
 MARKERS = ["segno", "varsegno", "coda", "varcoda", "codetta", "fine", "tocoda", "tocodasym", "dacoda", "dadblcoda", "user"]
 
 
-def encode(info: ScoreInfo, index: ScoreIndex, first: int, last: int) -> str:
+def encode(info: ScoreInfo, index: ScoreIndex, start: int, end: int) -> str:
     measures = index.measures
-    start = measures.index(index.measure(first))
-    end = measures.index(index.measure(last))
     if start == 1 and measures[0].number == 0:
         start = 0
     div = index.ppq
@@ -109,9 +108,10 @@ def encode(info: ScoreInfo, index: ScoreIndex, first: int, last: int) -> str:
         for mark in sorted(info.bars[int(measure.id[1:]) - 1].marks, key=mark_order)
         if mark.kind in LINE_PHASES
     ])
+    labels = info.labels
     for measure in measures[start : end + 1]:
         position = int(measure.id[1:]) - 1
-        header = f"m{measure.number} len={units(measure.length, div)}"
+        header = f"m{labels[position]} len={units(measure.length, div)}"
         if measure.meter and measure.meter != meter:
             meter = measure.meter
             header += f" ts={meter}"
@@ -537,7 +537,7 @@ class Voice:
 
 @dataclass
 class IdeaBar:
-    number: int
+    label: str
     fields: dict[str, str]
     voices: dict[tuple[int, int], Voice]
 
@@ -566,19 +566,19 @@ def expand(text: str) -> str:
     current = None
     for line in text.splitlines():
         line = line.strip()
-        if match := re.fullmatch(r"(m\d+) = (m\d+)", line):
+        if match := re.fullmatch(rf"({BAR}) = ({BAR})", line):
             if match[2] not in bars:
                 raise DecodeError(f"{line}: bar {match[2][1:]} must be written out earlier in the same text")
             header, *body = bars[match[2]]
             current = bars[match[1]] = [f"{match[1]} {header.partition(' ')[2]}", *body]
             lines += current
             continue
-        if match := re.fullmatch(r"(\d+\.\d+) = (m\d+)", line):
+        if match := re.fullmatch(rf"(\d+\.\d+) = ({BAR})", line):
             written = [w for w in bars.get(match[2], []) if w.startswith(match[1] + ": ")]
             if not written:
                 raise DecodeError(f"{line}: bar {match[2][1:]} must be written out earlier in the same text, with a {match[1]} line")
             line = written[0]
-        if re.match(r"m\d+\b", line):
+        if re.match(rf"{BAR}\b", line):
             current = bars[line.split()[0]] = []
         if current is not None:
             current.append(line)
@@ -673,7 +673,7 @@ def decode(text: str) -> Idea:
     for line in lines[1:]:
         if not line or re.match(r"(title|composer)=|P\d+ ", line):
             continue
-        if re.match(r"m\d+\b", line):
+        if re.match(rf"{BAR}\b", line):
             words = line.split()
             fields = {}
             for word in words[1:]:
@@ -681,14 +681,14 @@ def decode(text: str) -> Idea:
                 if not equals:
                     raise DecodeError(f"{words[0]}: {word!r} is not a field like len=192")
                 fields[name] = value
-            bar = IdeaBar(int(words[0][1:]), fields, {})
+            bar = IdeaBar(words[0][1:], fields, {})
             idea.bars.append(bar)
             continue
         match = re.fullmatch(r"(\d+)\.(\d+)( L(\d+))?:(.*)", line)
         if not match or bar is None:
             raise DecodeError(f"{line!r} is not a bar line 'mN len=…' or a voice line 'staff.voice: …' under one")
         cell = (int(match[1]), int(match[2]))
-        where = f"m{bar.number} {match[1]}.{match[2]}"
+        where = f"m{bar.label} {match[1]}.{match[2]}"
         if match[3]:
             if cell not in bar.voices:
                 raise DecodeError(f"{where} L{match[4]}: a lyric line goes under its voice line")

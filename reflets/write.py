@@ -313,10 +313,10 @@ def add_lines(plan: Plan, pre: list[str], info: ScoreInfo) -> None:
             added.append(replace(line, end=token.tick, grace=token.grace))
         movable.remove(line)
     redone = []
-    numbers = info.numbers
+    labels = info.labels
     for line in left:
         if line.name == "" and (start_cell(line, info) in plan.timed or end_cell(line, info) in plan.timed):
-            where = f"m{numbers[start_cell(line, info)[0]]} {line.track // 4 + 1}.{line.track % 4 + 1}"
+            where = f"m{labels[start_cell(line, info)[0]]} {line.track // 4 + 1}.{line.track % 4 + 1}"
             removed.append(line)
             redone.append(snapped(line, plan, info, where))
     plan.lines = added + redone + ([line for line in left if line not in removed] if plan.recast else [])
@@ -382,13 +382,13 @@ def old_marks(pre: list[str], info: ScoreInfo, division: int) -> dict[tuple[int,
     return result
 
 
-def old_chords(pre: list[str], info: ScoreInfo, division: int, first: int, last: int) -> dict[tuple[int, int], dict[Fraction, n1x.Chord]]:
-    numbers = info.numbers
+def old_chords(pre: list[str], info: ScoreInfo, division: int, start: int, end: int) -> dict[tuple[int, int], dict[Fraction, n1x.Chord]]:
+    labels = info.labels
     result = {}
-    for bar in n1x.decode(n1x.encode(info, build_index(info, pre, division), first, last)).bars:
+    for bar in n1x.decode(n1x.encode(info, build_index(info, pre, division), start, end)).bars:
         for (staff, layer), voice in bar.voices.items():
             chords = {chord.onset: chord for chord in merged(voice.chords) if not chord.grace}
-            result[(numbers.index(bar.number), (staff - 1) * 4 + layer - 1)] = chords
+            result[(labels.index(bar.label), (staff - 1) * 4 + layer - 1)] = chords
     return result
 
 
@@ -460,19 +460,19 @@ def parsed(text: str) -> n1x.Idea:
         idea = n1x.decode(text)
     except n1x.DecodeError as error:
         raise IdeaError(str(error)) from None
-    written = [(bar.number, cell) for bar in idea.bars for cell in bar.voices]
-    for number, (staff, layer) in written:
-        if written.count((number, (staff, layer))) > 1:
-            raise IdeaError(f"m{number} {staff}.{layer} is written twice; write each voice of a bar once")
+    written = [(bar.label, cell) for bar in idea.bars for cell in bar.voices]
+    for label, (staff, layer) in written:
+        if written.count((label, (staff, layer))) > 1:
+            raise IdeaError(f"m{label} {staff}.{layer} is written twice; write each voice of a bar once")
     return idea
 
 
 def idea_range(idea: n1x.Idea, info: ScoreInfo) -> tuple[int, int]:
-    numbers = info.numbers
+    labels = info.labels
     for bar in idea.bars:
-        if bar.number not in numbers:
-            raise IdeaError(f"Bar {bar.number} does not exist; the score has bars {numbers[0]} to {numbers[-1]}")
-    positions = sorted(numbers.index(bar.number) for bar in idea.bars) or [0]
+        if bar.label not in labels:
+            raise IdeaError(f"Bar {bar.label} does not exist; the score has bars {labels[0]} to {labels[-1]}")
+    positions = sorted(labels.index(bar.label) for bar in idea.bars) or [0]
     return info.ticks[positions[0]], bar_start(info, positions[-1] + 1)
 
 
@@ -668,7 +668,6 @@ def tie_ops(voices: dict[int, list[tuple[int, Fraction, list[tuple[int, int, boo
                         f"The tie on the note at tick {tick} (track {track}) needs the next note of that voice to start "
                         "right after it on the same pitch, in the idea or in the bar after it"
                     )
-    numbers = info.numbers
     for line in pre:
         words = line.split(" ")
         if words[0] != "C" or is_grace(words):
@@ -686,7 +685,7 @@ def tie_ops(voices: dict[int, list[tuple[int, Fraction, list[tuple[int, int, boo
                 ties.append(f"^ {track} {tick} {parts[0]}")
                 plan.tied_back.add((track, tick, int(parts[0])))
             else:
-                plan.cut_ties.add(numbers[position - 1])
+                plan.cut_ties.add(position - 1)
     return ties
 
 
@@ -695,18 +694,18 @@ def compile_idea(idea: n1x.Idea, info: ScoreInfo, division: int, staves: int, pr
         for name, value in (("title", info.title), ("composer", info.composer)):
             if line.startswith(name + "=") and line != f"{name}={n1x.quote(value)}":
                 raise IdeaError(f"The {name} cannot be changed by an idea; leave the {name}= line out")
-    numbers = info.numbers
+    labels = info.labels
     idea_range(idea, info)
-    written_bars = sorted(numbers.index(bar.number) for bar in idea.bars)
+    written_bars = sorted(labels.index(bar.label) for bar in idea.bars)
     olds = old_marks(pre, info, division)
     looks = {} if recast else old_looks(pre) | old_looks(drawn)
-    old_notes = old_chords([line for line in pre if line[0] in "CR"] if recast else pre, info, division, numbers[written_bars[0]], numbers[written_bars[-1]]) if written_bars else {}
+    old_notes = old_chords([line for line in pre if line[0] in "CR"] if recast else pre, info, division, written_bars[0], written_bars[-1]) if written_bars else {}
     ops, graces, clears, marks, decorations, removals, field_ops, meter_ops, empties = [], [], [], [], [], [], [], [], []
     voltas: dict[int, str] = {}
     plan = Plan(0, 0, ops, set(), idea, recast=bool(recast))
     voices: dict[int, list[tuple[int, Fraction, list[tuple[int, int, bool]], tuple[int, int]]]] = {}
-    for bar in sorted(idea.bars, key=lambda bar: numbers.index(bar.number)):
-        position = numbers.index(bar.number)
+    for bar in sorted(idea.bars, key=lambda bar: labels.index(bar.label)):
+        position = labels.index(bar.label)
         length, bar_tick = info.lengths[position], info.ticks[position]
         meter_op = meter_change(bar, position, info, idea, later)
         if meter_op:
@@ -721,16 +720,16 @@ def compile_idea(idea: n1x.Idea, info: ScoreInfo, division: int, staves: int, pr
             meter_ops.append(f"b {bar_tick} {key_op}")
             plan.keys[position] = bar.fields.get("ks") or key_at(info, bar_tick - 1)
         if not bar.fields.get("len", "").isdigit() or Fraction(int(bar.fields["len"]), idea.div) != length:
-            raise IdeaError(f"m{bar.number}: len= must match the score's bar, which is {length * idea.div} long")
+            raise IdeaError(f"m{bar.label}: len= must match the score's bar, which is {length * idea.div} long")
         expected_bar, changes, volta = bar_changes(bar, position, info)
         plan.expected_bars[position] = expected_bar
         field_ops += [f"b {bar_tick} {change}" for change in changes]
         if volta is not None:
             voltas[position] = volta
         for (staff, layer), voice in sorted(bar.voices.items()):
-            where = f"m{bar.number} {staff}.{layer}"
+            where = f"m{bar.label} {staff}.{layer}"
             if not 1 <= staff <= staves or not 1 <= layer <= 4:
-                raise IdeaError(f"m{bar.number}: there is no {staff}.{layer}; the score has staves 1 to {staves}, voices 1 to 4")
+                raise IdeaError(f"m{bar.label}: there is no {staff}.{layer}; the score has staves 1 to {staves}, voices 1 to 4")
             unwritable(voice, where)
             if voice.end > length:
                 raise IdeaError(f"{where}: the notes last {voice.end} quarter notes; the bar has {length}")
@@ -750,11 +749,11 @@ def compile_idea(idea: n1x.Idea, info: ScoreInfo, division: int, staves: int, pr
             decorations += voice_decorations
             expected_marks = [(mark[0], mark[1]) for mark in kept if mark[1]] + [(onset, token) for onset, token, _ in added]
             if not voice.timed:
-                plan.expected[(bar.number, (staff, layer))] = n1x.Voice(marks=expected_marks)
+                plan.expected[(bar.label, (staff, layer))] = n1x.Voice(marks=expected_marks)
                 continue
             plan.timed.add(cell)
             mains = {chord.onset: kept_chord(chord, old_notes.get(cell, {}).get(chord.onset), where) for chord in voice.chords if not chord.grace}
-            plan.expected[(bar.number, (staff, layer))] = n1x.Voice(
+            plan.expected[(bar.label, (staff, layer))] = n1x.Voice(
                 chords=[chord if chord.grace else mains[chord.onset] for chord in voice.chords],
                 tuplets=list(voice.tuplets), marks=expected_marks, timed=True)
             voice_ops, voice_graces, voice_decorations, chords = rhythm_ops(voice, mains, length, added, cell, bar_tick, division, looks, plan, where)
@@ -804,7 +803,7 @@ def word(text: str) -> str:
 
 
 def bar_changes(bar: n1x.IdeaBar, position: int, info: ScoreInfo) -> tuple[Bar, list[str], str | None]:
-    where = f"m{bar.number}"
+    where = f"m{bar.label}"
     current = current_fields(info, position)
     old = info.bars[position]
     new = copy.deepcopy(old)
@@ -880,7 +879,7 @@ def bar_changes(bar: n1x.IdeaBar, position: int, info: ScoreInfo) -> tuple[Bar, 
 
 
 def key_change(bar: n1x.IdeaBar, position: int, info: ScoreInfo) -> str | None:
-    where = f"m{bar.number}"
+    where = f"m{bar.label}"
     tick = info.ticks[position]
     current, previous = key_at(info, tick), key_at(info, tick - 1)
     changes_here = position > 0 and tick in info.keys and previous != current
@@ -907,17 +906,17 @@ def meter_reach(info: ScoreInfo, position: int) -> int:
 
 
 def meter_span(idea: n1x.Idea, info: ScoreInfo) -> tuple[int, int] | None:
-    numbers = info.numbers
+    labels = info.labels
     for bar in idea.bars:
-        if ("ts" in bar.fields or "-ts" in bar.fields) and bar.number in numbers:
-            position = numbers.index(bar.number)
+        if ("ts" in bar.fields or "-ts" in bar.fields) and bar.label in labels:
+            position = labels.index(bar.label)
             reach = meter_reach(info, position)
             return info.ticks[position], bar_start(info, reach)
     return None
 
 
 def meter_change(bar: n1x.IdeaBar, position: int, info: ScoreInfo, idea: n1x.Idea, later: list[str]) -> str | None:
-    where = f"m{bar.number}"
+    where = f"m{bar.label}"
     current = info.measures[position].meter
     previous = info.measures[position - 1].meter if position else None
     if "-ts" in bar.fields:
@@ -934,17 +933,17 @@ def meter_change(bar: n1x.IdeaBar, position: int, info: ScoreInfo, idea: n1x.Ide
         return None
     if Fraction(4) * Fraction(target) != info.lengths[position]:
         reach = meter_reach(info, position)
-        numbers = info.numbers
-        if bar.voices or any(numbers.index(other.number) > position for other in idea.bars):
+        labels = info.labels
+        if bar.voices or any(labels.index(other.label) > position for other in idea.bars):
             raise IdeaError(
                 f"{where}: ts={target} changes the bar's length, so MuseScore re-bars the music after it; write it alone, "
                 "with no voice lines and no later bars in the idea, and the notes in a later idea, or, when the user asks to "
                 "recast these bars in the new meter, write them in it with recast=True"
             )
         if any(line.split(" ")[0] in ("C", "N") for line in later):
-            end = info.measures[reach - 1].number
+            end = info.labels[reach - 1]
             raise IdeaError(
-                f"{where}: ts={target} changes the bar's length, so MuseScore would re-bar bars {bar.number} to {end}, which have notes "
+                f"{where}: ts={target} changes the bar's length, so MuseScore would re-bar bars {bar.label} to {end}, which have notes "
                 "or lines; to recast bars in this meter, write them in it with recast=True"
             )
     if target == previous and previous != current:
@@ -1016,18 +1015,18 @@ def add_lyrics(plan: Plan, pre: list[str], info: ScoreInfo, division: int) -> No
     old = old_lyrics(pre)
     lyrics = {key: dict(syllables) for key, syllables in old.items()}
     sung = sung_ticks(pre, info)
-    numbers = info.numbers
+    labels = info.labels
     outside: dict[tuple[int, int], tuple[int, int]] = {}
     pieces_at = {cell: sorted(start for start, _ in chunks) for cell, chunks in plan.chunks.items()}
-    for bar in sorted(plan.idea.bars, key=lambda bar: numbers.index(bar.number)):
-        position = numbers.index(bar.number)
+    for bar in sorted(plan.idea.bars, key=lambda bar: labels.index(bar.label)):
+        position = labels.index(bar.label)
         start = info.ticks[position]
         stop = bar_start(info, position + 1)
         for (staff, layer), voice in sorted(bar.voices.items()):
             track = (staff - 1) * 4 + layer - 1
             cell = (position, track)
             timed = cell in plan.timed
-            where = f"m{bar.number} {staff}.{layer}"
+            where = f"m{bar.label} {staff}.{layer}"
             if timed:
                 chords = [(start + round(chord.onset * division), start + round((chord.onset + chord.duration) * division))
                           for chord in voice.chords if not chord.grace]
@@ -1093,7 +1092,7 @@ def add_lyrics(plan: Plan, pre: list[str], info: ScoreInfo, division: int) -> No
     plan.counts["syllables"] = len(writes) + len(holds)
     plan.counts["removed syllables"] = len(drops)
     for bar in plan.idea.bars:
-        position = numbers.index(bar.number)
+        position = labels.index(bar.label)
         start = info.ticks[position]
         for (staff, layer) in bar.voices:
             track = (staff - 1) * 4 + layer - 1
@@ -1113,7 +1112,7 @@ def add_lyrics(plan: Plan, pre: list[str], info: ScoreInfo, division: int) -> No
                     if held and max(held)[1] >= tick:
                         entry[verse] = None
                 expected[Fraction(tick - start, division)] = dict(sorted(entry.items()))
-            plan.expected_lyrics[(bar.number, (staff, layer))] = expected
+            plan.expected_lyrics[(bar.label, (staff, layer))] = expected
 
 
 def _order(key: tuple) -> tuple:
@@ -1221,25 +1220,25 @@ def mark_lines(lines: list[str], info: ScoreInfo, skip: set[tuple[int, int]]) ->
 def described(lines: list[Line], info: ScoreInfo, div: int, division: int) -> str:
     def at(tick: int, track: int, starts: bool) -> str:
         position = (bisect.bisect_right if starts else bisect.bisect_left)(info.ticks, tick) - 1 if tick > info.ticks[0] else 0
-        return f"m{info.measures[position].number} {track // 4 + 1}.{track % 4 + 1} @{(tick - info.ticks[position]) * div // division}"
+        return f"m{info.labels[position]} {track // 4 + 1}.{track % 4 + 1} @{(tick - info.ticks[position]) * div // division}"
 
     texts = [f"{line.name}{n1x.quote(line.text) if line.text else ''}( {at(line.tick, line.track, True)} to {line.name}) {at(line.end, line.track2, line.grace)}" for line in lines]
     return "[" + "; ".join(texts) + "]"
 
 
-def line_of(idea: n1x.Idea, number: int, label: str) -> str:
+def line_of(idea: n1x.Idea, bar_label: str, label: str) -> str:
     bar = None
     for line in idea.lines[1:]:
-        if re.match(r"m\d+\b", line):
-            bar = int(line.split()[0][1:])
-        elif bar == number and line.startswith(label + ":"):
+        if re.match(rf"{n1x.BAR}\b", line):
+            bar = line.split()[0][1:]
+        elif bar == bar_label and line.startswith(label + ":"):
             return line
     return f"{label}: (nothing)"
 
 
 def verify(plan: Plan, pre: list[str], post: list[str], info: ScoreInfo, division: int) -> tuple[str | None, list[int]]:
     before, after = cells(pre, info), cells(post, info)
-    numbers = info.numbers
+    labels = info.labels
     cut = set()
     for cell in sorted(set(before) | set(after)):
         position, track = cell
@@ -1251,14 +1250,14 @@ def verify(plan: Plan, pre: list[str], post: list[str], info: ScoreInfo, divisio
             if (neighbour, track) in plan.timed:
                 loose_want, loose_got = _untied(loose_want, first), _untied(loose_got, first)
         if loose_want != loose_got:
-            return f"bar {numbers[position]}, staff {track // 4 + 1} voice {track % 4 + 1}, outside the idea, changed", []
+            return f"bar {labels[position]}, staff {track // 4 + 1} voice {track % 4 + 1}, outside the idea, changed", []
         if want != got:
-            cut.add(numbers[position])
+            cut.add(position)
     tied = {(int(words[2]), int(words[1]), int(note.split(":")[0])) for words in (line.split(" ") for line in post)
             if words[0] == "C" for note in words[-1].split(",") if "b" in note.split(":")[3:]}
     if plan.tied_back - tied:
         track, tick, _ = min(plan.tied_back - tied)
-        return f"the tie into bar {numbers[bar_at(info.ticks, tick)]}, staff {track // 4 + 1} voice {track % 4 + 1}, was not made again", []
+        return f"the tie into bar {labels[bar_at(info.ticks, tick)]}, staff {track // 4 + 1} voice {track % 4 + 1}, was not made again", []
     annotations = (mark_lines(pre, info, plan.cells), mark_lines(post, info, plan.cells))
     if annotations[0] != annotations[1]:
         return f"marks outside the idea changed: {annotations[0]} -> {annotations[1]}", []
@@ -1268,19 +1267,19 @@ def verify(plan: Plan, pre: list[str], post: list[str], info: ScoreInfo, divisio
         return f"the lines differ: expected {described(missing, info, plan.idea.div, division)} but read back {described(extra, info, plan.idea.div, division)}", []
     positions = sorted(plan.expected_bars)
     after = copy.deepcopy(info)
-    text = n1x.encode(after, build_index(after, post, division), numbers[positions[0]], numbers[positions[-1]])
+    text = n1x.encode(after, build_index(after, post, division), positions[0], positions[-1])
     back = n1x.decode(text)
-    got_voices = {(bar.number, cell): voice for bar in back.bars for cell, voice in bar.voices.items()}
+    got_voices = {(bar.label, cell): voice for bar in back.bars for cell, voice in bar.voices.items()}
     for bar in plan.idea.bars:
         for cell, voice in sorted(bar.voices.items()):
-            got = got_voices.get((bar.number, cell), n1x.Voice())
+            got = got_voices.get((bar.label, cell), n1x.Voice())
             label = f"{cell[0]}.{cell[1]}"
-            if written(plan.expected[(bar.number, cell)], voice.timed) != written(got, voice.timed):
-                return f"bar {bar.number} {label} was written as '{line_of(plan.idea, bar.number, label)}' and reads back as '{line_of(back, bar.number, label)}'", []
-            want = plan.expected_lyrics[(bar.number, cell)]
-            sung = after.lyrics.get((numbers.index(bar.number), *cell), {})
+            if written(plan.expected[(bar.label, cell)], voice.timed) != written(got, voice.timed):
+                return f"bar {bar.label} {label} was written as '{line_of(plan.idea, bar.label, label)}' and reads back as '{line_of(back, bar.label, label)}'", []
+            want = plan.expected_lyrics[(bar.label, cell)]
+            sung = after.lyrics.get((labels.index(bar.label), *cell), {})
             if [want[onset] for onset in sorted(want)] != [sung[onset] for onset in sorted(sung)]:
-                return f"bar {bar.number} {label} should have the lyrics {n1x.lyric_lines(label, want)} and reads back with {n1x.lyric_lines(label, sung)}", []
+                return f"bar {bar.label} {label} should have the lyrics {n1x.lyric_lines(label, want)} and reads back with {n1x.lyric_lines(label, sung)}", []
     return None, sorted(cut)
 
 
@@ -1289,44 +1288,44 @@ def verify_bars(plan: Plan, info: ScoreInfo, after: ScoreInfo) -> str | None:
         return f"the score had {len(info.ticks)} bars and has {len(after.ticks)}, or its bars moved"
     for position, meter in sorted(plan.meters.items()):
         if after.measures[position].meter != meter:
-            return f"bar {after.measures[position].number} should be in {meter} and reads back in {after.measures[position].meter}"
+            return f"bar {after.labels[position]} should be in {meter} and reads back in {after.measures[position].meter}"
     for position, key in sorted(plan.keys.items()):
         if key_at(after, after.ticks[position]) != key:
-            return f"bar {after.measures[position].number} should be in ks={key} and reads back in ks={key_at(after, after.ticks[position])}"
+            return f"bar {after.labels[position]} should be in ks={key} and reads back in ks={key_at(after, after.ticks[position])}"
     if plan.rebar:
         return None
     for position, bar in sorted(plan.expected_bars.items()):
         want, got = n1x.bar_fields(bar), n1x.bar_fields(after.bars[position])
         if want != got:
-            return f"bar {after.measures[position].number} should have the fields '{' '.join(want)}' and reads back with '{' '.join(got)}'"
+            return f"bar {after.labels[position]} should have the fields '{' '.join(want)}' and reads back with '{' '.join(got)}'"
     return None
 
 
 def recast_view(idea: n1x.Idea, info: ScoreInfo, pre: list[str], division: int) -> Recast:
-    numbers = info.numbers
-    if any(bar.number not in numbers for bar in idea.bars):
-        raise IdeaError(f"Bar {min(bar.number for bar in idea.bars if bar.number not in numbers)} does not exist")
-    bars = sorted(idea.bars, key=lambda bar: numbers.index(bar.number))
+    labels = info.labels
+    if any(bar.label not in labels for bar in idea.bars):
+        raise IdeaError(f"Bar {min(bar.label for bar in idea.bars if bar.label not in labels)} does not exist")
+    bars = sorted(idea.bars, key=lambda bar: labels.index(bar.label))
     changed = [bar for bar in bars if "ts" in bar.fields or "-ts" in bar.fields]
     if not changed or changed[0] is not bars[0] or "ts" not in changed[0].fields:
         raise IdeaError("recast=True needs ts= on the idea's first bar, followed by the bars it recasts")
-    ends = [numbers.index(bar.number) for bar in changed[1:] if bar.fields.get("ts") == info.measures[numbers.index(bar.number)].meter]
+    ends = [labels.index(bar.label) for bar in changed[1:] if bar.fields.get("ts") == info.measures[labels.index(bar.label)].meter]
     if len(changed) > 2 or len(ends) != len(changed) - 1:
         raise IdeaError(
-            f"m{changed[-1].number}: in a recast, only one later bar takes ts=, its own meter, to end the recast before it, "
-            f"e.g. 'm{changed[-1].number} len=… ts={info.measures[numbers.index(changed[-1].number)].meter}'"
+            f"m{changed[-1].label}: in a recast, only one later bar takes ts=, its own meter, to end the recast before it, "
+            f"e.g. 'm{changed[-1].label} len=… ts={info.measures[labels.index(changed[-1].label)].meter}'"
         )
     meter = changed[0].fields["ts"]
     if not re.fullmatch(METER, meter):
-        raise IdeaError(f"m{changed[0].number}: ts={meter} is not a meter like 3/4 or 12/8")
-    first = numbers.index(changed[0].number)
+        raise IdeaError(f"m{changed[0].label}: ts={meter} is not a meter like 3/4 or 12/8")
+    first = labels.index(changed[0].label)
     length = 4 * Fraction(meter)
     if info.lengths[first] == length:
-        raise IdeaError(f"m{changed[0].number}: ts={meter} keeps the bar's length, so it needs no recast; leave recast=True out")
-    idea_positions = sorted(numbers.index(bar.number) for bar in idea.bars)
+        raise IdeaError(f"m{changed[0].label}: ts={meter} keeps the bar's length, so it needs no recast; leave recast=True out")
+    idea_positions = sorted(labels.index(bar.label) for bar in idea.bars)
     positions = range(first, ends[0] if ends else idea_positions[-1] + 1)
     if any(position not in idea_positions for position in positions):
-        raise IdeaError(f"m{changed[0].number}: a recast idea starts at the bar with ts= and writes every bar it recasts, in order, without gaps")
+        raise IdeaError(f"m{changed[0].label}: a recast idea starts at the bar with ts= and writes every bar it recasts, in order, without gaps")
     ticks = info.ticks
     after = ticks[positions[-1]] + round(info.lengths[positions[-1]] * division)
     delta = round(len(positions) * length * division) - (after - ticks[first])
@@ -1339,14 +1338,14 @@ def recast_view(idea: n1x.Idea, info: ScoreInfo, pre: list[str], division: int) 
                 needed.setdefault(position, set()).add(0 if words[0] == "A" and words[3] in SYSTEM_MARKS else int(words[2]))
     starts: dict[int, list[Fraction]] = {}
     for bar in idea.bars:
-        position = numbers.index(bar.number)
+        position = labels.index(bar.label)
         if position not in positions:
             continue
         timed = {(staff - 1) * 4 + layer - 1 for (staff, layer), voice in bar.voices.items() if voice.timed}
         missing = sorted(needed.get(position, set()) - timed)
         if missing:
             voices = ", ".join(f"{track // 4 + 1}.{track % 4 + 1}" for track in missing)
-            raise IdeaError(f"m{bar.number}: a recast rewrites every voice of its bars; write {voices} too, with its notes or rests in the new meter")
+            raise IdeaError(f"m{bar.label}: a recast rewrites every voice of its bars; write {voices} too, with its notes or rests in the new meter")
         starts[position] = sorted({chord.onset for voice in bar.voices.values() for chord in voice.chords if not chord.grace}
                                   | {onset for voice in bar.voices.values() for onset, _, _ in voice.rests})
 
@@ -1401,7 +1400,7 @@ def recast_view(idea: n1x.Idea, info: ScoreInfo, pre: list[str], division: int) 
         end = ticks[position] + round(info.lengths[position] * division)
         for track in sorted(needed.get(position, set())):
             empties += [f"x {track} {ticks[position]} {end} 1", f"v {track} {ticks[position]}"]
-            for chunk in pieces(info.lengths[position], f"m{numbers[position]}"):
+            for chunk in pieces(info.lengths[position], f"m{labels[position]}"):
                 empties += [f"d {chunk.numerator}/{chunk.denominator}", "r"]
     meters = [f"b {start_of(position)} len {count} {unit}" for position in positions] + [f"b {ticks[first]} meter {count} {unit}"]
     return Recast(positions, meter, after, delta, projected, mapped, removals + anchors + empties + meters)

@@ -173,17 +173,16 @@ def decoded_notes(text: str) -> dict[tuple[int, int, int], list[tuple]]:
         for (staff, layer), voice in bar.voices.items():
             for chord in voice.chords:
                 for note in chord.notes:
-                    result.setdefault((bar.number, staff, layer), []).append((chord.onset, chord.grace, chord.duration, note.pitch, note.tied))
+                    result.setdefault((int(re.match(r"\d+", bar.label)[0]), staff, layer), []).append((chord.onset, chord.grace, chord.duration, note.pitch, note.tied))
     return {key: sorted(value) for key, value in result.items()}
 
 
-def index_notes(index, first: int, last: int) -> dict[tuple[int, int, int], list[tuple]]:
+def index_notes(index, start: int, end: int) -> dict[tuple[int, int, int], list[tuple]]:
     result: dict[tuple[int, int, int], list[tuple]] = {}
-    for measure in index.measures:
-        if first <= measure.number <= last:
-            for event in measure.events:
-                if event.pitch:
-                    result.setdefault((measure.number, event.staff, event.layer), []).append((event.onset, event.grace, event.duration, event.pitch, event.tied))
+    for measure in index.measures[start : end + 1]:
+        for event in measure.events:
+            if event.pitch:
+                result.setdefault((measure.number, event.staff, event.layer), []).append((event.onset, event.grace, event.duration, event.pitch, event.tied))
     return {key: sorted(value) for key, value in result.items()}
 
 
@@ -193,9 +192,9 @@ def strip(text: str) -> str:
     for line in lines[1:]:
         if re.match(r'(title|composer)=|P\d+ "|\d+\.\d+ L\d+:', line):
             continue
-        if re.match(r"m\d+ ", line):
+        if re.match(rf"{n1x.BAR} ", line):
             words = line.split()
-            line = " ".join([words[0], *(word for word in words[1:] if word.split("=")[0] in ("len", "ts"))])
+            line = " ".join([words[0].rstrip("bcdefghijklmnopqrstuvwxyz"), *(word for word in words[1:] if word.split("=")[0] in ("len", "ts"))])
         else:
             line = re.sub(r' [a-z0-9<>-]*("(?:[^"\\]|\\.)*")?[()]\d*(@\d+)?(?= |$)', "", line)
             line = re.sub(r' (!|x|s|S|R|fb|pt|q[\d.]+)?"(?:[^"\\]|\\.)*"(@\d+)?| (![a-z]+|q[\d.]+|clef=\S+)(@\d+)?', "", line)
@@ -216,12 +215,13 @@ async def main() -> None:
     first, last = numbers[0], numbers[-1]
     middle = numbers[len(numbers) // 2]
     for a, b in [(first, last), (1, min(4, last)), (middle, last)]:
-        text = n1x.encode(info, index, a, b)
+        start, end = index.measures.index(index.measure(a)), index.measures.index(index.measure(b))
+        text = n1x.encode(info, index, start, end)
         check(f"bars {a}-{b}, stripped N1x equals N1", normal(strip(text)) == normal(notes.encode(index, a, b)))
-        check(f"bars {a}-{b}, N1x decodes to the score's notes", decoded_notes(text) == index_notes(index, first if a == 1 else a, b))
-    text = n1x.encode(info, index, first, last)
+        check(f"bars {a}-{b}, N1x decodes to the score's notes", decoded_notes(text) == index_notes(index, 0 if start == 1 and numbers[0] == 0 else start, end))
+    text = n1x.encode(info, index, 0, len(numbers) - 1)
     print(text.split("\nm")[0])
-    bars = [line for line in text.splitlines() if re.match(r"m\d+ ", line)]
+    bars = [line for line in text.splitlines() if re.match(rf"{n1x.BAR} ", line)]
     for line in bars:
         if len(line.split()) > 2:
             print("  " + line)
@@ -246,12 +246,12 @@ async def main() -> None:
         got = text[text.index("\nm1 ") + 1 :]
         check("lyrics", got == EXPECTED_LYRICS, f"\n{got}")
         _, lines = await server.bridge.request(f"read {info.ticks[numbers.index(4)]} {2**31 - 1}")
-        got = n1x.encode(info, build_index(info, lines, int(server.bridge.hello["division"])), 4, 5)
+        got = n1x.encode(info, build_index(info, lines, int(server.bridge.hello["division"])), numbers.index(4), numbers.index(5))
         check("syllable held from before the range", '\nm4 len=4\n1.1: 2 F5 gA5 1 G5\n1.1 L1: _ "you are"\n' in got, f"\n{got}")
     if info.title == REPEATS_TITLE:
         got = text[text.index("\nm1 ") + 1 :]
         check("repeated bars", got == EXPECTED_REPEATS, f"\n{got}")
-        got = n1x.encode(info, index, 4, 6)
+        got = n1x.encode(info, index, numbers.index(4), numbers.index(6))
         check("a range writes out the bars it refers to", got.endswith("\nm4 len=4\n1.1: 1 C5 D5 E5 F5\n2.1: 4 G2\nm5 len=4\n1.1: !p 1 C5 D5 E5 F5\n2.1: 4 C3\nm6 len=4 rep=end\n1.1 = m4\n2.1 = m5"), f"\n{got}")
     if info.title == KEYS_TITLE:
         check("the concert key, not a transposing staff's written key", text.startswith("N1x div=1 ts=4/4 ks=0\n"), text.splitlines()[0])
