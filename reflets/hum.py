@@ -208,15 +208,6 @@ def join_unpushed(sung: list[Sung], pitches: list[int], level: np.ndarray) -> tu
     return out, kept
 
 
-def fix_octaves(pitches: list[int]) -> list[int]:
-    out = list(pitches)
-    for i in range(len(out)):
-        neighbours = [out[j] for j in (i - 1, i + 1) if 0 <= j < len(out)]
-        if neighbours and all(abs(out[i] - n) >= 9 for n in neighbours):
-            out[i] += 12 * round((np.mean(neighbours) - out[i]) / 12)
-    return out
-
-
 def strength(slot: int, beat: int) -> int:
     return 0 if slot % beat == 0 else 1 if beat % 2 == 0 and slot % (beat // 2) == 0 else 2
 
@@ -274,7 +265,7 @@ def transcribe(audio: np.ndarray, beat: float, grid: int, guess: float, reach: f
 
     def placed(at: float) -> list[Placed]:
         split = split_pushes(sung, level, step, at)
-        split, pitches = join_unpushed(split, fix_octaves(in_key(split, key)), level)
+        split, pitches = join_unpushed(split, in_key(split, key), level)
         return snap(split, pitches, step, at, slots, beat_slots)
 
     shifted = abs(latency - given) > step / 4
