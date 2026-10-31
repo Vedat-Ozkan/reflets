@@ -282,3 +282,14 @@ The octave rule moved a note 9 or more semitones from both neighbours (or a firs
 | without, nor the triad rule | .879 / .871 | .801 / .794 | .922 / .919 | .858 / .855 | .877 / .866 | .810 / .800 | .902 / .899 | .845 / .842 |
 
 On the synthetic melodies (12 renders) the leaps melody went from .949 to .997 on the slot and nothing else moved; the owner's takes went from 142 to 143 of 154 right length (4 extra notes against 3). So the rule is gone. Leaning ambiguous pitches toward the tonic triad does earn its place: without it the test clips on the 16th grid lose .003 to .004 and the owner's takes 3 notes (145 placed, 7 extra).
+
+## SCALE_LEAN set to 0.25 (2026-10-31)
+
+Set as a product decision (spec decision 48), without the octave rule (`--key --reflets`, recall / precision):
+
+| `SCALE_LEAN` | Test 16th slot | Test 16th length | Test 8th slot | Test 8th length | Valid 16th slot | Valid 16th length | Valid 8th slot | Valid 8th length |
+|---|---|---|---|---|---|---|---|---|
+| 0.15 | .883 / .876 | .805 / .798 | .922 / .919 | .857 / .855 | .877 / .868 | .810 / .801 | .904 / .902 | .846 / .844 |
+| 0.25 | .875 / .867 | .797 / .790 | .916 / .913 | .852 / .850 | .868 / .857 | .801 / .792 | .895 / .893 | .837 / .835 |
+
+On the synthetic melodies (12 renders, delay measured) the notes outside the key placed went from 325 to 359 of 420 and the chromatic melodies from .848 to .903 on the slot, .792 to .854 right length; the owner's takes from 143 to 142 of 154 right length (5 extra against 4).
