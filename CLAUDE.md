@@ -11,7 +11,7 @@ MCP server (`reflets/`, Python) plus a MuseScore bridge plugin (`plugin/reflets-
 - `reflets/restore.py`: builds the two ideas `restore` writes: the current bars cleared of their details, then the checkpoint's bars
 - `reflets/server.py`: MCP tools
 - `reflets/hum.py`: humming to notes (SwiftF0 pitch track and note split, tuning, key, clean-up, grid snap) and N1x voice lines; pure, no device
-- `reflets/audio.py`: the take: one duplex stream plays the click and records the mic; the delay from the click's echo, or a stored calibration per device; `hum.transcribe` then refines it from where the hummed notes start (near the echo, or within half a second of the stored or driver's delay). Needs the `hum` extra, imported only inside the `hum` tool
+- `reflets/audio.py`: the take: one duplex stream plays the click and records the mic; the delay from the click's echo, or the last take's on that device in this session, or a stored calibration per device; `hum.transcribe` then refines it from where the hummed notes start (near the echo, or within half a second of the stored or driver's delay). Needs the `hum` extra, imported only inside the `hum` tool
 - `plugin/reflets-bridge.qml`: the bridge, a macro plugin with no dialog (spec 2.1)
 - `tests/live_write.py`: end-to-end check of the write path against a live MuseScore with the nocturne open
 - `tests/live_roundtrip.py`: writes every bar of whatever score is open, in the shortest range whose lines close in it, as read, with every mark, decoration and line that closes in the range removed and every lyric line emptied, and as read again, checking each read-back and the discard, and that stem directions and beam modes stay as read

@@ -30,6 +30,7 @@ ALIGNED = 0.5
 ALIGNED_NOTES = 8
 ALIGNED_MARGIN = 0.2
 DELAY_RANGE = 0.5
+KEY_NOTES = 8
 FRAME = 160
 
 
@@ -250,7 +251,8 @@ class Transcription:
     as_given: list[Placed] | None
 
 
-def transcribe(audio: np.ndarray, beat: float, grid: int, guess: float, reach: float, slots: int, click: int | None = None) -> Transcription | None:
+def transcribe(audio: np.ndarray, beat: float, grid: int, guess: float, reach: float, slots: int, click: int | None = None,
+               known: Key | None = None) -> Transcription | None:
     step = beat / grid
     sung = track(audio)
     if not sung:
@@ -259,7 +261,7 @@ def transcribe(audio: np.ndarray, beat: float, grid: int, guess: float, reach: f
     latency = aligned_latency(sung, step, beat_slots, guess, reach)
     given = aligned_latency(sung, step, beat_slots, guess, 0)
     sung, tuning = tuned(sung)
-    key = find_key(sung)
+    key = known if known and len(sung) < KEY_NOTES else find_key(sung)
     sung = absorb_short(sung, SHORT_STEPS * step, SCOOP_STEPS * step)
     level = loudness(audio)
 
@@ -272,10 +274,11 @@ def transcribe(audio: np.ndarray, beat: float, grid: int, guess: float, reach: f
     return Transcription(placed(latency), key, tuning, latency, given, placed(given) if shifted else None)
 
 
-def hummed(audio: np.ndarray, starts: list[int], tempo: float, meter: str, bars: int, grid: int, guess: float, reach: float) -> Transcription | None:
+def hummed(audio: np.ndarray, starts: list[int], tempo: float, meter: str, bars: int, grid: int, guess: float, reach: float,
+           known: Key | None = None) -> Transcription | None:
     numerator, denominator = (int(x) for x in meter.split("/"))
     slots = bars * numerator * 4 * grid // denominator
-    return transcribe(audio[starts[numerator]:], 60 / tempo, grid, guess, reach, slots, max(1, grid * 4 // denominator))
+    return transcribe(audio[starts[numerator]:], 60 / tempo, grid, guess, reach, slots, max(1, grid * 4 // denominator), known)
 
 
 CENTRES = [

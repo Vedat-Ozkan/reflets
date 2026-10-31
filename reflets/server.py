@@ -13,6 +13,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 from fractions import Fraction
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from engine import annotate, draft, notes, part_writing, reduce
 from engine.annotate import AnnotationError
@@ -41,6 +42,9 @@ from reflets.write import (
     verify,
     verify_bars,
 )
+
+if TYPE_CHECKING:
+    from reflets.hum import Key
 
 WHOLE_SCORE_TOKENS = 6000
 FIRST_BARS = 16
@@ -625,6 +629,7 @@ async def keep(proposal_id: str) -> str:
 LONGEST_TAKE = 40
 ALIGNED_CHANGE = 0.01
 CALIBRATION_CLICKS = 8
+last_takes: dict[str, tuple[float, Key]] = {}
 HUM_SETUP = (
     "Humming needs the audio extra: install Reflets with uvx --from 'reflets[hum] @ git+…' (see the README); on Linux "
     "and WSL also sudo apt install libportaudio2 libasound2-plugins, with ~/.asoundrc routing to pulse."
@@ -727,17 +732,21 @@ async def hum(
         raise ToolError(NO_RECORDING.format(error)) from None
     heard = audio.echo(take, numerator)
     calibrated = audio.stored_latency(folder, take.device)
+    last = last_takes.get(take.device)
     if heard is not None:
         latency, timing = heard, "measured from the click this take"
+    elif last is not None:
+        latency, timing = last[0], "found in the last take"
     elif calibrated is not None:
         latency, timing = calibrated, "calibrated earlier"
     else:
         latency, timing = take.gap, "the driver's estimate, uncalibrated"
     reach = 0 if heard is not None else humming.DELAY_RANGE
     meter = info.measures[position].meter
-    result = await asyncio.to_thread(humming.hummed, take.audio, starts, tempo, meter, bars, grid, latency, reach)
+    result = await asyncio.to_thread(humming.hummed, take.audio, starts, tempo, meter, bars, grid, latency, reach, last[1] if last else None)
     if not result or not result.notes:
         raise ToolError("No humming was heard after the count-in. Check the microphone, then try again.")
+    last_takes[take.device] = (result.latency, result.key)
     guess, source = latency, timing
     step_name = "eighth" if grid == 2 else "sixteenth"
     if result.as_given is not None:

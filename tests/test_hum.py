@@ -40,6 +40,15 @@ def test_note_across_a_bar_line_is_tied():
     assert hum.voice_lines(notes, [8, 8], 24, 0) == ["144 r 48 C4~", "48 C4"]
 
 
+def test_a_bar_hummed_again_keeps_the_key_of_the_take_before():
+    beat = 60 / 90
+    audio = sung(48, beat, 0.19, 20)
+    whole = hum.transcribe(audio, beat, 2, 0.19, 0, 32)
+    bar = audio[int(4 * beat * hum.RATE):int((8 * beat + 0.5) * hum.RATE)]
+    assert hum.transcribe(bar, beat, 2, 0.19, 0, 8).key.name != "C major"
+    again = hum.transcribe(bar, beat, 2, 0.19, 0, 8, known=whole.key)
+    assert again.key.name == "C major" and [n.pitch for n in again.notes] == [57, 57, 55]
+
 
 def test_clicks_and_room_noise_give_no_notes():
     from reflets import audio
