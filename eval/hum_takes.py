@@ -3,9 +3,11 @@
     uv run --extra hum python -m eval.hum_takes [--folder spikes/hum/takes] [--save-baseline]
     uv run --extra hum python -m eval.hum_takes --label <take> <tune | right>
 
-A take is scored once it is labelled: with a known tune, with a melody of eval.hum_synth (played from
+A take is scored once it is labelled: with a tune of reflets/hum_tunes.py (a known tune, or a melody played from
 tests/data/hum-targets.musicxml before humming it), or 'right' when the notes it wrote were right, which makes them
-its answer. Pitches count up to one transposition, since people hum in a key of their own.
+its answer. Takes from hum_test come labelled; --folder out/hum-tests scores every tester's (eval.hum_pull), the
+subfolders too. Pitches count up to one transposition, since people hum in a key of their own. Each take also gets
+its edits per 4 bars: notes missing or of the wrong length, and notes extra.
 """
 
 from __future__ import annotations
@@ -17,22 +19,11 @@ from pathlib import Path
 
 import numpy as np
 
-from eval.hum_synth import MELODIES
 from reflets import hum, n1x
+from reflets.hum_tunes import TUNES
 from reflets.write import midi_tpc
 
 FOLDER = Path(__file__).parent.parent / "spikes" / "hum" / "takes"
-TUNES = {
-    "twinkle": [(0, 4, 0), (4, 4, 0), (8, 4, 7), (12, 4, 7), (16, 4, 9), (20, 4, 9), (24, 4, 7),
-                (32, 4, 5), (36, 4, 5), (40, 4, 4), (44, 4, 4), (48, 4, 2), (52, 4, 2), (56, 4, 0)],
-    "ode": [(0, 4, 4), (4, 4, 4), (8, 4, 5), (12, 4, 7), (16, 4, 7), (20, 4, 5), (24, 4, 4), (28, 4, 2),
-            (32, 4, 0), (36, 4, 0), (40, 4, 2), (44, 4, 4), (48, 6, 4), (54, 2, 2), (56, 8, 2)],
-    "frere": [(0, 4, 0), (4, 4, 2), (8, 4, 4), (12, 4, 0), (16, 4, 0), (20, 4, 2), (24, 4, 4), (28, 4, 0),
-              (32, 4, 4), (36, 4, 5), (40, 4, 7), (48, 4, 4), (52, 4, 5), (56, 4, 7)],
-    "mary": [(0, 4, 4), (4, 4, 2), (8, 4, 0), (12, 4, 2), (16, 4, 4), (20, 4, 4), (24, 4, 4),
-             (32, 4, 2), (36, 4, 2), (40, 4, 2), (48, 4, 4), (52, 4, 7), (56, 8, 7)],
-    **{melody.name: melody.notes for melody in MELODIES},
-}
 
 
 def load(path: Path) -> tuple[np.ndarray, dict]:
@@ -68,7 +59,7 @@ def answer(meta: dict) -> list[tuple[int, int, int]] | None:
     if tune == "right":
         return written(meta)
     if tune in TUNES:
-        return [(slot * meta["grid"] // 4, length * meta["grid"] // 4, pitch) for slot, length, pitch in TUNES[tune]]
+        return [(slot * meta["grid"] // 4, length * meta["grid"] // 4, pitch) for slot, length, pitch in TUNES[tune].notes]
     return None
 
 
@@ -96,22 +87,26 @@ def main() -> None:
         return
     baseline_file = args.folder / "baseline.json"
     baseline = json.loads(baseline_file.read_text()) if baseline_file.exists() else {}
-    now, totals = {}, np.zeros(4, int)
-    for path in sorted(args.folder.glob("*.wav")):
+    now, totals, edits = {}, np.zeros(4, int), []
+    for path in sorted(args.folder.rglob("*.wav")):
+        name = str(path.relative_to(args.folder).with_suffix(""))
         audio, meta = load(path)
         truth = answer(meta)
         if truth is None:
-            print(f"{path.stem}  not labelled")
+            print(f"{name}  not labelled")
             continue
         placed, whole, extra = score(transcribed(audio, meta), truth)
-        now[path.stem] = [placed, whole, extra, len(truth)]
-        totals += now[path.stem]
-        before = baseline.get(path.stem)
-        change = "" if not before or before == now[path.stem] else f"  (was {before[0]}/{before[1]}/{before[2]} extra)"
-        print(f"{path.stem}  {meta['tune']:20s} {placed}/{len(truth)} placed, {whole} with the right length, {extra} extra{change}")
+        now[name] = [placed, whole, extra, len(truth)]
+        totals += now[name]
+        edits.append((len(truth) - whole + extra) * 4 / meta["bars"])
+        before = baseline.get(name)
+        change = "" if not before or before == now[name] else f"  (was {before[0]}/{before[1]}/{before[2]} extra)"
+        print(f"{name}  {meta['tune']:20s} {placed}/{len(truth)} placed, {whole} with the right length, {extra} extra, "
+              f"{edits[-1]:.1f} edits per 4 bars{change}")
     placed, whole, extra, wanted = totals
     if wanted:
-        print(f"all: {placed}/{wanted} placed ({placed / wanted:.3f}), {whole} right length ({whole / wanted:.3f}), {extra} extra")
+        print(f"all: {placed}/{wanted} placed ({placed / wanted:.3f}), {whole} right length ({whole / wanted:.3f}), {extra} extra; "
+              f"edits per 4 bars median {np.median(edits):.1f}, {sum(e == 0 for e in edits)}/{len(edits)} takes with none")
     if args.save_baseline:
         baseline_file.write_text(json.dumps(now, indent=1))
 

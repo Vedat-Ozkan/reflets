@@ -12,6 +12,7 @@ import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from fractions import Fraction
+from importlib.metadata import version
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -629,6 +630,8 @@ async def keep(proposal_id: str) -> str:
 LONGEST_TAKE = 40
 ALIGNED_CHANGE = 0.01
 CALIBRATION_CLICKS = 8
+TEST_TONIC = 60
+TEST_FOLDER = "hum-test"
 last_takes: dict[str, tuple[float, Key]] = {}
 HUM_SETUP = (
     "Humming needs the audio extra: install Reflets with uvx --from 'reflets[hum] @ git+…' (see the README); on Linux "
@@ -668,14 +671,14 @@ def tempo_at(info: ScoreInfo, position: int) -> float | None:
         "to that key, as most people hum in a key of their own. replace=True as for propose. calibrate=True "
         "measures the delay between click and microphone instead: 8 clicks, the user says 'ta' on each. On speakers "
         "each take measures the delay from its own clicks; on headphones it is found from where the hummed notes "
-        "start, so calibrate only if the notes still land late or early."
+        "start, so calibrate only if the notes still land late or early. test is set by the humming test (hum_test): it plays that tune first and saves the take for the developer."
     ),
     annotations=writes("Hum a line", destructive=True),
     structured_output=False,
 )
 async def hum(
     start_bar: int = 1, staff: int = 1, bars: int = 4, tempo: float | None = None, grid: int = 2, octave: int = 0,
-    kind: str = "line", replace: bool = False, calibrate: bool = False,
+    kind: str = "line", replace: bool = False, calibrate: bool = False, test: str | None = None,
 ) -> str:
     try:
         from reflets import audio, hum as humming
@@ -697,6 +700,14 @@ async def hum(
             raise ToolError("Not enough 'ta's were heard on the clicks to measure the delay. Ask the user to try again, louder, one 'ta' on each click.")
         audio.store_latency(folder, take.device, found)
         return f"Calibrated: the microphone hears the user {1000 * found:.0f} ms after each click on {take.device}. Takes on this device use it."
+    tune = None
+    if test is not None:
+        from reflets.hum_tunes import TUNES
+
+        if test not in TUNES:
+            raise ToolError(f"test is one of {', '.join(TUNES)}.")
+        tune = TUNES[test]
+        grid, bars, kind = tune.grid, tune.bars, "line"
     if grid not in (2, 4) or kind not in ("line", "rhythm") or not 1 <= bars <= 32:
         raise ToolError("grid is 2 or 4, kind is 'line' or 'rhythm', bars is 1 to 32.")
     info, index, *_ = await read_bars("all")
@@ -723,10 +734,14 @@ async def hum(
     if (bar_quarters * grid).denominator != 1:
         raise ToolError(f"A {info.measures[position].meter} bar is not a whole number of {'eighths' if grid == 2 else 'sixteenths'}"
                         + ("; use grid=4." if grid == 2 and (bar_quarters * 4).denominator == 1 else "; this meter cannot be hummed yet."))
+    if tune and info.measures[position].meter != "{}/{}".format(*tune.meter):
+        raise ToolError(f"{test} is in {'{}/{}'.format(*tune.meter)}; hum it where the score is in that meter, or in a new score.")
     if (bars + 1) * numerator * beat > LONGEST_TAKE:
         raise ToolError(f"That take would last over {LONGEST_TAKE} seconds; hum fewer bars at a time.")
     play, starts = audio.click_track(beat, numerator, (bars + 1) * numerator)
     try:
+        if tune:
+            await asyncio.to_thread(audio.play, audio.melody_track(tune.notes, TEST_TONIC, 15 / tempo))
         take = await asyncio.to_thread(audio.record, play, starts)
     except Exception as error:
         raise ToolError(NO_RECORDING.format(error)) from None
@@ -797,11 +812,12 @@ async def hum(
         return "\n".join(idea)
 
     idea = idea_of(result.notes)
-    if saving := os.environ.get("REFLETS_HUM_SAVE"):
+    saving = folder / TEST_FOLDER if tune else os.environ.get("REFLETS_HUM_SAVE")
+    if saving:
         audio.save(Path(saving), take, {
             "tempo": tempo, "meter": meter, "bars": bars, "grid": grid, "latency": guess, "timing": source,
             "reach": reach, "found": result.latency, "start_bar": start_bar, "staff": staff, "instrument": instrument, "kind": kind,
-            "key": result.key.name, "idea": idea,
+            "key": result.key.name, "idea": idea, "reflets": version("reflets"), **({"tune": test} if tune else {}),
         })
     written = await write_idea(idea, "hummed", replace)
     heard_key = result.key.name + (" (or close to another key; check by ear)" if result.key.margin < 0.05 else "")
@@ -820,6 +836,71 @@ async def hum(
     if result.as_given is not None:
         written += f"\n{moved}\n{idea_of(result.as_given)}"
     return " ".join(report) + "\n" + written
+
+
+TAKES_URL = "https://reflets-takes.invalid"
+TAKE_TYPES = {".wav": "audio/wav", ".json": "application/json"}
+
+
+def send_take(path: Path, code: str) -> None:
+    from urllib.request import Request, urlopen
+
+    url = os.environ.get("REFLETS_TAKES_URL", TAKES_URL)
+    with urlopen(Request(f"{url}/takes/{path.name}", path.read_bytes(), method="PUT", headers={
+        "Authorization": f"Bearer {code}", "Content-Type": TAKE_TYPES[path.suffix],
+    }), timeout=30):
+        pass
+
+
+@mcp.tool(
+    title="Take the humming test",
+    description=(
+        "Use this when the user wants to take the humming test, which sends the developer recordings of them humming "
+        "a few short tunes so the humming tool gets better. Call it with no arguments first: it returns the steps to "
+        "follow. When every tune is hummed and the user agrees to send, call it with send=True and the tester code "
+        "they were given."
+    ),
+    annotations=ToolAnnotations(title="Take the humming test", read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=True),
+    structured_output=False,
+)
+async def hum_test(send: bool = False, code: str = "") -> str:
+    from urllib.error import HTTPError
+
+    from reflets.hum_tunes import TEST, TUNES
+
+    folder = token_file().parent / TEST_FOLDER
+    if not send:
+        tunes = "\n".join(f"{n}. {name}: {TUNES[name].bars} bars" for n, name in enumerate(TEST, 1))
+        return (
+            "The humming test, about ten minutes. Tell the user what it is: Reflets plays each tune once, then one bar "
+            "of clicks, then they hum it back along with the click, on 'da'; at the end, with their agreement, the "
+            "recordings and what the tool wrote are sent to the developer, and nothing else. They need a new score in "
+            "4/4, any instrument, open in MuseScore, and headphones or speakers as they would normally use.\n"
+            "For each tune, in order: call hum(test=<tune>, start_bar=<the bar after the score's last>), tell the user "
+            "it is listening once the tune has played, let them listen to the notes it wrote, then discard them. If a "
+            "take went wrong (they started late, forgot the tune), they may hum it once more. Do not fix or explain "
+            "wrong notes: the test is how the tool hears them.\n"
+            f"{tunes}\n"
+            "Then ask for their tester code and whether they agree to send the recordings, and call "
+            "hum_test(send=True, code=<code>)."
+        )
+    if not code.strip():
+        raise ToolError("Ask the user for the tester code they were given.")
+    takes = sorted(folder.glob("*.wav")) if folder.exists() else []
+    if not takes:
+        raise ToolError("No test takes to send; hum the tunes first.")
+    sent = folder / "sent"
+    sent.mkdir(exist_ok=True)
+    try:
+        for wav in takes:
+            for path in (wav, wav.with_suffix(".json")):
+                await asyncio.to_thread(send_take, path, code.strip())
+                path.rename(sent / path.name)
+    except HTTPError as error:
+        raise ToolError(f"Sending stopped: {error.read().decode(errors='replace')}. The takes not sent yet stay.") from None
+    except OSError as error:
+        raise ToolError(f"Sending stopped: {error}. The takes not sent yet stay; call again to send them.") from None
+    return f"Sent {len(takes)} takes. Thank the user: they go to the developer only."
 
 
 def checkpoint_folder(title: str) -> Path:

@@ -38,6 +38,26 @@ def click_track(beat: float, beats: int, count: int) -> tuple[np.ndarray, list[i
     return out, starts
 
 
+def melody_track(notes: list[tuple[int, int, int]], tonic: int, sixteenth: float) -> np.ndarray:
+    end = max(slot + length for slot, length, _ in notes)
+    out = np.zeros(int((end * sixteenth + 0.5) * RATE), np.float32)
+    for slot, length, degree in notes:
+        t = np.arange(int(length * sixteenth * 0.9 * RATE)) / RATE
+        frequency = 440 * 2 ** ((tonic + degree - 69) / 12)
+        tone = sum(np.sin(2 * np.pi * k * frequency * t) / k ** 2 for k in range(1, 5))
+        envelope = np.minimum(1, t / 0.01) * np.exp(-t * 2.5) * np.minimum(1, (t[-1] - t) / 0.02 + 0.01)
+        at = int(slot * sixteenth * RATE)
+        out[at:at + len(t)] += (0.25 * tone * envelope).astype(np.float32)
+    return out
+
+
+def play(sound: np.ndarray) -> None:
+    import sounddevice
+
+    sounddevice.play(sound, RATE)
+    sounddevice.wait()
+
+
 def record(play: np.ndarray, starts: list[int]) -> Take:
     import sounddevice
 
