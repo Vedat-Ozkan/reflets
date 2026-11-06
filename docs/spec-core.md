@@ -111,7 +111,7 @@ response  <id> ok [<summary> ...]
 
 ### 3.3 Liveness: application-level ping
 
-As built in slice 1 (2026-10-18): no ping loop. The server connects on the first tool call and, if a request fails on a dropped socket, reconnects once (3.4) before reporting that MuseScore is not reachable. The ping loop below waits until something needs it. The plugin registers `onMessage` once per connection, in its new-connection callback, which runs once per client id; and it admits a connection only after a `hello` with the token (2.2).
+As built in slice 1 (2026-10-18): no ping loop. The server connects on the first tool call and, if a request fails on a dropped socket, reconnects once (3.4) before reporting that MuseScore is not reachable. Once a line has gone out, only a read is sent again: a `write`, `color`, `undo` or `redo` whose answer never came may already have landed, so the server reports that instead (2026-11-06). The ping loop below waits until something needs it. The plugin registers `onMessage` once per connection, in its new-connection callback, which runs once per client id; and it admits a connection only after a `hello` with the token (2.2).
 
 - The server sends `ping` every 5 s while idle and treats two missed `pong`s as a dead connection, closes its socket and reconnects. The API offers no disconnect callback and no close, so liveness can only be detected at application level (`deep:13`); mcp-score polls a ping every 2 s for readiness (`deep:93`).
 - The plugin registers `onMessage` once per client id (ids start at 2001; `deep:6`); registering twice double-delivers messages (`deep:6`, `deep:13`). The plugin keeps a set of ids it has registered.

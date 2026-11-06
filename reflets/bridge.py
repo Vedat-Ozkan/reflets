@@ -14,9 +14,16 @@ PROTO = 24
 CLIENT = "reflets-server/0.2.0"
 TIMEOUT = 10
 OTHER_TIMEOUT = 1
+CHANGES_THE_SCORE = {"write", "color", "undo", "redo"}
 NOT_RUNNING = (
     "Reflets cannot reach MuseScore. Open MuseScore Studio 4.7, open your score, and run "
     "Plugins > Reflets Bridge once (it keeps running until MuseScore quits)."
+)
+
+
+NO_ANSWER = (
+    "MuseScore did not answer, so this change may or may not have reached the score. It was not sent again. "
+    "Read the bars to see which happened."
 )
 
 
@@ -69,24 +76,29 @@ class Bridge:
                         await self._connect()
                     return await self._send(line)
                 except (OSError, asyncio.TimeoutError, websockets.ConnectionClosed):
-                    self.socket = None
+                    await self._drop()
             raise BridgeError(NOT_RUNNING)
+
+    async def _drop(self) -> None:
+        socket, self.socket = self.socket, None
+        if socket is not None:
+            await socket.close()
 
     async def _connect(self) -> None:
         try:
             token = self.token.read_text().strip()
         except FileNotFoundError:
             raise BridgeError(f"{NOT_RUNNING} (No token file at {self.token}.)") from None
-        self.socket = await websockets.connect(self.url, open_timeout=self.open_timeout, max_size=None)
+        self.socket = await websockets.connect(self.url, open_timeout=self.open_timeout, close_timeout=OTHER_TIMEOUT, max_size=None)
         self.next_id = 1
         try:
             words, _ = await self._send(f"hello proto={PROTO} token={token} client={CLIENT}")
         except BridgeError:
-            self.socket = None
+            await self._drop()
             raise
         self.hello = dict(word.split("=", 1) for word in words if "=" in word)
         if self.hello.get("proto") != str(PROTO):
-            self.socket = None
+            await self._drop()
             newer = int(self.hello.get("proto", "0")) > PROTO
             raise BridgeError(
                 f"The Reflets Bridge plugin speaks protocol {self.hello.get('proto')}, this server {PROTO}. "
@@ -99,7 +111,13 @@ class Bridge:
         self.next_id += 1
         await self.socket.send(f"{rid} {line}")
         while True:
-            reply = await asyncio.wait_for(self.socket.recv(), TIMEOUT)
+            try:
+                reply = await asyncio.wait_for(self.socket.recv(), TIMEOUT)
+            except (OSError, asyncio.TimeoutError, websockets.ConnectionClosed):
+                if line.split(maxsplit=1)[0] not in CHANGES_THE_SCORE:
+                    raise
+                await self._drop()
+                raise BridgeError(NO_ANSWER) from None
             lines = reply.split("\n")
             words = lines[0].split(" ")
             if words[0] == str(rid):

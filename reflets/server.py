@@ -635,7 +635,8 @@ ALIGNED_CHANGE = 0.01
 CALIBRATION_CLICKS = 8
 TEST_TONIC = 60
 TEST_FOLDER = "hum-test"
-last_takes: dict[str, tuple[float, Key]] = {}
+last_delays: dict[str, float] = {}
+last_keys: dict[str, Key] = {}
 HUM_SETUP = (
     "Humming needs the audio extra: install Reflets with uvx --from 'reflets[hum] @ git+…' (see the README); on Linux "
     "and WSL also sudo apt install libportaudio2 libasound2-plugins, with ~/.asoundrc routing to pulse."
@@ -702,6 +703,7 @@ async def hum(
         if found is None:
             raise ToolError("Not enough 'ta's were heard on the clicks to measure the delay. Ask the user to try again, louder, one 'ta' on each click.")
         audio.store_latency(folder, take.device, found)
+        last_delays.pop(take.device, None)
         return f"Calibrated: the microphone hears the user {1000 * found:.0f} ms after each click on {take.device}. Takes on this device use it."
     tune = None
     if test is not None:
@@ -752,21 +754,21 @@ async def hum(
         raise ToolError(NO_RECORDING.format(error)) from None
     heard = audio.echo(take, numerator)
     calibrated = audio.stored_latency(folder, take.device)
-    last = last_takes.get(take.device)
+    last = last_delays.get(take.device)
     if heard is not None:
         latency, timing = heard, "measured from the click this take"
     elif last is not None:
-        latency, timing = last[0], "found in the last take"
+        latency, timing = last, "found in the last take"
     elif calibrated is not None:
         latency, timing = calibrated, "calibrated earlier"
     else:
         latency, timing = take.gap, "the driver's estimate, uncalibrated"
     reach = 0 if heard is not None else humming.DELAY_RANGE
     meter = info.measures[position].meter
-    result = await asyncio.to_thread(humming.hummed, take.audio, starts, tempo, meter, bars, grid, latency, reach, last[1] if last else None)
+    result = await asyncio.to_thread(humming.hummed, take.audio, starts, tempo, meter, bars, grid, latency, reach, last_keys.get(take.device))
     if not result or not result.notes:
         raise ToolError("No humming was heard after the count-in. Check the microphone, then try again.")
-    last_takes[take.device] = (result.latency, result.key)
+    last_delays[take.device], last_keys[take.device] = result.latency, result.key
     guess, source = latency, timing
     step_name = "eighth" if grid == 2 else "sixteenth"
     if result.as_given is not None:
@@ -891,16 +893,16 @@ async def hum_test(send: bool = False, code: str = "") -> str:
         )
     if not code.strip():
         raise ToolError("Ask the user for the tester code they were given.")
-    takes = sorted(folder.glob("*.wav")) if folder.exists() else []
+    unsent = [path for path in sorted(folder.glob("*")) if path.suffix in TAKE_TYPES] if folder.exists() else []
+    takes = {path.stem for path in unsent}
     if not takes:
         raise ToolError("No test takes to send; hum the tunes first.")
     sent = folder / "sent"
     sent.mkdir(exist_ok=True)
     try:
-        for wav in takes:
-            for path in (wav, wav.with_suffix(".json")):
-                await asyncio.to_thread(send_take, path, code.strip())
-                path.rename(sent / path.name)
+        for path in unsent:
+            await asyncio.to_thread(send_take, path, code.strip())
+            path.rename(sent / path.name)
     except HTTPError as error:
         raise ToolError(f"Sending stopped: {error.read().decode(errors='replace')}. The takes not sent yet stay.") from None
     except OSError as error:
