@@ -10,14 +10,14 @@ Status: slices 3 and 4 done. The server reads the open score (`score_info`, `rea
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) and Git. uv fetches Python and the engine ([sheet-music-analysis](https://github.com/Vedat-Ozkan/sheet-music-analysis), from GitHub).
 - Optional, for the harmony draft in `analyze`: the AnalysisGNN model. It is not part of the install: it runs in its own Python environment with PyTorch, set up from a clone of [sheet-music-analysis](https://github.com/Vedat-Ozkan/sheet-music-analysis) as its README's "Draft model" section says (`.venv-agnn` and `artifacts/models/model.ckpt`). Name the two in the server's `env`, as absolute paths: `ANALYSISGNN_PYTHON` the environment's Python (`.venv-agnn/bin/python`, on Windows `.venv-agnn\Scripts\python.exe`) and `ANALYSISGNN_CHECKPOINT` the checkpoint. Without them `analyze` gives the notes table only, and says so.
 
-- Optional, for `hum` (humming a line into the score): a microphone, and the `hum` extra, which adds SwiftF0, ONNX Runtime and sounddevice (about 40 MB). Install with `--from 'reflets[hum] @ git+https://github.com/Vedat-Ozkan/reflets@v0.5.0'` in place of the `--from` below. On Linux and WSL, also `sudo apt install libportaudio2 libasound2-plugins pulseaudio-utils` and an `~/.asoundrc` with `pcm.!default { type pulse }` and `ctl.!default { type pulse }`, so the default device reaches WSLg's microphone and speakers.
+- Optional, for `hum` (humming a line into the score): a microphone, and the `hum` extra, which adds SwiftF0, ONNX Runtime and sounddevice (about 40 MB). Install with `--from 'reflets[hum] @ git+https://github.com/Vedat-Ozkan/reflets@v0.5.1'` in place of the `--from` below. On Linux and WSL, also `sudo apt install libportaudio2 libasound2-plugins pulseaudio-utils` and an `~/.asoundrc` with `pcm.!default { type pulse }` and `ctl.!default { type pulse }`, so the default device reaches WSLg's microphone and speakers.
 
 ## Install
 
 1. Put the plugin in MuseScore's plugin folder:
 
    ```
-   uvx --python 3.12 --from git+https://github.com/Vedat-Ozkan/reflets@v0.5.0 reflets install-plugin
+   uvx --python 3.12 --from git+https://github.com/Vedat-Ozkan/reflets@v0.5.1 reflets install-plugin
    ```
 
    It copies `reflets-bridge.qml` to `Documents/MuseScore4/Plugins/reflets-bridge/` (from WSL, the Windows user's Documents folder). If MuseScore's plugin folder is elsewhere, set `REFLETS_TOKEN_FILE` to `reflets-token.txt` in that folder, here and in the server's `env`.
@@ -26,7 +26,7 @@ Status: slices 3 and 4 done. The server reads the open score (`score_info`, `rea
    - Claude Code:
 
      ```
-     claude mcp add reflets -- uvx --python 3.12 --from git+https://github.com/Vedat-Ozkan/reflets@v0.5.0 reflets
+     claude mcp add reflets -- uvx --python 3.12 --from git+https://github.com/Vedat-Ozkan/reflets@v0.5.1 reflets
      ```
 
    - Claude Desktop: Settings > Developer > Edit Config, add the entry below to `claude_desktop_config.json`, and restart Claude. On Windows, use the full path of `uvx.exe` (`C:\Users\<you>\.local\bin\uvx.exe` with the default uv install) and keep the two `UV_` lines: Claude Desktop from the Microsoft Store redirects its programs' writes to `AppData`, which breaks uv's Python install there.
@@ -36,7 +36,7 @@ Status: slices 3 and 4 done. The server reads the open score (`score_info`, `rea
        "mcpServers": {
          "reflets": {
            "command": "uvx",
-           "args": ["--python", "3.12", "--from", "git+https://github.com/Vedat-Ozkan/reflets@v0.5.0", "reflets"],
+           "args": ["--python", "3.12", "--from", "git+https://github.com/Vedat-Ozkan/reflets@v0.5.1", "reflets"],
            "env": {
              "UV_PYTHON_INSTALL_DIR": "C:\\Users\\<you>\\.local\\share\\uv\\python",
              "UV_TOOL_DIR": "C:\\Users\\<you>\\.local\\share\\uv\\tools"
@@ -49,7 +49,7 @@ Status: slices 3 and 4 done. The server reads the open score (`score_info`, `rea
    - Codex:
 
      ```
-     codex mcp add reflets -- uvx --python 3.12 --from git+https://github.com/Vedat-Ozkan/reflets@v0.5.0 reflets
+     codex mcp add reflets -- uvx --python 3.12 --from git+https://github.com/Vedat-Ozkan/reflets@v0.5.1 reflets
      ```
 
      The first start installs Reflets, which can take longer than Codex's 10-second start limit. Add `startup_timeout_sec = 120` under `[mcp_servers.reflets]` in `~/.codex/config.toml`.
