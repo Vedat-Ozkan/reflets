@@ -853,7 +853,12 @@ def send_take(path: Path, code: str) -> None:
     from urllib.request import Request, urlopen
 
     url = os.environ.get("REFLETS_TAKES_URL", TAKES_URL)
-    with urlopen(Request(f"{url}/takes/{path.name}", path.read_bytes(), method="PUT", headers={
+    body = path.read_bytes()
+    if path.suffix == ".json":
+        details = json.loads(body)
+        details.pop("device", None)
+        body = json.dumps(details, indent=1).encode()
+    with urlopen(Request(f"{url}/takes/{path.name}", body, method="PUT", headers={
         "Authorization": f"Bearer {code}", "Content-Type": TAKE_TYPES[path.suffix], "User-Agent": f"reflets/{version('reflets')}",
     }), timeout=30):
         pass
