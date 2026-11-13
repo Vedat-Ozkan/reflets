@@ -63,6 +63,8 @@ To work on Reflets itself, clone this repository, run `uv sync`, copy `.mcp.json
    With scores open in several MuseScore windows, run the bridge in each; Claude works on the window you used last, so click into a window to work on its score.
 3. If you were given a tester code: install with the `hum` extra, open a new empty 4/4 score, and tell Claude "let's do the humming test". It takes about ten minutes: Reflets plays eight short tunes one at a time and you hum each back along with the click. At the end Claude asks for your code, and the recordings are sent to the developer only if you agree.
 
+   What is sent: for each tune, the recording of your humming and what Reflets heard and wrote from it (the notes, tempo, key and the staff's instrument), with your tester code. Not your name, your score, or the name of your microphone or headphones. The recordings are stored in the developer's Cloudflare storage until the developer downloads them, which deletes them there; the developer then keeps the downloaded copies to improve humming, with no set end date. To have yours deleted, ask the person who gave you your tester code, and tell them the code.
+
 ## Docs
 
 - `docs/spec-core.md`: design of the plugin, server, wire protocols and tools

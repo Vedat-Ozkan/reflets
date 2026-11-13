@@ -68,10 +68,11 @@ def test_the_last_take_still_comes_before_an_older_calibration(takes):
 
 class Uploads(http.server.BaseHTTPRequestHandler):
     stored: list[str] = []
+    bodies: dict[str, bytes] = {}
     refuse: set[str] = set()
 
     def do_PUT(self):
-        self.rfile.read(int(self.headers["Content-Length"]))
+        body = self.rfile.read(int(self.headers["Content-Length"]))
         name = self.path.rsplit("/", 1)[1]
         if name in self.refuse:
             self.refuse.discard(name)
@@ -80,6 +81,7 @@ class Uploads(http.server.BaseHTTPRequestHandler):
             self.wfile.write(b"try later")
             return
         self.stored.append(name)
+        self.bodies[name] = body
         self.send_response(201)
         self.end_headers()
 
@@ -89,7 +91,7 @@ class Uploads(http.server.BaseHTTPRequestHandler):
 
 @pytest.fixture
 def uploads(monkeypatch, tmp_path):
-    Uploads.stored, Uploads.refuse = [], set()
+    Uploads.stored, Uploads.bodies, Uploads.refuse = [], {}, set()
     monkeypatch.setenv("REFLETS_TOKEN_FILE", str(tmp_path / "token.txt"))
     site = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Uploads)
     threading.Thread(target=site.serve_forever, daemon=True).start()
@@ -98,7 +100,7 @@ def uploads(monkeypatch, tmp_path):
     folder.mkdir()
     for stem in ("take-1", "take-2"):
         (folder / f"{stem}.wav").write_bytes(b"sound")
-        (folder / f"{stem}.json").write_text("{}")
+        (folder / f"{stem}.json").write_text(json.dumps({"tune": "Twinkle", "device": "Jane's AirPods / Jane's AirPods"}))
     yield folder
     site.shutdown()
 
@@ -119,3 +121,9 @@ def test_a_details_file_that_failed_is_sent_on_the_next_try(uploads):
 def test_all_takes_go_in_one_try(uploads):
     assert send() == "Sent 2 takes. Thank the user: they go to the developer only."
     assert sorted(path.name for path in (uploads / "sent").iterdir()) == ["take-1.json", "take-1.wav", "take-2.json", "take-2.wav"]
+
+
+def test_the_device_name_stays_on_the_tester_s_computer(uploads):
+    send()
+    assert json.loads(Uploads.bodies["take-1.json"]) == {"tune": "Twinkle"}
+    assert json.loads((uploads / "sent" / "take-1.json").read_text())["device"] == "Jane's AirPods / Jane's AirPods"
