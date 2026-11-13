@@ -6,12 +6,13 @@ import functools
 import os
 import platform
 import subprocess
+from importlib.metadata import version
 from pathlib import Path
 
 import websockets
 
 PROTO = 24
-CLIENT = "reflets-server/0.2.0"
+CLIENT = f"reflets-server/{version('reflets')}"
 TIMEOUT = 10
 OTHER_TIMEOUT = 1
 CHANGES_THE_SCORE = {"write", "color", "undo", "redo"}
