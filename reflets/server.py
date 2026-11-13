@@ -14,7 +14,7 @@ from datetime import datetime
 from fractions import Fraction
 from importlib.metadata import version
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Awaitable, Callable
 
 from engine import annotate, draft, notes, part_writing, reduce
 from engine.annotate import AnnotationError
@@ -27,7 +27,7 @@ from mcp.types import ToolAnnotations
 
 from reflets import n1x
 from reflets.restore import bare_idea, body, marks, target_idea, writable
-from reflets.bridge import NOT_RUNNING, PROTO, Bridge, BridgeError, Bridges, chosen, token_file
+from reflets.bridge import NOT_RUNNING, PROTO, Bridge, BridgeError, Bridges, NoAnswer, chosen, token_file
 from reflets.score import END, ScoreInfo, appended, bar_labels, bar_start, bars_past_end, build_index, key_at, key_fifths, key_name, parse_info, retimed
 from reflets.write import (
     IdeaError,
@@ -95,6 +95,10 @@ class Unchanged(ToolError):
     pass
 
 
+class Unanswered(ToolError):
+    pass
+
+
 @dataclass
 class Proposal:
     label: str
@@ -103,13 +107,14 @@ class Proposal:
     tracks: list[int]
     bars: str
     pre: list[str]
-    post: list[str]
+    post: list[str] | None
     pre_end: int
     title: str
     steps: int = 1
 
 
 render_numbers = itertools.count(1)
+written_checks: dict[str, Callable[[list[str]], Awaitable[tuple[str | None, list[int]]]]] = {}
 
 
 def read_only(title: str) -> ToolAnnotations:
@@ -362,6 +367,8 @@ def windows_path(path: Path) -> str:
 async def request(line: str) -> list[str]:
     try:
         _, lines = await bridge.request(line)
+    except NoAnswer as error:
+        raise Unanswered(str(error)) from None
     except BridgeError as error:
         raise ToolError(str(error)) from None
     return lines
@@ -422,6 +429,7 @@ async def propose(idea: str, label: str = "idea", replace: bool = False, recast:
 
 async def write_idea(text: str, label: str, replace: bool, recast: bool = False, drawn: list[str] = ()) -> str:
     info = await load_info()
+    settled = await reconciled(info.title)
     division = int(bridge.hello["division"])
     staves = max(staff for _, part_staves in info.parts for staff in part_staves)
     labels = info.labels
@@ -460,24 +468,41 @@ async def write_idea(text: str, label: str, replace: bool, recast: bool = False,
         where = ", ".join(f"bar {labels[p]} {t // 4 + 1}.{t % 4 + 1}" for p, t in taken)
         raise ToolError(f"These voices already have notes: {where}. Ask the user, then call again with replace=True.")
     label = " ".join(label.split()) or "idea"
-    reply = await request(f"write {plan.start_tick} {plan.end_tick} {label}\n" + "\n".join(plan.ops))
-    mismatch, cut = verify(plan, pre, reply, info, division) if not plan.rebar else (None, [])
-    if not mismatch and span and not plan.rebar:
-        shift = view.delta if view else 0
-        again = await request(f"read {span[0] + shift} {span[1] + shift}")
-        if beyond(shifted(later, shift), plan.end_tick) != beyond(again, plan.end_tick):
-            mismatch = "the bars after the idea, up to the next meter change, changed with the meter"
-    if not mismatch and any(op.startswith("b ") or " VOLTA " in op for op in plan.ops):
-        mismatch = verify_bars(plan, info, await load_info())
-    if mismatch:
-        await request("undo")
-        after = await request(f"read {start_tick} {end_tick}")
-        state = "The write was undone." if sorted(after) == sorted(original) else "Undoing it did not restore the bars; ask the user to check them."
-        raise ToolError(f"The idea did not land as written ({mismatch}). {state}")
+
+    async def landed(post: list[str]) -> tuple[str | None, list[int]]:
+        mismatch, cut = verify(plan, pre, post, info, division) if not plan.rebar else (None, [])
+        if not mismatch and span and not plan.rebar:
+            shift = view.delta if view else 0
+            again = await request(f"read {span[0] + shift} {span[1] + shift}")
+            if beyond(shifted(later, shift), plan.end_tick) != beyond(again, plan.end_tick):
+                mismatch = "the bars after the idea, up to the next meter change, changed with the meter"
+        if not mismatch and any(op.startswith("b ") or " VOLTA " in op for op in plan.ops):
+            mismatch = verify_bars(plan, info, await load_info())
+        return mismatch, cut
+
     positions = sorted(plan.expected_bars)
     bars = f"bars {labels[positions[0]]}-{labels[positions[-1]]}" if len(positions) > 1 else f"bar {labels[positions[0]]}"
     tracks = sorted({t for _, t in plan.cells})
-    proposal_id = opened(Proposal(label, plan.start_tick, plan.end_tick, tracks, bars, original, reply, end_tick, info.title))
+    proposal_id = opened(Proposal(label, plan.start_tick, plan.end_tick, tracks, bars, original, None, end_tick, info.title))
+    written_checks[proposal_id] = landed
+    try:
+        reply = await request(f"write {plan.start_tick} {plan.end_tick} {label}\n" + "\n".join(plan.ops))
+    except Unanswered:
+        raise Unanswered(
+            f"MuseScore did not answer the write of {bars}, so it may or may not have landed; it was not sent again. It is "
+            f"recorded as {proposal_id}: the next Reflets call reads the bars and says which happened."
+        ) from None
+    except ToolError:
+        dropped(proposal_id)
+        raise
+    mismatch, cut = await landed(reply)
+    if mismatch:
+        await request("undo")
+        after = await request(f"read {start_tick} {end_tick}")
+        dropped(proposal_id)
+        state = "The write was undone." if sorted(after) == sorted(original) else "Undoing it did not restore the bars; ask the user to check them."
+        raise ToolError(f"The idea did not land as written ({mismatch}). {state}")
+    answered(proposal_id, reply)
     counts = ", ".join(f"{n} {what if n > 1 else what[:-1]}" for what, n in plan.counts.items() if n)
     voices = ", ".join(f"{t // 4 + 1}.{t % 4 + 1}" for t in tracks)
     cut = sorted(set(cut) | plan.cut_ties)
@@ -491,7 +516,7 @@ async def write_idea(text: str, label: str, replace: bool, recast: bool = False,
         note += f" These fermatas lost their note and were removed, as the note or rest sounding at their moment has its own or none sounds there: {'; '.join(plan.dropped_marks)}."
     if plan.moved_marks:
         note += f" These fermatas lost their note and moved onto the note or rest sounding at their moment: {'; '.join(plan.moved_marks)}."
-    return (
+    return settled + (
         f'Written: {bars}, voices {voices}, {counts}, as one undo step "Reflets: {label}". Read-back matched.{note}\n'
         f"The new notes are blue. The user listens with Play in MuseScore; then keep(\"{proposal_id}\") turns them "
         f"black, or discard(\"{proposal_id}\") removes them.\nproposal id: {proposal_id}"
@@ -548,7 +573,51 @@ def closed(proposal_id: str) -> Proposal:
     return proposal
 
 
-async def find(proposal_id: str) -> Proposal:
+def answered(proposal_id: str, post: list[str]) -> None:
+    data = stored()
+    data["open"][proposal_id]["post"] = post
+    proposals_file().write_text(json.dumps(data))
+    written_checks.pop(proposal_id, None)
+
+
+def dropped(proposal_id: str) -> None:
+    closed(proposal_id)
+    written_checks.pop(proposal_id, None)
+
+
+async def unchanged(p: Proposal) -> bool:
+    return sorted(await request(f"read {p.start_tick} {p.pre_end}")) == sorted(p.pre)
+
+
+async def reconciled(title: str) -> str:
+    notes = []
+    unanswered = [(proposal_id, Proposal(**p)) for proposal_id, p in stored()["open"].items() if p["post"] is None and p["title"] == title]
+    for proposal_id, p in unanswered:
+        before = await unchanged(p)
+        now = await request(f"read {p.start_tick} {p.end_tick}")
+        check = written_checks.get(proposal_id)
+        as_written = check is not None and not (await check(now))[0]
+        if as_written and not before:
+            answered(proposal_id, now)
+            notes.append(f"{proposal_id}, whose write MuseScore did not answer, did land in {p.bars}: it is open, for keep or discard.")
+            continue
+        dropped(proposal_id)
+        if before and not as_written:
+            notes.append(f"{proposal_id} never reached the score (MuseScore did not answer its write): {p.bars} are as they were, nothing of it is left.")
+            continue
+        state = (
+            f"read the same as before {proposal_id} and as {proposal_id} writes them, so whether it landed in blue cannot be told" if before
+            else f"match neither how they were before {proposal_id} nor how {proposal_id} writes them"
+            + ("" if check else " (the server restarted since, so how it writes them is not known here)")
+        )
+        raise ToolError(
+            f"MuseScore did not answer the write of {proposal_id}, and {p.bars} now {state}. Reflets leaves them as they are and has "
+            f"closed {proposal_id}; ask the user to look at {p.bars} (Edit > Undo removes the idea if it is the last step). Nothing else was done."
+        )
+    return "".join(note + "\n" for note in notes)
+
+
+async def find(proposal_id: str) -> tuple[Proposal, str]:
     found = stored()["open"]
     if proposal_id not in found:
         open_ids = ", ".join(found) or "none"
@@ -563,11 +632,14 @@ async def find(proposal_id: str) -> Proposal:
     title = (await load_info()).title
     if p.title != title:
         raise ToolError(f'{proposal_id} was written in "{p.title}", but "{title}" is open in MuseScore. Nothing was done.')
-    return p
+    settled = await reconciled(title)
+    if proposal_id not in stored()["open"]:
+        raise ToolError(settled)
+    return Proposal(**stored()["open"][proposal_id]), settled
 
 
 async def gone(proposal_id: str, p: Proposal) -> str:
-    if sorted(await request(f"read {p.start_tick} {p.pre_end}")) != sorted(p.pre):
+    if not await unchanged(p):
         return ""
     closed(proposal_id)
     return (
@@ -586,20 +658,33 @@ async def gone(proposal_id: str, p: Proposal) -> str:
     structured_output=False,
 )
 async def discard(proposal_id: str) -> str:
-    p = await find(proposal_id)
+    p, settled = await find(proposal_id)
     span = f"read {p.start_tick} {p.end_tick}"
     if sorted(await request(span)) != sorted(p.post):
         if left := await gone(proposal_id, p):
-            return left
+            return settled + left
         raise ToolError(
             f"{p.bars.capitalize()} changed since {proposal_id} was written, so undoing would remove the user's edit. "
             "Nothing was undone; the user can use Ctrl+Z in MuseScore."
         )
-    for _ in range(p.steps):
-        await request("undo")
-    if sorted(await request(f"read {p.start_tick} {p.pre_end}")) != sorted(p.pre):
+    try:
         for _ in range(p.steps):
-            await request("redo")
+            await request("undo")
+    except Unanswered:
+        raise Unanswered(
+            f"MuseScore did not answer the undo of {proposal_id}, so it may or may not have happened; it was not sent again. "
+            f'{proposal_id} stays open: call discard("{proposal_id}") again, which reads {p.bars} first and finishes or says what it finds.'
+        ) from None
+    if not await unchanged(p):
+        try:
+            for _ in range(p.steps):
+                await request("redo")
+        except Unanswered:
+            raise Unanswered(
+                f"The last step in MuseScore's undo history was not {proposal_id}, and MuseScore did not answer the redo that puts it "
+                "back. Ask the user to check the score: Edit > Redo brings back their last edit if it is missing. "
+                f"{proposal_id} stays open."
+            ) from None
         restored = sorted(await request(span)) == sorted(p.post)
         raise ToolError(
             f"The last step in MuseScore's undo history was not {proposal_id}"
@@ -607,7 +692,7 @@ async def discard(proposal_id: str) -> str:
             + " The user can remove the idea with Edit > Undo."
         )
     closed(proposal_id)
-    return f"Discarded {proposal_id}: the score is back as it was in {p.bars}."
+    return f"{settled}Discarded {proposal_id}: the score is back as it was in {p.bars}."
 
 
 @mcp.tool(
@@ -617,17 +702,23 @@ async def discard(proposal_id: str) -> str:
     structured_output=False,
 )
 async def keep(proposal_id: str) -> str:
-    p = await find(proposal_id)
+    p, settled = await find(proposal_id)
     if left := await gone(proposal_id, p):
-        raise ToolError(left)
+        raise ToolError(settled + left)
     tracks = ",".join(map(str, p.tracks))
-    await request(f"color {p.start_tick} {p.end_tick} {tracks} #000000 keep {p.label}")
+    try:
+        await request(f"color {p.start_tick} {p.end_tick} {tracks} #000000 keep {p.label}")
+    except Unanswered:
+        raise Unanswered(
+            f"MuseScore did not answer the keep of {proposal_id}, so its notes may still be blue; it was not sent again. "
+            f'{proposal_id} stays open: call keep("{proposal_id}") again; a second keep is harmless.'
+        ) from None
     closed(proposal_id)
     try:
         saved = await save_checkpoint(f"keep {p.label}")
     except (ToolError, OSError) as error:
         saved = f"No checkpoint was saved: {error}"
-    return f'Kept {proposal_id}: the notes in {p.bars} are black now (one undo step, "Reflets: keep {p.label}").\n{saved}'
+    return f'{settled}Kept {proposal_id}: the notes in {p.bars} are black now (one undo step, "Reflets: keep {p.label}").\n{saved}'
 
 
 LONGEST_TAKE = 40
@@ -1006,6 +1097,9 @@ async def restore(checkpoint: int, bars: str) -> str:
         cleared = None
     try:
         result = await write_idea(target_idea(body(now), writable(then), then.splitlines()[0]), label, True, drawn=moved(saved["read"], then_info, info, start, end))
+    except Unanswered as error:
+        first_step = f" {cleared}, its first step (the bars cleared of their details), is open." if cleared else ""
+        raise Unanswered(f"Restoring bars {first}-{last}: {error}{first_step}") from None
     except ToolError as error:
         if cleared:
             await discard(cleared)

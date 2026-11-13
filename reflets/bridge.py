@@ -32,6 +32,10 @@ class BridgeError(Exception):
     pass
 
 
+class NoAnswer(BridgeError):
+    pass
+
+
 def token_file() -> Path:
     if "REFLETS_TOKEN_FILE" in os.environ:
         return Path(os.environ["REFLETS_TOKEN_FILE"])
@@ -118,7 +122,7 @@ class Bridge:
                 if line.split(maxsplit=1)[0] not in CHANGES_THE_SCORE:
                     raise
                 await self._drop()
-                raise BridgeError(NO_ANSWER) from None
+                raise NoAnswer(NO_ANSWER) from None
             lines = reply.split("\n")
             words = lines[0].split(" ")
             if words[0] == str(rid):

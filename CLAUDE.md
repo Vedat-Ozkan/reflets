@@ -4,7 +4,7 @@ MCP server (`reflets/`, Python) plus a MuseScore bridge plugin (`plugin/reflets-
 
 ## Layout
 
-- `reflets/bridge.py`: WebSocket client for the plugin (token, hello, reconnect once; a `write`, `color`, `undo` or `redo` whose answer never came is reported, not sent again); `Bridges` finds each MuseScore window's bridge by its token file (`reflets-token.txt` on 8731, `reflets-token-<port>.txt` for others) and each tool call uses the one whose window was active last
+- `reflets/bridge.py`: WebSocket client for the plugin (token, hello, reconnect once; a `write`, `color`, `undo` or `redo` whose answer never came is reported, not sent again; `server.py` records each write as a proposal before sending it and, when its answer was lost, reads its bars on the next call to open or drop it); `Bridges` finds each MuseScore window's bridge by its token file (`reflets-token.txt` on 8731, `reflets-token-<port>.txt` for others) and each tool call uses the one whose window was active last
 - `reflets/score.py`: parses the plugin's `info`/`read` lines into the engine's index
 - `reflets/n1x.py`: encodes the score as N1x and decodes N1x ideas (spec 4.2)
 - `reflets/write.py`: compiles a decoded N1x idea into the plugin's write ops and checks the read-back
