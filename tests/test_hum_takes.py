@@ -8,7 +8,9 @@ import numpy as np
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
-from reflets import audio, hum as humming, server
+from reflets import audio, server
+
+humming = pytest.importorskip("reflets.hum")
 
 CHORALE = json.loads((Path(__file__).parent / "data/reading/chorale.json").read_text())
 KEY = humming.Key(0, True, 0, 1.0)
