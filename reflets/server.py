@@ -429,7 +429,10 @@ async def propose(idea: str, label: str = "idea", replace: bool = False, recast:
 
 async def write_idea(text: str, label: str, replace: bool, recast: bool = False, drawn: list[str] = ()) -> str:
     info = await load_info()
-    settled = await reconciled(info.title)
+    return await settled(info.title, lambda: idea_written(info, text, label, replace, recast, drawn))
+
+
+async def idea_written(info: ScoreInfo, text: str, label: str, replace: bool, recast: bool, drawn: list[str]) -> str:
     division = int(bridge.hello["division"])
     staves = max(staff for _, part_staves in info.parts for staff in part_staves)
     labels = info.labels
@@ -490,7 +493,7 @@ async def write_idea(text: str, label: str, replace: bool, recast: bool = False,
     except Unanswered:
         raise Unanswered(
             f"MuseScore did not answer the write of {bars}, so it may or may not have landed; it was not sent again. It is "
-            f"recorded as {proposal_id}: the next Reflets call reads the bars and says which happened."
+            f"recorded as {proposal_id}: the next propose, hum, restore, keep or discard on this score reads the bars and says which happened."
         ) from None
     except ToolError:
         dropped(proposal_id)
@@ -516,7 +519,7 @@ async def write_idea(text: str, label: str, replace: bool, recast: bool = False,
         note += f" These fermatas lost their note and were removed, as the note or rest sounding at their moment has its own or none sounds there: {'; '.join(plan.dropped_marks)}."
     if plan.moved_marks:
         note += f" These fermatas lost their note and moved onto the note or rest sounding at their moment: {'; '.join(plan.moved_marks)}."
-    return settled + (
+    return (
         f'Written: {bars}, voices {voices}, {counts}, as one undo step "Reflets: {label}". Read-back matched.{note}\n'
         f"The new notes are blue. The user listens with Play in MuseScore; then keep(\"{proposal_id}\") turns them "
         f"black, or discard(\"{proposal_id}\") removes them.\nproposal id: {proposal_id}"
@@ -617,12 +620,26 @@ async def reconciled(title: str) -> str:
     return "".join(note + "\n" for note in notes)
 
 
-async def find(proposal_id: str) -> tuple[Proposal, str]:
+async def settled(title: str, act: Callable[[], Awaitable[str]]) -> str:
+    note = await reconciled(title)
+    try:
+        return note + await act()
+    except ToolError as error:
+        if not note:
+            raise
+        raise type(error)(note + str(error)) from None
+
+
+def find(proposal_id: str) -> Proposal:
     found = stored()["open"]
     if proposal_id not in found:
         open_ids = ", ".join(found) or "none"
         raise ToolError(f"There is no open proposal {proposal_id!r} (open: {open_ids}).")
-    p = Proposal(**found[proposal_id])
+    return Proposal(**found[proposal_id])
+
+
+async def holding(proposal_id: str) -> str:
+    p = find(proposal_id)
     holding = [window for window, info in await windows() if info.title == p.title] if len(bridge.found()) > 1 else []
     if len(holding) > 1:
         raise ToolError(f'"{p.title}" is open in {len(holding)} MuseScore windows, so {proposal_id} cannot be found. '
@@ -632,10 +649,7 @@ async def find(proposal_id: str) -> tuple[Proposal, str]:
     title = (await load_info()).title
     if p.title != title:
         raise ToolError(f'{proposal_id} was written in "{p.title}", but "{title}" is open in MuseScore. Nothing was done.')
-    settled = await reconciled(title)
-    if proposal_id not in stored()["open"]:
-        raise ToolError(settled)
-    return Proposal(**stored()["open"][proposal_id]), settled
+    return title
 
 
 async def gone(proposal_id: str, p: Proposal) -> str:
@@ -658,11 +672,15 @@ async def gone(proposal_id: str, p: Proposal) -> str:
     structured_output=False,
 )
 async def discard(proposal_id: str) -> str:
-    p, settled = await find(proposal_id)
+    return await settled(await holding(proposal_id), lambda: discarded(proposal_id))
+
+
+async def discarded(proposal_id: str) -> str:
+    p = find(proposal_id)
     span = f"read {p.start_tick} {p.end_tick}"
     if sorted(await request(span)) != sorted(p.post):
         if left := await gone(proposal_id, p):
-            return settled + left
+            return left
         raise ToolError(
             f"{p.bars.capitalize()} changed since {proposal_id} was written, so undoing would remove the user's edit. "
             "Nothing was undone; the user can use Ctrl+Z in MuseScore."
@@ -692,7 +710,7 @@ async def discard(proposal_id: str) -> str:
             + " The user can remove the idea with Edit > Undo."
         )
     closed(proposal_id)
-    return f"{settled}Discarded {proposal_id}: the score is back as it was in {p.bars}."
+    return f"Discarded {proposal_id}: the score is back as it was in {p.bars}."
 
 
 @mcp.tool(
@@ -702,9 +720,13 @@ async def discard(proposal_id: str) -> str:
     structured_output=False,
 )
 async def keep(proposal_id: str) -> str:
-    p, settled = await find(proposal_id)
+    return await settled(await holding(proposal_id), lambda: kept(proposal_id))
+
+
+async def kept(proposal_id: str) -> str:
+    p = find(proposal_id)
     if left := await gone(proposal_id, p):
-        raise ToolError(settled + left)
+        raise ToolError(left)
     tracks = ",".join(map(str, p.tracks))
     try:
         await request(f"color {p.start_tick} {p.end_tick} {tracks} #000000 keep {p.label}")
@@ -718,7 +740,7 @@ async def keep(proposal_id: str) -> str:
         saved = await save_checkpoint(f"keep {p.label}")
     except (ToolError, OSError) as error:
         saved = f"No checkpoint was saved: {error}"
-    return f'{settled}Kept {proposal_id}: the notes in {p.bars} are black now (one undo step, "Reflets: keep {p.label}").\n{saved}'
+    return f'Kept {proposal_id}: the notes in {p.bars} are black now (one undo step, "Reflets: keep {p.label}").\n{saved}'
 
 
 LONGEST_TAKE = 40
@@ -1069,6 +1091,10 @@ def listed_checkpoints(info: ScoreInfo) -> str:
 )
 async def restore(checkpoint: int, bars: str) -> str:
     info, index, start, end, _ = await read_bars(bars, whole_score=True)
+    return await settled(info.title, lambda: restored(checkpoint, info, index, start, end))
+
+
+async def restored(checkpoint: int, info: ScoreInfo, index: ScoreIndex, start: int, end: int) -> str:
     folder = checkpoint_folder(info.title)
     found = [path for path in folder.glob(f"{checkpoint:03d}*.json") if path.stem.split(" ", 1)[0] == f"{checkpoint:03d}"]
     if not found:
