@@ -248,3 +248,38 @@ def test_a_restore_whose_second_write_landed_with_no_answer_is_open_at_the_next_
 
     assert "Discarded p1" in served(tmp_path, monkeypatch, score, scene)
     assert sorted(score.lines) == sorted(changed)
+
+
+def test_a_refused_call_still_says_what_became_of_the_unanswered_write(tmp_path, monkeypatch):
+    score = Score(CHORALE["read"])
+    score.writes = [(with_bar_3_soprano_in_bar_2(CHORALE["read"]), False)]
+
+    async def scene():
+        with pytest.raises(ToolError, match="p1"):
+            await server.propose(SOPRANO_IDEA, replace=True)
+        with pytest.raises(ToolError) as refused:
+            await server.propose(SOPRANO_IDEA)
+        return str(refused.value)
+
+    refusal = served(tmp_path, monkeypatch, score, scene)
+    assert "p1, whose write MuseScore did not answer, did land" in refusal
+    assert "already have notes" in refusal
+    assert list(server.stored()["open"]) == ["p1"]
+
+
+def test_after_a_restart_bars_that_changed_are_named_and_left_alone(tmp_path, monkeypatch):
+    score = Score(CHORALE["read"])
+    changed = with_bar_3_soprano_in_bar_2(CHORALE["read"])
+    score.writes = [(changed, False)]
+
+    async def scene():
+        with pytest.raises(ToolError, match="p1"):
+            await server.propose(SOPRANO_IDEA, replace=True)
+        server.written_checks.clear()
+        with pytest.raises(ToolError, match="server restarted") as refused:
+            await server.keep("p1")
+        return str(refused.value)
+
+    assert "bar 2" in served(tmp_path, monkeypatch, score, scene)
+    assert score.lines == changed
+    assert server.stored()["open"] == {}
