@@ -1,0 +1,18 @@
+name: tests
+
+on: [push, pull_request]
+
+jobs:
+  offline:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update && sudo apt-get install -y libportaudio2
+      - run: uv sync --locked
+      - name: Tests without the hum extra
+        run: uv run --locked pytest
+      - name: Tests with the hum extra
+        run: uv run --locked --extra hum pytest
