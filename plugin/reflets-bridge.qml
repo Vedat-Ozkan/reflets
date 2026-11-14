@@ -1314,6 +1314,7 @@ MuseScore {
 
     function claim(found) {
         port = found
+        portCheck.stop()
         tokenFile.source = localPath(Qt.resolvedUrl(port === firstPort ? "reflets-token.txt" : "reflets-token-" + port + ".txt"))
         var written = tokenFile.write(token)
         status(written ? "listening" : "could not save its key file")

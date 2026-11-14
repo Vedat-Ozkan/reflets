@@ -316,3 +316,19 @@ def test_render_shows_the_bars_as_an_image_and_names_the_file(tmp_path, monkeypa
     assert text.type == "text" and text.text.startswith("Bars 1-2: ") and text.text.endswith(".png")
     assert image.type == "image" and image.mime_type == "image/png"
     assert pathlib.Path(text.text.removeprefix("Bars 1-2: ")).exists()
+
+
+def test_score_info_leaves_out_an_idea_undone_in_musescore_and_answers_with_an_unreadable_proposals_file(tmp_path, monkeypatch):
+    score = Score(CHORALE["read"])
+    score.writes = [(with_bar_3_soprano_in_bar_2(CHORALE["read"]), True)]
+
+    async def scene():
+        await server.propose(SOPRANO_IDEA, "soprano", replace=True)
+        score.lines = list(CHORALE["read"])
+        undone = await server.score_info()
+        server.proposals_file().write_text("{")
+        return undone, await server.score_info()
+
+    undone, unreadable = served(tmp_path, monkeypatch, score, scene)
+    assert "Open ideas" not in undone
+    assert "connected" in unreadable and "Open ideas" not in unreadable

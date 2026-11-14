@@ -179,7 +179,7 @@ async def score_info() -> str:
         f"Reflets bridge {hello.get('plugin', '?').split('/')[-1]}, connected.\n"
         f'"{info.title}": {len(info.parts)} part(s): {parts}. Bars {first}-{last} '
         f"({'with' if first == 0 else 'no'} pickup), meter {info.measures[0].meter}, key {info.key}{changes}.\n"
-        f"{listed_checkpoints(info)}{listed_proposals(info)}{elsewhere}"
+        f"{listed_checkpoints(info)}{await listed_proposals(info)}{elsewhere}"
     )
 
 
@@ -555,8 +555,12 @@ def beyond(lines: list[str], tick: int) -> list[str]:
     return sorted(line for line in lines if int(line.split(" ")[1]) >= tick)
 
 
-def listed_proposals(info: ScoreInfo) -> str:
-    found = [(proposal_id, Proposal(**p)) for proposal_id, p in stored()["open"].items() if p["title"] == info.title]
+async def listed_proposals(info: ScoreInfo) -> str:
+    try:
+        found = [(proposal_id, Proposal(**p)) for proposal_id, p in stored()["open"].items() if p["title"] == info.title]
+    except (ValueError, TypeError, KeyError):
+        return ""
+    found = [(proposal_id, p) for proposal_id, p in found if p.post is None or not await unchanged(p)]
     if not found:
         return ""
     ideas = "; ".join(

@@ -89,6 +89,8 @@ Humming needs the `hum` extra. Install Reflets with it by using `reflets[hum] @ 
   claude mcp add reflets -- uvx --python 3.12 --from 'reflets[hum] @ git+https://github.com/Vedat-Ozkan/reflets@v0.5.3' reflets
   ```
 
+  In Windows Command Prompt, use double quotes around `reflets[hum] @ git+…` in place of the single ones.
+
 - Claude Desktop: in the entry above, replace `"git+https://github.com/Vedat-Ozkan/reflets@v0.5.3"` with `"reflets[hum] @ git+https://github.com/Vedat-Ozkan/reflets@v0.5.3"`, one entry with its spaces, inside one pair of quotes. The `"args"` line then reads as below; a comma after its `]` stays where it was. Save, then quit Claude completely and reopen it.
 
   ```
