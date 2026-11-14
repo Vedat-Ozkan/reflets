@@ -1282,12 +1282,6 @@ MuseScore {
         return id + " ok"
     }
 
-    function happened(label) {
-        var w = label.split(" ")
-        var rest = w.slice(1).join(" ")
-        return w[0] === "keep" ? "kept " + rest : w[0] === "discard" ? "discarded " + rest : "wrote " + label
-    }
-
     function fields(words) {
         var f = {}
         for (var i = 0; i < words.length; i++) {
@@ -1326,15 +1320,14 @@ MuseScore {
         if (verb === "read")
             return [id + " ok"].concat(read(parseInt(head[2]), parseInt(head[3]))).join("\n")
         if (verb === "write") {
-            var label = head.slice(4).join(" ")
-            var reply = write(id, parseInt(head[2]), parseInt(head[3]), label, lines.slice(1))
-            status(reply.indexOf(id + " ok") === 0 ? happened(label) : "could not write " + label)
+            var reply = write(id, parseInt(head[2]), parseInt(head[3]), head.slice(4).join(" "), lines.slice(1))
+            status((reply.indexOf(id + " ok") === 0 ? "wrote " : "could not write ") + head.slice(4).join(" "))
             return reply
         }
         if (verb === "color") {
             var colorLabel = head.slice(6).join(" ")
             var colored = recolor(id, parseInt(head[2]), parseInt(head[3]), head[4].split(",").map(Number), head[5], colorLabel)
-            status(colored === id + " ok" ? happened(colorLabel) : "could not " + colorLabel)
+            status(colored === id + " ok" ? "kept " + head.slice(7).join(" ") : "could not " + colorLabel)
             return colored
         }
         if (verb === "export")

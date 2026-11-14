@@ -64,37 +64,6 @@ async def main() -> None:
         check(f"{tool} of a proposal undone in MuseScore closes it", "no longer in the score" in result
               and written not in json.loads(server.proposals_file().read_text())["open"]
               and await server.read_score(str(bar)) == start, result)
-    other, other_length = info.measures[2].number, int(info.lengths[2] * 4)
-    other_start = await server.read_score(str(other))
-    first = f"N1x div=4\nm{bar} len={length}\n1.1: {length} C5"
-    second = f"N1x div=4\nm{other} len={other_length}\n1.2: {other_length} C5"
-    for later in ("open", "kept"):
-        a = re.search(r"proposal id: (p\d+)", await server.propose(first, "A", replace=True))[1]
-        b = re.search(r"proposal id: (p\d+)", await server.propose(second, "B"))[1]
-        if later == "kept":
-            await server.keep(b)
-        try:
-            result = await server.discard(a)
-        except ToolError as refused:
-            result = str(refused)
-        open_ids = json.loads(server.proposals_file().read_text())["open"]
-        check(f"discard of A with B {later} after it writes bar {bar} back", "undo steps" in result
-              and await server.read_score(str(bar)) == start and a not in open_ids, result)
-        check(f"B, {later}, stays in bar {other}", await server.read_score(str(other)) != other_start and (b in open_ids) == (later == "open"))
-        if later == "open":
-            print(f"LOOK in MuseScore (read carries no colour): bar {bar} is black and as before, bar {other}'s C5 is still {server.IDEA_COLOUR}")
-            try:
-                result = await server.discard(b)
-            except ToolError as refused:
-                result = str(refused)
-            check("then discard of B puts its bar back too", f"Discarded {b}" in result and await server.read_score(str(other)) == other_start
-                  and await server.read_score(str(bar)) == start, result)
-        else:
-            steps = int(re.search(r"in (\d+) undo steps", result)[1]) if "undo steps" in result else 0
-            for _ in range(steps + 3):
-                await server.request("undo")
-            check("undoing the write-back, the keep, B and A leaves both bars as before",
-                  await server.read_score(str(bar)) == start and await server.read_score(str(other)) == other_start)
     for path in set(folder.glob("*")) - saved:
         path.unlink()
     sys.exit(1 if failures else 0)

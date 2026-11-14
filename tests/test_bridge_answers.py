@@ -125,7 +125,6 @@ class Score:
         self.lines = list(lines)
         self.done, self.undone = [], []
         self.writes = []
-        self.info = INFO
         self.verbs = []
         self.replies = {}
 
@@ -140,12 +139,11 @@ class Score:
             if verb == "hello":
                 words = [f"proto={PROTO}", f"division={CHORALE['division']}"]
             elif verb == "info":
-                body = self.info
+                body = INFO
             elif verb == "read":
                 body = self.read(int(words[0]), int(words[1]))
             elif verb == "write":
-                after, answered, *info = self.writes.pop(0) if self.writes else (self.lines, True)
-                self.info = info[0] if info else self.info
+                after, answered = self.writes.pop(0) if self.writes else (self.lines, True)
                 if after is not None:
                     self.done.append(self.lines)
                     self.lines = after
@@ -351,15 +349,17 @@ def test_score_info_leaves_out_an_idea_undone_in_musescore_or_stale_and_answers_
 
 BAR_7_FERMATA = "A 12960 0 Fermata fermataAbove "
 BAR_5_IDEA = "N1x div=2 ts=4/4 ks=3s\nm5 len=8\n1.1: 2 A4 B4 C#5[fermata] A4"
+NOT_LAST = (
+    "The last step in MuseScore's undo history was not p1, so it was redone and nothing changed. p1 stays open. "
+    "Undoing in MuseScore would take back the later steps first, edits elsewhere in the score included, before the idea. "
+    "Offer the user: rewriting bar 2 with propose as they want them, or undoing back through those later steps to the "
+    'idea in MuseScore, then discard("p1") to close it.'
+)
 
 
 def soprano_of(lines, source, target):
     kept = [line for line in lines if not soprano(line, target)]
     return kept + [" ".join([words[0], str(int(words[1]) - source + target), *words[2:]]) for words in (line.split(" ") for line in lines if soprano(line, source))]
-
-
-def unfermata(lines, at):
-    return [line for line in lines if line != f"A {at} 0 Fermata fermataAbove "]
 
 
 def without_bar_7_fermata(lines):
@@ -383,41 +383,39 @@ def test_discard_of_the_last_step_undoes_it(tmp_path, monkeypatch):
     assert score.verbs.count("undo") == 1 and score.verbs.count("write") == 1 and "color" not in score.verbs
 
 
-def test_discard_after_an_edit_elsewhere_writes_the_bars_back_in_black(tmp_path, monkeypatch):
-    score = Score(CHORALE["read"])
+def test_discard_after_an_edit_elsewhere_is_refused_and_redone(tmp_path, monkeypatch):
     first = with_bar_3_soprano_in_bar_2(CHORALE["read"])
-    score.writes = [(first, True), (unfermata(without_bar_7_fermata(first), 3360), True), (without_bar_7_fermata(CHORALE["read"]), True)]
+    score = Score(CHORALE["read"])
+    score.writes = [(first, True)]
 
     async def scene():
-        await server.propose(SOPRANO_IDEA, "soprano", replace=True)
+        await server.propose(SOPRANO_IDEA, replace=True)
         edited_after(score)
-        return await server.discard("p1")
+        with pytest.raises(ToolError) as refused:
+            await server.discard("p1")
+        return str(refused.value)
 
-    result = served(tmp_path, monkeypatch, score, scene)
-    assert result.startswith("Discarded p1: the score is back as it was in bar 2, in black.")
-    assert 'in 3 undo steps "Reflets: discard soprano"' in result
-    assert score.lines == without_bar_7_fermata(CHORALE["read"])
-    assert score.verbs[-1] == "color" and score.verbs.count("write") == 3
-    assert server.stored()["open"] == {}
+    assert served(tmp_path, monkeypatch, score, scene) == NOT_LAST
+    assert score.lines == without_bar_7_fermata(first) and score.verbs.count("redo") == 1
+    assert list(server.stored()["open"]) == ["p1"]
 
 
-def test_discarding_an_older_idea_leaves_the_later_one_open_without_undoing(tmp_path, monkeypatch):
+def test_discarding_an_older_idea_is_refused_and_both_are_discarded_in_undo_order(tmp_path, monkeypatch):
     first = with_bar_3_soprano_in_bar_2(CHORALE["read"])
     both = soprano_of(first, 10080, 8160)
-    second = soprano_of(CHORALE["read"], 10080, 8160)
     score = Score(CHORALE["read"])
-    score.writes = [(first, True), (both, True), (unfermata(both, 3360), True), (second, True), (unfermata(second, 9120), True), (CHORALE["read"], True)]
+    score.writes = [(first, True), (both, True)]
 
     async def scene():
         await server.propose(SOPRANO_IDEA, "A", replace=True)
         await server.propose(BAR_5_IDEA, "B", replace=True)
-        older = await server.discard("p1")
-        assert "undo" not in score.verbs
-        assert score.lines == second and list(server.stored()["open"]) == ["p2"]
-        return older, await server.discard("p2")
+        with pytest.raises(ToolError) as refused:
+            await server.discard("p1")
+        assert score.lines == both and sorted(server.stored()["open"]) == ["p1", "p2"]
+        return str(refused.value), await server.discard("p2"), await server.discard("p1")
 
-    older, later = served(tmp_path, monkeypatch, score, scene)
-    assert "Discarded p1" in older and "Discarded p2" in later
+    older, later, again = served(tmp_path, monkeypatch, score, scene)
+    assert older == NOT_LAST and later.startswith("Discarded p2") and again.startswith("Discarded p1")
     assert score.lines == CHORALE["read"] and server.stored()["open"] == {}
 
 
@@ -432,88 +430,11 @@ def test_discard_of_bars_the_user_edited_since_is_refused(tmp_path, monkeypatch)
         edited = list(score.lines)
         with pytest.raises(ToolError, match="changed since p1 was written") as refused:
             await server.discard("p1")
-        assert score.lines == edited and "write" not in score.verbs[-3:]
+        assert score.lines == edited and "undo" not in score.verbs
         return str(refused.value)
 
     served(tmp_path, monkeypatch, score, scene)
     assert list(server.stored()["open"]) == ["p1"]
-
-
-def info_with(extra, after="M 1 0 2400 4/4 4/4 0 0 2"):
-    at = INFO.index(after) + 1
-    return INFO[:at] + extra + INFO[at:]
-
-
-GLISSANDO = [line.replace("C 2400 4 1/8 B2 64:18:18", "C 2400 4 1/8 B2 64:18:18:g0") for line in CHORALE["read"]]
-TIED = [line.replace("C 1920 0 1/4 S2 76:18:18", "C 1920 0 1/4 S2 73:21:21:f").replace("C 2400 0 1/4 S2 73:21:21", "C 2400 0 1/4 S2 73:21:21:b") for line in CHORALE["read"]]
-UNTIED = [line.replace("73:21:21:f", "73:21:21") for line in with_bar_3_soprano_in_bar_2(TIED)]
-
-
-@pytest.mark.parametrize("base, post, change, reason", [
-    (CHORALE["read"], with_bar_3_soprano_in_bar_2(CHORALE["read"]), lambda score: setattr(score, "info", [line.replace("M 1 0 2400 4/4 4/4", "M 1 0 2400 3/4 3/4") for line in INFO]), "the meter of bar 2"),
-    (CHORALE["read"], with_bar_3_soprano_in_bar_2(CHORALE["read"]), lambda score: setattr(score, "info", info_with(["K 2400 0 2"])), "the key of bar 2"),
-    (CHORALE["read"], with_bar_3_soprano_in_bar_2(CHORALE["read"]), lambda score: setattr(score, "info", info_with(["B 2400 33"])), "the bar lines, repeats, voltas"),
-    (CHORALE["read"], with_bar_3_soprano_in_bar_2(CHORALE["read"]), lambda score: setattr(score, "info", [line.replace("M 1 0 2400 4/4 4/4 0 0 2", "M 1 0 2400 4/4 4/4 0 1 2") for line in INFO]), "the bar lines, repeats, voltas"),
-    (CHORALE["read"], with_bar_3_soprano_in_bar_2(CHORALE["read"]), lambda score: server.proposals_file().write_text(json.dumps({**server.stored(), "open": {"p1": {**server.stored()["open"]["p1"], "fields": None}}})), "did not note"),
-    (TIED, UNTIED, lambda score: None, "cut a tie from the bar before"),
-    (GLISSANDO, with_bar_3_soprano_in_bar_2(GLISSANDO), lambda score: None, "glissandos"),
-])
-def test_a_discard_that_cannot_write_the_bars_back_is_refused_by_name(tmp_path, monkeypatch, base, post, change, reason):
-    score = Score(base)
-    score.writes = [(post, True)]
-
-    async def scene():
-        await server.propose(SOPRANO_IDEA, replace=True)
-        change(score)
-        edited_after(score)
-        edited = list(score.lines)
-        with pytest.raises(ToolError, match="not the last step") as refused:
-            await server.discard("p1")
-        assert score.lines == edited and score.verbs.count("write") == 1
-        return str(refused.value)
-
-    refusal = served(tmp_path, monkeypatch, score, scene)
-    assert reason in refusal and "Nothing changed" in refusal and "p1 stays open" in refusal
-    assert list(server.stored()["open"]) == ["p1"]
-
-
-def test_a_discard_of_appended_bars_after_another_step_is_refused(tmp_path, monkeypatch):
-    score = Score(CHORALE["read"])
-    appended = [line for line in INFO if line != "B 15840 32"] + ["M 9 0 17760 4/4 4/4 0 0 2"]
-    post = CHORALE["read"] + ["C 17760 0 1/1 69:17:17", "R 17760 4 1/1", "R 17760 8 1/1", "R 17760 12 1/1"]
-    score.writes = [(post, True, appended)]
-
-    async def scene():
-        await server.propose("N1x div=2 ts=4/4 ks=3s\nm10 len=8\n1.1: 8 A4")
-        edited_after(score)
-        with pytest.raises(ToolError, match="added bars at the end") as refused:
-            await server.discard("p1")
-        return str(refused.value)
-
-    assert "Nothing changed" in served(tmp_path, monkeypatch, score, scene)
-    assert list(server.stored()["open"]) == ["p1"]
-
-
-def test_a_write_back_that_does_not_read_back_as_before_is_undone(tmp_path, monkeypatch):
-    first = with_bar_3_soprano_in_bar_2(CHORALE["read"])
-    score = Score(CHORALE["read"])
-    wrong = [line.replace("C 2400 0 1/4 S2 73:21:21", "C 2400 0 1/4 S1 73:21:21") for line in without_bar_7_fermata(CHORALE["read"])]
-    score.writes = [(first, True), (unfermata(without_bar_7_fermata(first), 3360), True), (wrong, True)]
-
-    async def scene():
-        await server.propose(SOPRANO_IDEA, replace=True)
-        edited_after(score)
-        with pytest.raises(ToolError) as refused:
-            await server.discard("p1")
-        return str(refused.value)
-
-    refusal = served(tmp_path, monkeypatch, score, scene)
-    assert "did not read back as they were before it, so the write was undone. p1 stays open" in refusal
-    assert score.lines == without_bar_7_fermata(first) and "color" not in score.verbs
-    assert list(server.stored()["open"]) == ["p1"]
-
-
-CLEARED = unfermata(without_bar_7_fermata(with_bar_3_soprano_in_bar_2(CHORALE["read"])), 3360)
 
 
 def test_a_keep_the_plugin_could_not_colour_leaves_the_idea_open(tmp_path, monkeypatch):
@@ -531,66 +452,3 @@ def test_a_keep_the_plugin_could_not_colour_leaves_the_idea_open(tmp_path, monke
     failed, kept = served(tmp_path, monkeypatch, score, scene)
     assert "could not turn the notes of p1 black" in failed and "color-failed: TypeError: no stem" in failed and "p1 stays open" in failed
     assert kept.startswith("Kept p1") and server.stored()["open"] == {}
-
-
-def test_a_write_back_whose_first_step_landed_with_no_answer_names_it_to_discard_first(tmp_path, monkeypatch):
-    first = with_bar_3_soprano_in_bar_2(CHORALE["read"])
-    score = Score(CHORALE["read"])
-    score.writes = [(first, True), (CLEARED, False), (CLEARED, True), (without_bar_7_fermata(CHORALE["read"]), True)]
-
-    async def scene():
-        await server.propose(SOPRANO_IDEA, replace=True)
-        edited_after(score)
-        with pytest.raises(ToolError) as lost:
-            await server.discard("p1")
-        assert sorted(server.stored()["open"]) == ["p1", "p2"]
-        step = await server.discard("p2")
-        return str(lost.value), step, await server.discard("p1")
-
-    lost, step, result = served(tmp_path, monkeypatch, score, scene)
-    assert "recorded as p2" in lost and 'p1 stays open. Call discard("p2"), then discard("p1") again' in lost
-    assert "p2, whose write MuseScore did not answer, did land" in step and "Discarded p2" in step
-    assert result.startswith("Discarded p1: the score is back as it was in bar 2, in black.")
-    assert score.lines == without_bar_7_fermata(CHORALE["read"]) and server.stored()["open"] == {}
-
-
-def test_a_write_back_undone_with_no_answer_leaves_its_steps_open_newest_first(tmp_path, monkeypatch):
-    first = with_bar_3_soprano_in_bar_2(CHORALE["read"])
-    wrong = [line.replace("C 2400 0 1/4 S2 73:21:21", "C 2400 0 1/4 S1 73:21:21") for line in without_bar_7_fermata(CHORALE["read"])]
-    score = Score(CHORALE["read"])
-    score.writes = [(first, True), (CLEARED, True), (wrong, True)]
-    score.replies = {("undo", 2): None}
-
-    async def scene():
-        await server.propose(SOPRANO_IDEA, replace=True)
-        edited_after(score)
-        with pytest.raises(ToolError) as lost:
-            await server.discard("p1")
-        assert sorted(server.stored()["open"]) == ["p1", "p2", "p3"]
-        return str(lost.value), await server.discard("p3"), await server.discard("p2")
-
-    lost, last, cleared = served(tmp_path, monkeypatch, score, scene)
-    assert "did not answer the undo" in lost and 'Call discard("p3"), then discard("p2"), then discard("p1") again' in lost
-    assert "p3 is no longer in the score" in last and "Discarded p2" in cleared
-    assert score.lines == without_bar_7_fermata(first) and list(server.stored()["open"]) == ["p1"]
-
-
-@pytest.mark.parametrize("reply, said", [(None, "did not answer the recolouring"), ("err color-failed TypeError: no stem", "could not recolour them")])
-def test_a_write_back_whose_colouring_failed_leaves_one_idea_open_for_keep(tmp_path, monkeypatch, reply, said):
-    first = with_bar_3_soprano_in_bar_2(CHORALE["read"])
-    score = Score(CHORALE["read"])
-    score.writes = [(first, True), (CLEARED, True), (without_bar_7_fermata(CHORALE["read"]), True)]
-    score.replies = {("color", 1): reply}
-
-    async def scene():
-        await server.propose(SOPRANO_IDEA, "soprano", replace=True)
-        edited_after(score)
-        with pytest.raises(ToolError) as failed:
-            await server.discard("p1")
-        assert list(server.stored()["open"]) == ["p4"]
-        return str(failed.value), await server.keep("p4")
-
-    failed, kept = served(tmp_path, monkeypatch, score, scene)
-    assert failed.startswith("Discarded p1: the score is back as it was in bar 2, but MuseScore") and said in failed and 'keep("p4") turns them black; do not discard p4' in failed
-    assert kept.startswith("Kept p4") and server.stored()["open"] == {}
-    assert score.lines == without_bar_7_fermata(CHORALE["read"]) and score.verbs.count("color") == 2
