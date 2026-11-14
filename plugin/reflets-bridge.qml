@@ -1226,7 +1226,7 @@ MuseScore {
             if (f.token !== token)
                 return id + " err unauthorized token does not match the plugin's token file"
             authed[clientId] = true
-            status("Connected")
+            status("connected")
             return id + " ok proto=" + proto + " plugin=reflets-bridge/" + version + " mscore=" + mscoreVersion
                 + " division=" + division + " score=" + (curScore ? 1 : 0)
                 + " title=" + escapeText(curScore ? (curScore.title || curScore.scoreName) : "")
