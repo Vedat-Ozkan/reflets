@@ -15,7 +15,8 @@ MuseScore {
     property int port: 0
     property string nonce: ""
     property double lastActive: 0
-    readonly property string ideaColor: "#1565c0"
+    readonly property string ideaColor: "#6f42c1"
+    readonly property string formerIdeaColor: "#1565c0"
     property string token: ""
     property var authed: ({})
     property var symNames: null
@@ -94,6 +95,15 @@ MuseScore {
         onTriggered: {
             pill.opacity = 0
             badgeHide.restart()
+        }
+    }
+
+    Timer {
+        id: portCheck
+        interval: 5000
+        onTriggered: {
+            if (port === 0)
+                status("found no free port")
         }
     }
 
@@ -1007,6 +1017,76 @@ MuseScore {
         n.color = color
     }
 
+    function withGraces(el) {
+        var crs = [el]
+        for (var g = 0; el.type === Element.CHORD && el.graceNotes && g < el.graceNotes.length; g++)
+            crs.push(el.graceNotes[g])
+        return crs
+    }
+
+    function place(cr) {
+        return cr.track + " " + cr.fraction.ticks
+    }
+
+    function parts(crs) {
+        var places = {}
+        for (var c = 0; c < crs.length; c++)
+            places[place(crs[c])] = true
+        var found = []
+        for (var i = 0; i < crs.length; i++) {
+            var cr = crs[i]
+            found = found.concat(cr.type === Element.CHORD ? [cr.stem, cr.hook, cr.stemSlash, cr.arpeggio, cr.tremoloSingleChord] : [cr])
+            for (var t = cr.tuplet; t; t = t.tuplet)
+                found.push(t)
+            for (var a = 0; cr.articulations && a < cr.articulations.length; a++)
+                found.push(cr.articulations[a])
+            for (var k = 0; cr.notes && k < cr.notes.length; k++) {
+                var n = cr.notes[k]
+                found.push(n, n.accidental, n.tieForward, n.tieBack)
+                for (var d = 0; n.dots && d < n.dots.length; d++)
+                    found.push(n.dots[d])
+            }
+            var beam = cr.beam
+            var whole = beam ? true : false
+            for (var b = 0; whole && b < beam.elements.length; b++)
+                whole = places[place(beam.elements[b])] === true
+            if (whole)
+                found.push(beam)
+        }
+        return found.filter(function(el) { return el })
+    }
+
+    function written(startTick, endTick, ops) {
+        var cells = {}
+        for (var i = 0; i < ops.length; i++) {
+            var w = ops[i].split(" ")
+            if (w[0] === "v")
+                cells[w[1] + " " + measureAt(parseInt(w[2])).firstSegment.tick] = true
+        }
+        var crs = []
+        for (var m = measureAt(startTick); m && m.firstSegment.tick < endTick; m = m.nextMeasure) {
+            for (var seg = m.firstSegment; seg; seg = seg.nextInMeasure) {
+                for (var track = 0; track < curScore.ntracks; track++) {
+                    var el = cells[track + " " + m.firstSegment.tick] ? seg.elementAt(track) : null
+                    if (el && (el.type === Element.CHORD || el.type === Element.REST))
+                        crs = crs.concat(withGraces(el))
+                }
+            }
+        }
+        return crs
+    }
+
+    function showRange(startTick, endTick, staves) {
+        if (!staves.length) {
+            curScore.selection.clear()
+            return
+        }
+        var first = Math.min.apply(null, staves), last = Math.max.apply(null, staves) + 1
+        curScore.selection.selectRange(startTick, endTick, first, last)
+        cmd("notation-move-left")
+        curScore.selection.selectRange(startTick, endTick, first, last)
+    }
+
     function write(id, startTick, endTick, label, ops) {
         var c = null, track = 0, step = 0, chords = [], rests = [], changed = false
         curScore.startCmd("Reflets: " + label)
@@ -1137,6 +1217,10 @@ MuseScore {
                 }
                 changed = true
             }
+            curScore.doLayout(fraction(startTick, division * 4), fraction(endTick, division * 4))
+            var painted = parts(written(startTick, endTick, ops))
+            for (var x = 0; x < painted.length; x++)
+                painted[x].color = ideaColor
         } catch (e) {
             curScore.endCmd(true)
             if (changed)
@@ -1144,57 +1228,59 @@ MuseScore {
             return id + " err write-failed " + step + " " + escapeText(e)
         }
         curScore.endCmd(false)
-        var staves = ops.filter(function(op) { return op[0] === "v" }).map(function(op) { return Math.floor(parseInt(op.split(" ")[1]) / 4) })
-        if (staves.length) {
-            var first = Math.min.apply(null, staves), last = Math.max.apply(null, staves) + 1
-            curScore.selection.selectRange(startTick, endTick, first, last)
-            cmd("notation-move-left")
-            curScore.selection.selectRange(startTick, endTick, first, last)
-        } else
-            curScore.selection.clear()
+        showRange(startTick, endTick, ops.filter(function(op) { return op[0] === "v" }).map(function(op) { return Math.floor(parseInt(op.split(" ")[1]) / 4) }))
         return [id + " ok"].concat(read(startTick, endTick)).join("\n")
     }
 
-    function recolor(startTick, endTick, tracks, color, label) {
+    function recolor(id, startTick, endTick, tracks, color, label) {
+        var changed = false
         curScore.startCmd("Reflets: " + label)
-        var sp = spannerList()
-        for (var i = 0; i < sp.length; i++) {
-            if (!(sp[i].systemFlag && tracks.indexOf(0) < 0) && spannerIn(sp[i], tracks, startTick, endTick))
-                sp[i].color = color
-        }
-        for (var m = curScore.firstMeasure; m; m = m.nextMeasure) {
-            var mt = m.firstSegment.tick
-            if (mt < startTick)
-                continue
-            if (mt >= endTick)
-                break
-            for (var seg = m.firstSegment; seg; seg = seg.nextInMeasure) {
-                var ann = seg.annotations
-                for (var a = 0; ann && a < ann.length; a++) {
-                    if (tracks.indexOf(ann[a].track) >= 0 && ann[a].name !== "Fermata")
-                        ann[a].color = color
-                }
-                for (var t = 0; t < tracks.length; t++) {
-                    var el = seg.elementAt(tracks[t])
-                    if (!el)
-                        continue
-                    if (el.type === Element.REST)
-                        el.color = color
-                    if (el.type !== Element.CHORD)
-                        continue
-                    for (var y = 0; el.lyrics && y < el.lyrics.length; y++)
-                        el.lyrics[y].color = color
-                    var cs = [el]
-                    for (var g = 0; el.graceNotes && g < el.graceNotes.length; g++)
-                        cs.push(el.graceNotes[g])
-                    for (var i = 0; i < cs.length; i++) {
-                        for (var k = 0; k < cs[i].notes.length; k++)
-                            cs[i].notes[k].color = color
+        try {
+            var found = []
+            var sp = spannerList()
+            for (var i = 0; i < sp.length; i++) {
+                if (!(sp[i].systemFlag && tracks.indexOf(0) < 0) && spannerIn(sp[i], tracks, startTick, endTick))
+                    found.push(sp[i])
+            }
+            var crs = []
+            for (var m = curScore.firstMeasure; m; m = m.nextMeasure) {
+                var mt = m.firstSegment.tick
+                if (mt < startTick)
+                    continue
+                if (mt >= endTick)
+                    break
+                for (var seg = m.firstSegment; seg; seg = seg.nextInMeasure) {
+                    var ann = seg.annotations
+                    for (var a = 0; ann && a < ann.length; a++) {
+                        if (tracks.indexOf(ann[a].track) >= 0 && ann[a].name !== "Fermata")
+                            found.push(ann[a])
+                    }
+                    for (var t = 0; t < tracks.length; t++) {
+                        var el = seg.elementAt(tracks[t])
+                        if (!el || el.type !== Element.CHORD && el.type !== Element.REST)
+                            continue
+                        for (var y = 0; el.lyrics && y < el.lyrics.length; y++)
+                            found.push(el.lyrics[y])
+                        crs = crs.concat(withGraces(el))
                     }
                 }
             }
+            found = found.concat(parts(crs))
+            for (var f = 0; f < found.length; f++) {
+                if (Qt.colorEqual(found[f].color, ideaColor) || Qt.colorEqual(found[f].color, formerIdeaColor)) {
+                    found[f].color = color
+                    changed = true
+                }
+            }
+        } catch (e) {
+            curScore.endCmd(true)
+            if (changed)
+                cmd("action://notation/undo")
+            return id + " err color-failed " + escapeText(e)
         }
         curScore.endCmd(false)
+        showRange(startTick, endTick, tracks.map(function(t) { return Math.floor(t / 4) }))
+        return id + " ok"
     }
 
     function fields(words) {
@@ -1217,7 +1303,7 @@ MuseScore {
             if (f.token !== token)
                 return id + " err unauthorized token does not match the plugin's token file"
             authed[clientId] = true
-            status("Claude connected")
+            status("connected")
             return id + " ok proto=" + proto + " plugin=reflets-bridge/" + version + " mscore=" + mscoreVersion
                 + " division=" + division + " score=" + (curScore ? 1 : 0)
                 + " title=" + escapeText(curScore ? (curScore.title || curScore.scoreName) : "")
@@ -1240,9 +1326,10 @@ MuseScore {
             return reply
         }
         if (verb === "color") {
-            recolor(parseInt(head[2]), parseInt(head[3]), head[4].split(",").map(Number), head[5], head.slice(6).join(" "))
-            status("kept " + head.slice(6).join(" "))
-            return id + " ok"
+            var colorLabel = head.slice(6).join(" ")
+            var colored = recolor(id, parseInt(head[2]), parseInt(head[3]), head[4].split(",").map(Number), head[5], colorLabel)
+            status(colored === id + " ok" ? "kept " + head.slice(7).join(" ") : "could not " + colorLabel)
+            return colored
         }
         if (verb === "export")
             return id + (writeScore(curScore, head.slice(2).join(" "), "musicxml") ? " ok" : " err export-failed writeScore returned false")
@@ -1272,7 +1359,12 @@ MuseScore {
     }
 
     onRun: {
+        if (typeof ui !== "undefined" && ui && ui.rootItem) {
+            pill.parent = ui.rootItem
+            badgeInMain = true
+        }
         if (typeof api === "undefined" || !api.websocketserver) {
+            status("needs MuseScore 4.7 or later from musescore.org")
             api.log.info("reflets-bridge: this MuseScore build has no WebSocket API")
             return
         }
@@ -1280,14 +1372,11 @@ MuseScore {
         nonce = newToken()
         if (Qt.application.state === Qt.ApplicationActive)
             lastActive = Date.now()
-        if (typeof ui !== "undefined" && ui && ui.rootItem) {
-            pill.parent = ui.rootItem
-            badgeInMain = true
-        }
         for (var p = firstPort; p <= lastPort; p++)
             api.websocketserver.listen(p, onClient)
         for (var q = firstPort; q <= lastPort; q++)
             probe(q)
+        portCheck.start()
     }
 
     function probe(candidate) {
@@ -1303,9 +1392,10 @@ MuseScore {
 
     function claim(found) {
         port = found
+        portCheck.stop()
         tokenFile.source = localPath(Qt.resolvedUrl(port === firstPort ? "reflets-token.txt" : "reflets-token-" + port + ".txt"))
         var written = tokenFile.write(token)
-        status("listening")
+        status(written ? "listening" : "could not save its key file")
         api.log.info("reflets-bridge " + version + ": listening on " + port + ", token file " + tokenFile.source
             + (written ? "" : " (WRITE FAILED)"))
     }
