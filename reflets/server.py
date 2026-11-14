@@ -561,7 +561,7 @@ async def listed_proposals(info: ScoreInfo) -> str:
         found = [(proposal_id, Proposal(**p)) for proposal_id, p in stored()["open"].items() if p["title"] == info.title]
     except (ValueError, TypeError, KeyError):
         return ""
-    found = [(proposal_id, p) for proposal_id, p in found if p.post is None or not await unchanged(p)]
+    found = [(proposal_id, p) for proposal_id, p in found if p.post is None or sorted(await request(f"read {p.start_tick} {p.end_tick}")) == sorted(p.post)]
     if not found:
         return ""
     ideas = "; ".join(

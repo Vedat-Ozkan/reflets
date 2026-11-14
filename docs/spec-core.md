@@ -311,7 +311,7 @@ Results are plain text, not `structuredContent`, because structured output is va
 MuseScore 4.7.5, Reflets bridge 0.1, connected.
 "Nocturne in E flat" — 2 parts: P1 Piano (staves 1-2). 38 bars, 12/8, E flat major, pickup: no. fp=3f9a.
 ```
-When not connected, the same text explains what to do and the other tools are not needed. As built 2026-11-13: after the checkpoints, `score_info` lists the open proposals of the open score (those in `proposals.json` with its title) by id, label and bars, an unanswered write marked as such, so a new chat sees ideas left open; an idea whose bars read as they did before it (undone in MuseScore) is left out, and an unreadable `proposals.json` lists none; nothing is listed when there are none. It only reads `proposals.json`: an idea undone in MuseScore stays listed until `keep` or `discard` closes it (6.9).
+When not connected, the same text explains what to do and the other tools are not needed. As built 2026-11-13: after the checkpoints, `score_info` lists the open proposals of the open score (those in `proposals.json` with its title) by id, label and bars, an unanswered write marked as such, so a new chat sees ideas left open; an answered idea is listed only while its bars read exactly as it wrote them (the comparison `discard` makes), so an idea undone in MuseScore, a leftover whose bars the score no longer holds, and an idea the user has edited since are left out, though the last stays open for `keep` or `discard` (6.9); an unanswered write is listed; an unreadable `proposals.json` lists none; nothing is listed when there are none. Listing closes nothing.
 
 **`read_score(bars="1-8", parts="P1", since=None)`** → N1x. Defaults as in 4.4.
 

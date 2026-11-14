@@ -318,7 +318,7 @@ def test_render_shows_the_bars_as_an_image_and_names_the_file(tmp_path, monkeypa
     assert pathlib.Path(text.text.removeprefix("Bars 1-2: ")).exists()
 
 
-def test_score_info_leaves_out_an_idea_undone_in_musescore_and_answers_with_an_unreadable_proposals_file(tmp_path, monkeypatch):
+def test_score_info_leaves_out_an_idea_undone_in_musescore_or_stale_and_answers_with_an_unreadable_proposals_file(tmp_path, monkeypatch):
     score = Score(CHORALE["read"])
     score.writes = [(with_bar_3_soprano_in_bar_2(CHORALE["read"]), True)]
 
@@ -326,9 +326,15 @@ def test_score_info_leaves_out_an_idea_undone_in_musescore_and_answers_with_an_u
         await server.propose(SOPRANO_IDEA, "soprano", replace=True)
         score.lines = list(CHORALE["read"])
         undone = await server.score_info()
+        score.lines = with_bar_3_soprano_in_bar_2(CHORALE["read"])
+        data = server.stored()
+        data["open"]["p7"] = {**data["open"]["p1"], "label": "stale", "pre": ["C 1920 0 1/4 1:1:1"], "post": ["C 1920 0 1/4 2:2:2"]}
+        server.proposals_file().write_text(json.dumps(data))
+        stale = await server.score_info()
         server.proposals_file().write_text("{")
-        return undone, await server.score_info()
+        return undone, stale, await server.score_info()
 
-    undone, unreadable = served(tmp_path, monkeypatch, score, scene)
+    undone, stale, unreadable = served(tmp_path, monkeypatch, score, scene)
     assert "Open ideas" not in undone
+    assert 'p1 "soprano"' in stale and "p7" not in stale
     assert "connected" in unreadable and "Open ideas" not in unreadable
