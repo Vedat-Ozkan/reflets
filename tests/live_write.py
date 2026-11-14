@@ -112,7 +112,6 @@ async def main() -> None:
     check("discard of an idea that is not the last undo step writes its bars back", "undo steps" in result and await server.read_score("5-6") == before, result)
     check("the newer idea is still there", "1.2: 48 Eb4" in await server.read_score("10"))
     await server.discard(newer)
-    await server.discard(older)
     await unchanged("after both discards")
 
     kept = proposal(await server.propose(IDEA, "kept", replace=True))
