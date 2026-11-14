@@ -115,6 +115,7 @@ class Proposal:
     pre_end: int
     title: str
     steps: int = 1
+    fields: list[str] | None = None
 
 
 render_numbers = itertools.count(1)
@@ -491,7 +492,7 @@ async def idea_written(info: ScoreInfo, text: str, label: str, replace: bool, re
     positions = sorted(plan.expected_bars)
     bars = f"bars {labels[positions[0]]}-{labels[positions[-1]]}" if len(positions) > 1 else f"bar {labels[positions[0]]}"
     tracks = sorted({t for _, t in plan.cells})
-    proposal_id = opened(Proposal(label, plan.start_tick, plan.end_tick, tracks, bars, original, None, end_tick, info.title))
+    proposal_id = opened(Proposal(label, plan.start_tick, plan.end_tick, tracks, bars, original, None, end_tick, info.title, fields=bar_fields(await request("info"), start_tick, end_tick)))
     written_checks[proposal_id] = landed
     try:
         reply = await request(f"write {plan.start_tick} {plan.end_tick} {label}\n" + "\n".join(plan.ops))
@@ -686,9 +687,11 @@ async def gone(proposal_id: str, p: Proposal) -> str:
 @mcp.tool(
     title="Discard an idea",
     description=(
-        "Use this when the user does not want a proposed idea: it undoes the proposal, restoring the bars. "
-        "Refused, with nothing undone, if the user has edited those bars since or made another change after the idea: "
-        "undoing in MuseScore would then take back their later changes too, so the result says what to offer them."
+        "Use this when the user does not want a proposed idea: it puts the idea's bars back as they were before it. "
+        "When the idea is the last step in MuseScore's undo history, it undoes it; when later steps came after it "
+        "(another idea, a keep, an edit elsewhere), it writes the bars back as they were and turns them black, leaving "
+        "the later steps as they are. Refused, with nothing changed, if the user has edited those bars since, or when "
+        "the bars cannot be written back (the result says why and what to offer them)."
     ),
     annotations=writes("Discard an idea", destructive=True),
     structured_output=False,
@@ -710,6 +713,8 @@ async def discarded(proposal_id: str) -> str:
             f"rewriting {p.bars} with propose as they want them, or undoing back through their edits to the idea in "
             f"MuseScore, then discard(\"{proposal_id}\") to close it."
         )
+    if await later_idea(proposal_id, p):
+        return await written_back(proposal_id, p)
     try:
         for _ in range(p.steps):
             await request("undo")
@@ -718,26 +723,149 @@ async def discarded(proposal_id: str) -> str:
             f"MuseScore did not answer the undo of {proposal_id}, so it may or may not have happened; it was not sent again. "
             f'{proposal_id} stays open: call discard("{proposal_id}") again, which reads {p.bars} first and finishes or says what it finds.'
         ) from None
-    if not await unchanged(p):
-        try:
-            for _ in range(p.steps):
-                await request("redo")
-        except Unanswered:
-            raise Unanswered(
-                f"The last step in MuseScore's undo history was not {proposal_id}, and MuseScore did not answer the redo that puts it "
-                "back. Ask the user to check the score: Edit > Redo brings back their last edit if it is missing. "
-                f"{proposal_id} stays open."
-            ) from None
-        restored = sorted(await request(span)) == sorted(p.post)
+    if await unchanged(p):
+        closed(proposal_id)
+        return f"Discarded {proposal_id}: the score is back as it was in {p.bars}."
+    try:
+        for _ in range(p.steps):
+            await request("redo")
+    except Unanswered:
+        raise Unanswered(
+            f"The last step in MuseScore's undo history was not {proposal_id}, and MuseScore did not answer the redo that puts it "
+            "back. Ask the user to check the score: Edit > Redo brings back their last edit if it is missing. "
+            f"{proposal_id} stays open."
+        ) from None
+    if sorted(await request(span)) != sorted(p.post):
         raise ToolError(
-            f"The last step in MuseScore's undo history was not {proposal_id}"
-            + (", so it was redone and nothing changed." if restored else ", and redoing it did not restore the bars; ask the user to check them.")
-            + f" {proposal_id} stays open. Undoing in MuseScore would take back the later steps first, edits elsewhere in the "
-            f"score included, before the idea. Offer the user: rewriting {p.bars} with propose as they want them, or "
-            f"undoing back through those later steps to the idea in MuseScore, then discard(\"{proposal_id}\") to close it."
+            f"The last step in MuseScore's undo history was not {proposal_id}, and redoing it did not restore the bars; ask the "
+            f"user to check them. {proposal_id} stays open."
         )
+    return await written_back(proposal_id, p)
+
+
+def bar_fields(info_lines: list[str], start: int, end: int) -> list[str]:
+    def tick(words: list[str]) -> int:
+        return int(words[3] if words[0] == "M" else words[1])
+
+    return sorted(
+        line for line in info_lines
+        if (words := line.split(" "))[0] in ("M", "K", "B", "L", "J", "Q", "V")
+        and (start <= tick(words) < end or words[0] == "V" and tick(words) < end and tick(words) + int(words[2]) > start)
+    )
+
+
+def tied_in(lines: list[str], tick: int) -> set[tuple[str, str]]:
+    return {
+        (words[2], note.split(":")[0])
+        for words in (line.split(" ") for line in lines)
+        if words[0] == "C" and int(words[1]) == tick
+        for note in words[-1].split(",")
+        if "b" in note.split(":")[3:]
+    }
+
+
+def not_written_back(p: Proposal, info_lines: list[str]) -> str | None:
+    if p.fields is None:
+        return "Reflets did not note its bars' meter, key and bar lines when it wrote it (a restore, or an idea written before Reflets noted them)"
+    now = bar_fields(info_lines, p.start_tick, p.pre_end)
+    then_bars = {line.split(" ")[3] for line in p.fields if line.startswith("M ")}
+    changed = {line[0] for line in set(now) ^ set(p.fields)}
+    if any(line.startswith("M ") and line.split(" ")[3] not in then_bars for line in now):
+        return "it added bars at the end of the score, which only an undo can remove"
+    if "M" in changed:
+        return f"the meter of {p.bars} is not as it was before it (a meter change or a recast)"
+    if "K" in changed:
+        return f"the key of {p.bars} is not as it was before it"
+    if changed:
+        return f"the bar lines, repeats, voltas, jumps, markers or breaks of {p.bars} are not as they were before it"
+    if tied_in(p.pre, p.start_tick) - tied_in(p.post, p.start_tick):
+        return "it cut a tie from the bar before into its first bar, and a write cannot tie into a bar from outside it"
+    return None
+
+
+def clears(bare: str) -> bool:
+    return any(" L" in line.split(":")[0] or re.search(r"(^|[\s\[,:])-", line) for line in bare.splitlines()[1:])
+
+
+async def later_idea(proposal_id: str, p: Proposal) -> bool:
+    for other_id, other in stored()["open"].items():
+        if int(other_id[1:]) > int(proposal_id[1:]) and other["title"] == p.title and other["post"] is not None:
+            if sorted(await request(f"read {other['start_tick']} {other['end_tick']}")) == sorted(other["post"]):
+                return True
+    return False
+
+
+async def written_back(proposal_id: str, p: Proposal) -> str:
+    offer = (
+        f" {proposal_id} stays open. Offer the user: keep(\"{proposal_id}\") for the bars as they are, rewriting {p.bars} with "
+        f"propose as they want them, or undoing in MuseScore back through the later steps to the idea, then "
+        f"discard(\"{proposal_id}\") to close it."
+    )
+    refused = f"{proposal_id} is not the last step in MuseScore's undo history, so undoing would take back the later steps first, and"
+    info_lines = await request("info")
+    if reason := not_written_back(p, info_lines):
+        raise ToolError(f"{refused} it cannot be discarded by writing {p.bars} back as before: {reason}. Nothing changed.{offer}")
+    info, then_info = parse_info(info_lines), parse_info(info_lines)
+    division = int(bridge.hello["division"])
+    positions = [position for position, tick in enumerate(info.ticks) if p.start_tick <= tick < p.pre_end]
+    whole = await request(f"read {info.ticks[0]} {END}")
+    here = set(await request(f"read {p.start_tick} {p.pre_end}"))
+    try:
+        now = n1x.encode(info, build_index(info, whole, division), positions[0], positions[-1])
+        then = n1x.encode(then_info, build_index(then_info, [line for line in whole if line not in here] + p.pre, division), positions[0], positions[-1])
+    except (notes.NotesError, PositionError) as error:
+        raise ToolError(f"{refused} {p.bars} as they were before it could not be encoded: {error}. Nothing changed.{offer}") from None
+    if body(then) != writable(then):
+        raise ToolError(f"{refused} it cannot be discarded by writing {p.bars} back as before: they had glissandos, which cannot be written. Nothing changed.{offer}")
+    label = f"discard {p.label}"
+    header = then.splitlines()[0]
+    bare = bare_idea(body(now), now.splitlines()[0], marks(body(then), header))
+    cleared = None
+    try:
+        try:
+            cleared = re.search(r"proposal id: (p\d+)", await propose(bare, label, replace=True))[1] if clears(bare) else None
+        except Unchanged:
+            pass
+        try:
+            ids = [cleared, re.search(r"proposal id: (p\d+)", await write_idea(target_idea(body(now), body(then), header), label, True, drawn=[line for line in p.pre if line.startswith("C ")]))[1]]
+        except Unchanged:
+            ids = [cleared]
+        except Unanswered:
+            raise
+        except ToolError:
+            if cleared:
+                await discarded(cleared)
+            raise
+    except Unanswered as error:
+        first_step = f" {cleared}, its first step (the bars cleared of their details), is open." if cleared else ""
+        raise Unanswered(f"Writing {p.bars} back as before {proposal_id}: {error}{first_step} {proposal_id} stays open.") from None
+    except ToolError as error:
+        raise ToolError(f"{refused} writing {p.bars} back as before was refused, and nothing changed: {error}{offer}") from None
+    written = [closed(written_id) for written_id in ids if written_id]
+    if not await unchanged(p):
+        for _ in written:
+            await request("undo")
+        back = sorted(await request(f"read {p.start_tick} {p.end_tick}")) == sorted(p.post)
+        raise ToolError(
+            f"{refused} writing {p.bars} back did not read back as they were before it, so the write was undone"
+            + ("." if back else ", but undoing it did not restore the bars; ask the user to check them.") + offer
+        )
+    tracks = ",".join(map(str, sorted({track for w in written for track in w.tracks})))
+    start, end = min(w.start_tick for w in written), max(w.end_tick for w in written)
     closed(proposal_id)
-    return f"Discarded {proposal_id}: the score is back as it was in {p.bars}."
+    try:
+        await request(f"color {start} {end} {tracks} #000000 {label}")
+    except Unanswered:
+        raise Unanswered(
+            f"Discarded {proposal_id}: the score is back as it was in {p.bars}, but MuseScore did not answer the recolouring, so "
+            "the notes there may still be blue; it was not sent again. Ask the user to look at them."
+        ) from None
+    steps = len(written) + 1
+    return (
+        f"Discarded {proposal_id}: the score is back as it was in {p.bars}, in black. Later steps came after it in MuseScore's undo history, "
+        f'so instead of undoing them Reflets wrote the bars back as they were before it, read back matched, in {steps} undo '
+        f'steps "Reflets: {label}". The later steps stay as they are.'
+    )
 
 
 @mcp.tool(
