@@ -862,7 +862,7 @@ async def written_back(proposal_id: str, p: Proposal) -> str:
     except Unanswered:
         raise Unanswered(
             f"Discarded {proposal_id}: the score is back as it was in {p.bars}, but MuseScore did not answer the recolouring, so "
-            "the notes there may still be blue; it was not sent again. Ask the user to look at them."
+            f"the notes there may still be {IDEA_COLOUR}; it was not sent again. Ask the user to look at them."
         ) from None
     steps = len(written) + 1
     return (
