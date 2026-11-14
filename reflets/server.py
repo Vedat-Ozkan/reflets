@@ -851,7 +851,7 @@ async def hum(
             raise ToolError(NO_RECORDING.format(error)) from None
         found = humming.calibration(take.audio, [start / audio.RATE for start in starts[CALIBRATION_COUNT_IN:]])
         if found is None:
-            raise ToolError("Not enough 'ta's were heard on the clicks to measure the delay. Ask the user to try again, louder, one 'ta' on each click.")
+            raise ToolError("Not enough 'ta's were heard on the clicks to measure the delay. Ask the user to try again, louder, one 'ta' on each of the 8 clicks after the count-in.")
         audio.store_latency(folder, take.device, found)
         last_delays.pop(take.device, None)
         return (f"Calibrated: takes on this device will now line up with the click. The microphone hears the user "

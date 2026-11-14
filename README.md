@@ -29,7 +29,7 @@ Status: slices 3 and 4 done. The server reads the open score (`score_info`, `rea
      claude mcp add reflets -- uvx --python 3.12 --from git+https://github.com/Vedat-Ozkan/reflets@v0.5.3 reflets
      ```
 
-   - Claude Desktop: in Claude, open Settings > Developer > Edit Config, which shows `claude_desktop_config.json`. Open that file in a text editor, paste the entry below for your system, and save it. If the file already has an `"mcpServers"` section, put the `"reflets"` entry inside it instead. Then quit Claude completely and reopen it: closing its window is not enough.
+   - Claude Desktop: in Claude, open Settings > Developer > Edit Config, which shows `claude_desktop_config.json`. Open that file in a text editor, paste the entry below for your system, and save it. If the file already has an `"mcpServers"` section, put the `"reflets"` entry inside it instead. Then quit Claude completely and reopen it.
 
      On Windows, copy this and replace `YOURNAME`, all three times, with the name of your user folder under `C:\Users`. It uses the full path of `uvx.exe` from the default uv install, and the two `UV_` lines are needed: Claude Desktop from the Microsoft Store redirects its programs' writes to `AppData`, which breaks uv's Python install there. Keep the double backslashes.
 
@@ -89,10 +89,10 @@ Humming needs the `hum` extra. Install Reflets with it by using `reflets[hum] @ 
   claude mcp add reflets -- uvx --python 3.12 --from 'reflets[hum] @ git+https://github.com/Vedat-Ozkan/reflets@v0.5.3' reflets
   ```
 
-- Claude Desktop: in the entry above, replace the `"args"` line with this one (it is one entry, spaces included, with no extra quotes), save, then quit Claude completely and reopen it:
+- Claude Desktop: in the entry above, replace `"git+https://github.com/Vedat-Ozkan/reflets@v0.5.3"` with `"reflets[hum] @ git+https://github.com/Vedat-Ozkan/reflets@v0.5.3"`, one entry with its spaces, inside one pair of quotes. The `"args"` line then reads as below; a comma after its `]` stays where it was. Save, then quit Claude completely and reopen it.
 
-  ```json
-  "args": ["--python", "3.12", "--from", "reflets[hum] @ git+https://github.com/Vedat-Ozkan/reflets@v0.5.3", "reflets"],
+  ```
+  "args": ["--python", "3.12", "--from", "reflets[hum] @ git+https://github.com/Vedat-Ozkan/reflets@v0.5.3", "reflets"]
   ```
 
 On Linux and WSL, also `sudo apt install libportaudio2 libasound2-plugins pulseaudio-utils` and an `~/.asoundrc` with `pcm.!default { type pulse }` and `ctl.!default { type pulse }`, so the default device reaches WSLg's microphone and speakers.
