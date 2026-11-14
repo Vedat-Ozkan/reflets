@@ -48,6 +48,7 @@ if TYPE_CHECKING:
     from reflets.hum import Key
 
 WHOLE_SCORE_TOKENS = 6000
+IDEA_COLOUR = "violet"
 FIRST_BARS = 16
 
 mcp = MCPServer(
@@ -525,7 +526,7 @@ async def idea_written(info: ScoreInfo, text: str, label: str, replace: bool, re
         note += f" These fermatas lost their note and moved onto the note or rest sounding at their moment: {'; '.join(plan.moved_marks)}."
     return (
         f'Written: {bars}, voices {voices}, {counts}, as one undo step "Reflets: {label}". Read-back matched.{note}\n'
-        f"The new notes are blue. The user listens with Play in MuseScore; then keep(\"{proposal_id}\") turns them "
+        f"The new notes are {IDEA_COLOUR}. The user listens with Play in MuseScore; then keep(\"{proposal_id}\") turns them "
         f"black, or discard(\"{proposal_id}\") removes them.\nproposal id: {proposal_id}"
     )
 
@@ -629,7 +630,7 @@ async def reconciled(title: str) -> str:
             notes.append(f"{proposal_id} never reached the score (MuseScore did not answer its write): {p.bars} are as they were, nothing of it is left.")
             continue
         state = (
-            f"read the same as before {proposal_id} and as {proposal_id} writes them, so whether it landed in blue cannot be told" if before
+            f"read the same as before {proposal_id} and as {proposal_id} writes them, so whether it landed in {IDEA_COLOUR} cannot be told" if before
             else f"match neither how they were before {proposal_id} nor how {proposal_id} writes them"
             + ("" if check else " (the server restarted since, so how it writes them is not known here)")
         )
@@ -741,7 +742,7 @@ async def discarded(proposal_id: str) -> str:
 
 @mcp.tool(
     title="Keep an idea",
-    description="Use this when the user keeps a proposed idea: its notes turn from blue to black.",
+    description=f"Use this when the user keeps a proposed idea: its notes turn from {IDEA_COLOUR} to black.",
     annotations=writes("Keep an idea", destructive=False),
     structured_output=False,
 )
@@ -758,7 +759,7 @@ async def kept(proposal_id: str) -> str:
         await request(f"color {p.start_tick} {p.end_tick} {tracks} #000000 keep {p.label}")
     except Unanswered:
         raise Unanswered(
-            f"MuseScore did not answer the keep of {proposal_id}, so its notes may still be blue; it was not sent again. "
+            f"MuseScore did not answer the keep of {proposal_id}, so its notes may still be {IDEA_COLOUR}; it was not sent again. "
             f'{proposal_id} stays open: call keep("{proposal_id}") again; a second keep is harmless.'
         ) from None
     closed(proposal_id)
@@ -817,7 +818,7 @@ def tempo_at(info: ScoreInfo, position: int) -> float | None:
         "Use this when the user wants to hum, sing or 'da' a melody, bass line or rhythm into the score. It plays one "
         "bar of count-in clicks (beat 1 higher) through the computer's speakers or headphones, then records the "
         "microphone for `bars` bars while the click goes on, turns the humming into notes on the click's grid, and "
-        "writes them as a proposal like propose does: blue, one undo step, then keep or discard. Before calling, tell "
+        f"writes them as a proposal like propose does: {IDEA_COLOUR}, one undo step, then keep or discard. Before calling, tell "
         "the user to get ready: hum after the count-in, along with the click, giving each note its own push; any "
         "syllable or plain humming works, 'da' helps repeated notes. The call blocks while they hum. "
         "start_bar is where the first downbeat lands; staff is the staff number as in read_score's voice lines "
@@ -1191,7 +1192,7 @@ async def restored(checkpoint: int, info: ScoreInfo, index: ScoreIndex, start: i
     where = f"bar {first}" if first == last else f"bars {first}-{last}"
     return (
         f'Restored {where} from checkpoint {checkpoint} "{saved["name"]}" ({saved["saved"]}), in {"two undo steps" if cleared else "one undo step"} '
-        f'"Reflets: {label}". Read-back matched.{note}\nThe restored notes are blue. The user listens with Play in '
+        f'"Reflets: {label}". Read-back matched.{note}\nThe restored notes are {IDEA_COLOUR}. The user listens with Play in '
         f'MuseScore; then keep("{proposal_id}") turns them black, or discard("{proposal_id}") takes the bars back as '
         f"they were before.\nproposal id: {proposal_id}"
     )

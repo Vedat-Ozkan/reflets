@@ -15,7 +15,7 @@ MuseScore {
     property int port: 0
     property string nonce: ""
     property double lastActive: 0
-    readonly property string ideaColor: "#1565c0"
+    readonly property string ideaColor: "#6f42c1"
     property string token: ""
     property var authed: ({})
     property var symNames: null
@@ -1009,11 +1009,61 @@ MuseScore {
         f.text = decodeURIComponent(field.substring(1))
     }
 
-    function respell(n, tpc, color) {
+    function respell(n, tpc) {
         var transposition = n.tpc2 - n.tpc1
         n.tpc1 = tpc
         n.tpc2 = tpc + transposition
-        n.color = color
+    }
+
+    function withGraces(el) {
+        var crs = [el]
+        for (var g = 0; el.type === Element.CHORD && el.graceNotes && g < el.graceNotes.length; g++)
+            crs.push(el.graceNotes[g])
+        return crs
+    }
+
+    function among(el, crs) {
+        for (var i = 0; i < crs.length; i++) {
+            if (crs[i].is(el))
+                return true
+        }
+        return false
+    }
+
+    function paint(crs, color) {
+        for (var i = 0; i < crs.length; i++) {
+            var cr = crs[i]
+            var parts = cr.type === Element.CHORD ? [cr.stem, cr.hook, cr.stemSlash, cr.arpeggio, cr.tremoloSingleChord] : [cr]
+            for (var a = 0; cr.articulations && a < cr.articulations.length; a++)
+                parts.push(cr.articulations[a])
+            for (var k = 0; cr.notes && k < cr.notes.length; k++) {
+                var n = cr.notes[k]
+                parts.push(n, n.accidental, n.tieForward, n.tieBack)
+                for (var d = 0; n.dots && d < n.dots.length; d++)
+                    parts.push(n.dots[d])
+            }
+            for (var p = 0; p < parts.length; p++) {
+                if (parts[p])
+                    parts[p].color = color
+            }
+            var beam = cr.beam
+            var whole = beam ? true : false
+            for (var b = 0; whole && b < beam.elements.length; b++)
+                whole = among(beam.elements[b], crs)
+            if (whole)
+                beam.color = color
+        }
+    }
+
+    function showRange(startTick, endTick, staves) {
+        if (!staves.length) {
+            curScore.selection.clear()
+            return
+        }
+        var first = Math.min.apply(null, staves), last = Math.max.apply(null, staves) + 1
+        curScore.selection.selectRange(startTick, endTick, first, last)
+        cmd("notation-move-left")
+        curScore.selection.selectRange(startTick, endTick, first, last)
     }
 
     function write(id, startTick, endTick, label, ops) {
@@ -1064,11 +1114,9 @@ MuseScore {
             for (var j = 0; j < chords.length; j++) {
                 for (var k = 0; k < chords[j][2].length; k++) {
                     var pt = chords[j][2][k].split(":")
-                    respell(noteAt(chords[j][0], chords[j][1], parseInt(pt[0])), parseInt(pt[1]), ideaColor)
+                    respell(noteAt(chords[j][0], chords[j][1], parseInt(pt[0])), parseInt(pt[1]))
                 }
             }
-            for (var r = 0; r < rests.length; r++)
-                elementAt(rests[r][0], rests[r][1]).color = ideaColor
             for (; step < ops.length; step++) {
                 var o = ops[step].split(" ")
                 var otrack = parseInt(o[1]), otick = parseInt(o[2])
@@ -1088,14 +1136,14 @@ MuseScore {
                         throw o[3] + " added no grace note"
                     var gns = o[4].split(",")
                     added.pitch = parseInt(gp[0]) - offsetAt(otrack, otick)
-                    respell(added, parseInt(gp[1]), ideaColor)
+                    respell(added, parseInt(gp[1]))
                     finger(added, gp[2])
                     for (var q = 1; q < gns.length; q++) {
                         var more = newElement(Element.NOTE)
                         var mp = gns[q].split(":")
                         more.pitch = parseInt(mp[0]) - offsetAt(otrack, otick)
                         added.parent.add(more)
-                        respell(more, parseInt(mp[1]), ideaColor)
+                        respell(more, parseInt(mp[1]))
                         finger(more, mp[2])
                     }
                 } else if (o[0] === "a") {
@@ -1146,6 +1194,13 @@ MuseScore {
                 }
                 changed = true
             }
+            curScore.doLayout(fraction(startTick, division * 4), fraction(endTick, division * 4))
+            var idea = []
+            for (var ic = 0; ic < chords.length; ic++)
+                idea = idea.concat(withGraces(elementAt(chords[ic][0], chords[ic][1])))
+            for (var r = 0; r < rests.length; r++)
+                idea.push(elementAt(rests[r][0], rests[r][1]))
+            paint(idea, ideaColor)
         } catch (e) {
             curScore.endCmd(true)
             if (changed)
@@ -1153,14 +1208,7 @@ MuseScore {
             return id + " err write-failed " + step + " " + escapeText(e)
         }
         curScore.endCmd(false)
-        var staves = ops.filter(function(op) { return op[0] === "v" }).map(function(op) { return Math.floor(parseInt(op.split(" ")[1]) / 4) })
-        if (staves.length) {
-            var first = Math.min.apply(null, staves), last = Math.max.apply(null, staves) + 1
-            curScore.selection.selectRange(startTick, endTick, first, last)
-            cmd("notation-move-left")
-            curScore.selection.selectRange(startTick, endTick, first, last)
-        } else
-            curScore.selection.clear()
+        showRange(startTick, endTick, ops.filter(function(op) { return op[0] === "v" }).map(function(op) { return Math.floor(parseInt(op.split(" ")[1]) / 4) }))
         return [id + " ok"].concat(read(startTick, endTick)).join("\n")
     }
 
@@ -1171,6 +1219,7 @@ MuseScore {
             if (!(sp[i].systemFlag && tracks.indexOf(0) < 0) && spannerIn(sp[i], tracks, startTick, endTick))
                 sp[i].color = color
         }
+        var crs = []
         for (var m = curScore.firstMeasure; m; m = m.nextMeasure) {
             var mt = m.firstSegment.tick
             if (mt < startTick)
@@ -1185,25 +1234,17 @@ MuseScore {
                 }
                 for (var t = 0; t < tracks.length; t++) {
                     var el = seg.elementAt(tracks[t])
-                    if (!el)
-                        continue
-                    if (el.type === Element.REST)
-                        el.color = color
-                    if (el.type !== Element.CHORD)
+                    if (!el || el.type !== Element.CHORD && el.type !== Element.REST)
                         continue
                     for (var y = 0; el.lyrics && y < el.lyrics.length; y++)
                         el.lyrics[y].color = color
-                    var cs = [el]
-                    for (var g = 0; el.graceNotes && g < el.graceNotes.length; g++)
-                        cs.push(el.graceNotes[g])
-                    for (var i = 0; i < cs.length; i++) {
-                        for (var k = 0; k < cs[i].notes.length; k++)
-                            cs[i].notes[k].color = color
-                    }
+                    crs = crs.concat(withGraces(el))
                 }
             }
         }
+        paint(crs, color)
         curScore.endCmd(false)
+        showRange(startTick, endTick, tracks.map(function(t) { return Math.floor(t / 4) }))
     }
 
     function fields(words) {

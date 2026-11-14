@@ -1,6 +1,7 @@
 import asyncio
 import re
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from mcp.server.mcpserver.exceptions import ToolError
@@ -9,6 +10,7 @@ from live_read import strip
 from reflets import server
 
 REFERENCE = (Path(__file__).parent.parent / "research/encoding-tokens/chopin.n1.txt").read_text().strip()
+IDEA_COLOUR = re.search(r'ideaColor: "(#[0-9a-f]{6})"', (Path(__file__).parent.parent / "plugin/reflets-bridge.qml").read_text())[1]
 IDEA = """N1 div=4 ts=12/8 ks=3f
 m5 len=24
 1.1: 6 G5~ ) 6 G5 gAb5 4 Bb5 2 Ab5 6 G5
@@ -62,6 +64,18 @@ async def unchanged(name: str) -> None:
     check(name + ", marks and lines as at the start", text == start)
 
 
+def colours(folder: Path, bars: set[str]) -> dict[tuple[str, str], set[str]]:
+    found = {}
+    for measure in ET.parse(max(folder.glob("*.musicxml"))).getroot().iter("measure"):
+        if measure.get("number") not in bars:
+            continue
+        for note in measure.iter("note"):
+            for element in note.iter():
+                if element.tag == "stem" or element.tag == "beam" and element.text == "begin" or element.tag == "tied" and element.get("type") != "stop":
+                    found.setdefault((note.findtext("staff", "1"), element.tag), set()).add(element.get("color", "").lower())
+    return found
+
+
 def proposal(result: str) -> str:
     return re.search(r"proposal id: (p\d+)", result).group(1)
 
@@ -79,6 +93,10 @@ async def main() -> None:
     check("propose writes and reads back", "Read-back matched" in first and "3 grace notes" in first, first)
     bars = await server.read_score("5-6")
     check("bars 5-6 hold the idea", "3 G5~ ) G5 gAb5 2 Bb5 1 Ab5 3 G5" in bars and "!p" in bars and 'x"cresc."' in bars and "1.2: 6 r Bb4" in bars, bars)
+    await server.checkpoint("colours")
+    painted = colours(folder, {"5", "6"})
+    check("the idea's stems, beams and ties are in its colour, the other staff's are not",
+          all(painted.get(("1", tag)) == {IDEA_COLOUR} for tag in ("stem", "beam", "tied")) and painted.get(("2", "stem")) == {""}, str(painted))
     check("discard", "Discarded" in await server.discard(proposal(first)))
     await unchanged("after discard")
 
@@ -93,6 +111,7 @@ async def main() -> None:
 
     kept = proposal(await server.propose(IDEA, "kept", replace=True))
     check("keep", "black" in await server.keep(kept))
+    check("after keep nothing in bars 5-6 is coloured", all(found == {""} for found in colours(folder, {"5", "6"}).values()), str(colours(folder, {"5", "6"})))
     error = await refused(server.discard(kept))
     check("discard after keep is refused", "no open proposal" in error, error)
     await server.request("undo")

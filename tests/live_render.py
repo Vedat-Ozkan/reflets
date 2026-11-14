@@ -3,7 +3,7 @@ import re
 import sys
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageColor
 
 from mcp.server.mcpserver import Image as Shown
 
@@ -27,9 +27,12 @@ def red(path: Path) -> int:
     return sum(1 for r, g, b in pixels if r > 180 and g < 90 and b < 90)
 
 
-def blue(path: Path) -> int:
+IDEA = ImageColor.getrgb(re.search(r'ideaColor: "(#[0-9a-f]{6})"', (Path(__file__).parent.parent / "plugin/reflets-bridge.qml").read_text())[1])
+
+
+def idea_coloured(path: Path) -> int:
     pixels = Image.open(path).convert("RGB").get_flattened_data()
-    return sum(1 for r, g, b in pixels if b > 150 and r < 60 and 60 < g < 140)
+    return sum(1 for pixel in pixels if sum(abs(a - b) for a, b in zip(pixel, IDEA)) < 60)
 
 
 async def main() -> None:
@@ -43,7 +46,7 @@ async def main() -> None:
     written = re.search(r"proposal id: (p\d+)", await server.propose(f"N1x div=4\nm{bar} len={length}\n1.2: {length} C5", "render"))[1]
     idea = await server.render(str(bar))
     await server.discard(written)
-    check("an idea not yet kept is rendered in its colour", blue(images(idea)[0]) > 20, idea)
+    check("an idea not yet kept is rendered in its colour", idea_coloured(images(idea)[0]) > 20, idea)
     drawn = await server.render("1-5", check=True)
     if "motion" in title.lower():
         check("the findings are listed and drawn in red", "2 numbered spot(s)" in drawn[0] and "1. m2 b1" in drawn[0] and "2. m5 b1" in drawn[0] and red(images(drawn)[0]) > 50, drawn)

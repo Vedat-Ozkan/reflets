@@ -2,7 +2,7 @@
 
 A composing companion for MuseScore Studio, served over MCP. A bridge plugin inside MuseScore exposes the open score on a local WebSocket (port 8731); the Reflets MCP server talks to it and gives an MCP host such as Claude Code tools for reading the score.
 
-Status: slices 3 and 4 done. The server reads the open score (`score_info`, `read_score`, notes in N1x with the header and bar fields: repeats, voltas, bar lines, breaks, jumps, markers, key and meter changes) and writes ideas into it in place: `propose` writes an idea in blue as one undo step and checks it by reading it back, `keep` turns it black, `discard` undoes it. `check` lists part-writing faults in chorale-style bars, `analyze` drafts the harmony, `render` engraves bars to a PNG with the findings drawn if asked, `checkpoint` saves the whole score as a MusicXML file under a name (`keep` saves one too, and `score_info` lists them), and `restore` writes chosen bars back as a checkpoint has them. When MuseScore cannot be reached, `score_info` says why with a checklist.
+Status: slices 3 and 4 done. The server reads the open score (`score_info`, `read_score`, notes in N1x with the header and bar fields: repeats, voltas, bar lines, breaks, jumps, markers, key and meter changes) and writes ideas into it in place: `propose` writes an idea in violet as one undo step and checks it by reading it back, `keep` turns it black, `discard` undoes it. `check` lists part-writing faults in chorale-style bars, `analyze` drafts the harmony, `render` engraves bars to a PNG with the findings drawn if asked, `checkpoint` saves the whole score as a MusicXML file under a name (`keep` saves one too, and `score_info` lists them), and `restore` writes chosen bars back as a checkpoint has them. When MuseScore cannot be reached, `score_info` says why with a checklist.
 
 ## Requirements
 
@@ -74,8 +74,8 @@ To work on Reflets itself, clone this repository, run `uv sync`, copy `.mcp.json
 ## First session
 
 1. Open a score in MuseScore.
-2. Run Plugins > Reflets Bridge. A blue pill at the top of MuseScore's window says "Reflets listening".
-3. Ask Claude for an idea for some bars, for example "write a countermelody for the flute in bars 5 to 8". It appears in the score in blue.
+2. Run Plugins > Reflets Bridge. A violet pill at the top of MuseScore's window says "Reflets listening".
+3. Ask Claude for an idea for some bars, for example "write a countermelody for the flute in bars 5 to 8". It appears in the score in violet.
 4. Press Play in MuseScore to hear it.
 5. Tell Claude to keep it (the notes turn black) or discard it (the bars go back as they were). Right after an idea is written, Ctrl+Z in MuseScore also removes it.
 
@@ -101,8 +101,8 @@ On Linux and WSL, also `sudo apt install libportaudio2 libasound2-plugins pulsea
 
 ## Use
 
-1. Open a score in MuseScore and run Plugins > Reflets Bridge once per session. It keeps running until MuseScore quits. A small blue pill at the top middle of MuseScore's window says "Reflets listening" when it starts (or, when it cannot start, why: it needs MuseScore 4.7 or later from musescore.org, could not save its key file, or found no free port), and for a few seconds after each thing Reflets does (connected, wrote an idea, kept it, undo). It shows only over MuseScore: if you are in another app, it waits until you switch back. After each idea is written, MuseScore scrolls to it and selects it, so Play starts just before it.
-2. Ask Claude about the score, or to let you hum a line ("let me hum a melody into the flute from bar 9"). Reflets plays a bar of count-in clicks, then records you for the bars asked while the click goes on, and writes what you hummed as a blue idea. Speakers work best: each take then measures the delay between click and microphone from its own clicks. On headphones the delay is found from where your notes start; if notes still land late or early, ask Claude to calibrate humming (after a bar of count-in clicks, you say "ta" on each of 8 clicks).
+1. Open a score in MuseScore and run Plugins > Reflets Bridge once per session. It keeps running until MuseScore quits. A small violet pill at the top middle of MuseScore's window says "Reflets listening" when it starts (or, when it cannot start, why: it needs MuseScore 4.7 or later from musescore.org, could not save its key file, or found no free port), and for a few seconds after each thing Reflets does (connected, wrote an idea, kept it, undo). It shows only over MuseScore: if you are in another app, it waits until you switch back. After each idea is written, MuseScore scrolls to it and selects it, so Play starts just before it.
+2. Ask Claude about the score, or to let you hum a line ("let me hum a melody into the flute from bar 9"). Reflets plays a bar of count-in clicks, then records you for the bars asked while the click goes on, and writes what you hummed as a violet idea. Speakers work best: each take then measures the delay between click and microphone from its own clicks. On headphones the delay is found from where your notes start; if notes still land late or early, ask Claude to calibrate humming (after a bar of count-in clicks, you say "ta" on each of 8 clicks).
    With scores open in several MuseScore windows, run the bridge in each; Claude works on the window you used last, so click into a window to work on its score.
 3. If you were given a tester code: install with the `hum` extra (see [Humming](#humming)), open a new empty 4/4 score, and tell Claude "let's do the humming test". It takes about ten minutes: Reflets plays eight short tunes one at a time and you hum each back along with the click. At the end Claude asks for your code, and the recordings are sent to the developer only if you agree.
 
