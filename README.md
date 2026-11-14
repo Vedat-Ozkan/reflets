@@ -10,7 +10,7 @@ Status: slices 3 and 4 done. The server reads the open score (`score_info`, `rea
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) and Git. uv fetches Python and the engine ([sheet-music-analysis](https://github.com/Vedat-Ozkan/sheet-music-analysis), from GitHub).
 - Optional, for the harmony draft in `analyze`: the AnalysisGNN model. It is not part of the install: it runs in its own Python environment with PyTorch, set up from a clone of [sheet-music-analysis](https://github.com/Vedat-Ozkan/sheet-music-analysis) as its README's "Draft model" section says (`.venv-agnn` and `artifacts/models/model.ckpt`). Name the two in the server's `env`, as absolute paths: `ANALYSISGNN_PYTHON` the environment's Python (`.venv-agnn/bin/python`, on Windows `.venv-agnn\Scripts\python.exe`) and `ANALYSISGNN_CHECKPOINT` the checkpoint. Without them `analyze` gives the notes table only, and says so.
 
-- Optional, for `hum` (humming a line into the score): a microphone, and the `hum` extra, which adds SwiftF0, ONNX Runtime and sounddevice (about 40 MB). Install with `--from 'reflets[hum] @ git+https://github.com/Vedat-Ozkan/reflets@v0.5.3'` in place of the `--from` below. On Linux and WSL, also `sudo apt install libportaudio2 libasound2-plugins pulseaudio-utils` and an `~/.asoundrc` with `pcm.!default { type pulse }` and `ctl.!default { type pulse }`, so the default device reaches WSLg's microphone and speakers.
+- Optional, for `hum` (humming a line into the score): a microphone, and the `hum` extra, which adds SwiftF0, ONNX Runtime and sounddevice (about 40 MB). See [Humming](#humming) below.
 
 ## Install
 
@@ -29,18 +29,33 @@ Status: slices 3 and 4 done. The server reads the open score (`score_info`, `rea
      claude mcp add reflets -- uvx --python 3.12 --from git+https://github.com/Vedat-Ozkan/reflets@v0.5.3 reflets
      ```
 
-   - Claude Desktop: Settings > Developer > Edit Config, add the entry below to `claude_desktop_config.json`, and restart Claude. On Windows, use the full path of `uvx.exe` (`C:\Users\<you>\.local\bin\uvx.exe` with the default uv install) and keep the two `UV_` lines: Claude Desktop from the Microsoft Store redirects its programs' writes to `AppData`, which breaks uv's Python install there.
+   - Claude Desktop: in Claude, open Settings > Developer > Edit Config, which shows `claude_desktop_config.json`. Open that file in a text editor, paste the entry below for your system, and save it. If the file already has an `"mcpServers"` section, put the `"reflets"` entry inside it instead. Then quit Claude completely and reopen it: closing its window is not enough.
+
+     On Windows, copy this and replace `YOURNAME`, all three times, with the name of your user folder under `C:\Users`. It uses the full path of `uvx.exe` from the default uv install, and the two `UV_` lines are needed: Claude Desktop from the Microsoft Store redirects its programs' writes to `AppData`, which breaks uv's Python install there. Keep the double backslashes.
+
+     ```json
+     {
+       "mcpServers": {
+         "reflets": {
+           "command": "C:\\Users\\YOURNAME\\.local\\bin\\uvx.exe",
+           "args": ["--python", "3.12", "--from", "git+https://github.com/Vedat-Ozkan/reflets@v0.5.3", "reflets"],
+           "env": {
+             "UV_PYTHON_INSTALL_DIR": "C:\\Users\\YOURNAME\\.local\\share\\uv\\python",
+             "UV_TOOL_DIR": "C:\\Users\\YOURNAME\\.local\\share\\uv\\tools"
+           }
+         }
+       }
+     }
+     ```
+
+     On macOS and Linux:
 
      ```json
      {
        "mcpServers": {
          "reflets": {
            "command": "uvx",
-           "args": ["--python", "3.12", "--from", "git+https://github.com/Vedat-Ozkan/reflets@v0.5.3", "reflets"],
-           "env": {
-             "UV_PYTHON_INSTALL_DIR": "C:\\Users\\<you>\\.local\\share\\uv\\python",
-             "UV_TOOL_DIR": "C:\\Users\\<you>\\.local\\share\\uv\\tools"
-           }
+           "args": ["--python", "3.12", "--from", "git+https://github.com/Vedat-Ozkan/reflets@v0.5.3", "reflets"]
          }
        }
      }
@@ -56,12 +71,38 @@ Status: slices 3 and 4 done. The server reads the open score (`score_info`, `rea
 
 To work on Reflets itself, clone this repository, run `uv sync`, copy `.mcp.json.example` to `.mcp.json` with the path to the clone, and start Claude Code in it.
 
+## First session
+
+1. Open a score in MuseScore.
+2. Run Plugins > Reflets Bridge. A blue pill at the top of MuseScore's window says "Reflets listening".
+3. Ask Claude for an idea for some bars, for example "write a countermelody for the flute in bars 5 to 8". It appears in the score in blue.
+4. Press Play in MuseScore to hear it.
+5. Tell Claude to keep it (the notes turn black) or discard it (the bars go back as they were). Right after an idea is written, Ctrl+Z in MuseScore also removes it.
+
+## Humming
+
+Humming needs the `hum` extra. Install Reflets with it by using `reflets[hum] @ git+…` in place of the plain `git+…` reference:
+
+- Claude Code (remove the plain one first with `claude mcp remove reflets` if you added it):
+
+  ```
+  claude mcp add reflets -- uvx --python 3.12 --from 'reflets[hum] @ git+https://github.com/Vedat-Ozkan/reflets@v0.5.3' reflets
+  ```
+
+- Claude Desktop: in the entry above, replace the `"args"` line with this one (it is one entry, spaces included, with no extra quotes), save, then quit Claude completely and reopen it:
+
+  ```json
+  "args": ["--python", "3.12", "--from", "reflets[hum] @ git+https://github.com/Vedat-Ozkan/reflets@v0.5.3", "reflets"],
+  ```
+
+On Linux and WSL, also `sudo apt install libportaudio2 libasound2-plugins pulseaudio-utils` and an `~/.asoundrc` with `pcm.!default { type pulse }` and `ctl.!default { type pulse }`, so the default device reaches WSLg's microphone and speakers.
+
 ## Use
 
-1. Open a score in MuseScore and run Plugins > Reflets Bridge once per session. It keeps running until MuseScore quits. A small blue pill at the top middle of MuseScore's window says "Reflets listening" when it starts, and for a few seconds after each thing Reflets does (connected, wrote an idea, kept it, undo). It shows only over MuseScore: if you are in another app, it waits until you switch back. After each idea is written, MuseScore scrolls to it and selects it, so Play starts just before it.
-2. Ask Claude about the score, or to let you hum a line ("let me hum a melody into the flute from bar 9"). Reflets plays a bar of count-in clicks, then records you for the bars asked while the click goes on, and writes what you hummed as a blue idea. Speakers work best: each take then measures the delay between click and microphone from its own clicks. On headphones the delay is found from where your notes start; if notes still land late or early, ask Claude to calibrate humming (you say "ta" on 8 clicks).
+1. Open a score in MuseScore and run Plugins > Reflets Bridge once per session. It keeps running until MuseScore quits. A small blue pill at the top middle of MuseScore's window says "Reflets listening" when it starts (or, when it cannot start, why: it needs MuseScore 4.7 or later from musescore.org, could not save its key file, or found no free port), and for a few seconds after each thing Reflets does (connected, wrote an idea, kept it, undo). It shows only over MuseScore: if you are in another app, it waits until you switch back. After each idea is written, MuseScore scrolls to it and selects it, so Play starts just before it.
+2. Ask Claude about the score, or to let you hum a line ("let me hum a melody into the flute from bar 9"). Reflets plays a bar of count-in clicks, then records you for the bars asked while the click goes on, and writes what you hummed as a blue idea. Speakers work best: each take then measures the delay between click and microphone from its own clicks. On headphones the delay is found from where your notes start; if notes still land late or early, ask Claude to calibrate humming (after a bar of count-in clicks, you say "ta" on each of 8 clicks).
    With scores open in several MuseScore windows, run the bridge in each; Claude works on the window you used last, so click into a window to work on its score.
-3. If you were given a tester code: install with the `hum` extra, open a new empty 4/4 score, and tell Claude "let's do the humming test". It takes about ten minutes: Reflets plays eight short tunes one at a time and you hum each back along with the click. At the end Claude asks for your code, and the recordings are sent to the developer only if you agree.
+3. If you were given a tester code: install with the `hum` extra (see [Humming](#humming)), open a new empty 4/4 score, and tell Claude "let's do the humming test". It takes about ten minutes: Reflets plays eight short tunes one at a time and you hum each back along with the click. At the end Claude asks for your code, and the recordings are sent to the developer only if you agree.
 
    What is sent: for each tune, the recording of your humming and what Reflets heard and wrote from it (the notes, tempo, key and the staff's instrument), with your tester code. Not your name, your score, or the name of your microphone or headphones. The recordings are stored in the developer's Cloudflare storage until the developer downloads them, which deletes them there; the developer then keeps the downloaded copies to improve humming, with no set end date. To have yours deleted, ask the person who gave you your tester code, and tell them the code.
 

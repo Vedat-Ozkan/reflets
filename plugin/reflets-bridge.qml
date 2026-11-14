@@ -98,6 +98,15 @@ MuseScore {
     }
 
     Timer {
+        id: portCheck
+        interval: 5000
+        onTriggered: {
+            if (port === 0)
+                status("found no free port")
+        }
+    }
+
+    Timer {
         id: badgeHide
         interval: 250
         onTriggered: badge.hide()
@@ -1217,7 +1226,7 @@ MuseScore {
             if (f.token !== token)
                 return id + " err unauthorized token does not match the plugin's token file"
             authed[clientId] = true
-            status("Claude connected")
+            status("Connected")
             return id + " ok proto=" + proto + " plugin=reflets-bridge/" + version + " mscore=" + mscoreVersion
                 + " division=" + division + " score=" + (curScore ? 1 : 0)
                 + " title=" + escapeText(curScore ? (curScore.title || curScore.scoreName) : "")
@@ -1241,7 +1250,7 @@ MuseScore {
         }
         if (verb === "color") {
             recolor(parseInt(head[2]), parseInt(head[3]), head[4].split(",").map(Number), head[5], head.slice(6).join(" "))
-            status("kept " + head.slice(6).join(" "))
+            status("kept " + head.slice(7).join(" "))
             return id + " ok"
         }
         if (verb === "export")
@@ -1272,7 +1281,12 @@ MuseScore {
     }
 
     onRun: {
+        if (typeof ui !== "undefined" && ui && ui.rootItem) {
+            pill.parent = ui.rootItem
+            badgeInMain = true
+        }
         if (typeof api === "undefined" || !api.websocketserver) {
+            status("needs MuseScore 4.7 or later from musescore.org")
             api.log.info("reflets-bridge: this MuseScore build has no WebSocket API")
             return
         }
@@ -1280,14 +1294,11 @@ MuseScore {
         nonce = newToken()
         if (Qt.application.state === Qt.ApplicationActive)
             lastActive = Date.now()
-        if (typeof ui !== "undefined" && ui && ui.rootItem) {
-            pill.parent = ui.rootItem
-            badgeInMain = true
-        }
         for (var p = firstPort; p <= lastPort; p++)
             api.websocketserver.listen(p, onClient)
         for (var q = firstPort; q <= lastPort; q++)
             probe(q)
+        portCheck.start()
     }
 
     function probe(candidate) {
@@ -1305,7 +1316,7 @@ MuseScore {
         port = found
         tokenFile.source = localPath(Qt.resolvedUrl(port === firstPort ? "reflets-token.txt" : "reflets-token-" + port + ".txt"))
         var written = tokenFile.write(token)
-        status("listening")
+        status(written ? "listening" : "could not save its key file")
         api.log.info("reflets-bridge " + version + ": listening on " + port + ", token file " + tokenFile.source
             + (written ? "" : " (WRITE FAILED)"))
     }

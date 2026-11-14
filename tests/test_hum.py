@@ -67,3 +67,27 @@ def test_synthesised_melodies_keep_their_floor_with_the_delay_measured_or_search
         t = by_kind["all"]
         assert t["placed"] / t["notes"] > 0.87 and t["whole"] / t["notes"] > 0.73 and t["outside placed"] >= 100
         assert by_kind["rhythm"]["placed"] / by_kind["rhythm"]["notes"] > 0.86
+
+
+def test_calibration_measures_only_the_clicks_after_its_count_in(monkeypatch, tmp_path):
+    import asyncio
+
+    from reflets import audio, server
+
+    monkeypatch.setenv("REFLETS_TOKEN_FILE", str(tmp_path / "token.txt"))
+    t = np.arange(int(0.15 * hum.RATE)) / hum.RATE
+    ta = (0.2 * sum(np.sin(2 * np.pi * k * 220 * t) / k for k in range(1, 6)) * np.minimum(1, t / 0.01) * np.exp(-t * 8)).astype(np.float32)
+    clicks = []
+
+    def record(play, starts):
+        clicks.append(len(starts))
+        sound = 0.003 * np.random.default_rng(3).standard_normal(len(play)).astype(np.float32)
+        for start in starts[4:6] + starts[8:]:
+            at = start + int(0.2 * hum.RATE)
+            sound[at:at + len(ta)] += ta
+        return audio.Take(sound, starts, 0.05, "mic / speakers")
+
+    monkeypatch.setattr(audio, "record", record)
+    assert "will now line up" in asyncio.run(server.hum(calibrate=True))
+    assert clicks == [4 + 8]
+    assert abs(audio.stored_latency(tmp_path, "mic / speakers") - 0.2) < 0.03

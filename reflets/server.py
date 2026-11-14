@@ -21,7 +21,7 @@ from engine.annotate import AnnotationError
 from engine.annotations import AnnotationList
 from engine.render import ScoreError
 from engine.score import PositionError, ScoreIndex
-from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver import Image, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
@@ -83,7 +83,10 @@ mcp = MCPServer(
         "render shows bars as an image, with check's findings drawn on it if asked; hum records the user humming a line into a staff. checkpoint saves the whole score "
         "under a name, to come back to later; keep saves one too; restore writes chosen bars back as a checkpoint has them. "
         "To try an idea, write it in the same form with propose; it lands in the score in colour as one undo step. "
-        "The user listens in MuseScore, then you call keep or discard as they decide. Before you say which note "
+        "The user listens in MuseScore, then you call keep or discard as they decide. When score_info lists open ideas, "
+        "ask the user whether to keep or discard each before moving on. After propose or hum, tell the user in plain "
+        "words what was written where, to press Play in MuseScore, then to say keep or discard; give tuning, delay or "
+        "timing figures only when they matter. Before you say which note "
         "sounds where, find the bar and count through its voice line from the start of the bar; answers given "
         "at a glance are often wrong."
     ),
@@ -144,7 +147,8 @@ async def load_info() -> ScoreInfo:
     title="Score info",
     description=(
         "Use this first: whether MuseScore is connected, and the open score's title, parts with their staves, "
-        "bar count, meter, key and pickup, and its checkpoints by number, name and time, with their files. When MuseScore is not reachable it says why, with a checklist of the plugin "
+        "bar count, meter, key and pickup, its checkpoints by number, name and time, with their files, and its open ideas "
+        "(proposals not yet kept or discarded) by id, label and bars. When MuseScore is not reachable it says why, with a checklist of the plugin "
         "file, its token file, the harmony model, the port and the bridge's answer, each passed or failed with what "
         "to do: tell the user what it says."
     ),
@@ -175,7 +179,7 @@ async def score_info() -> str:
         f"Reflets bridge {hello.get('plugin', '?').split('/')[-1]}, connected.\n"
         f'"{info.title}": {len(info.parts)} part(s): {parts}. Bars {first}-{last} '
         f"({'with' if first == 0 else 'no'} pickup), meter {info.measures[0].meter}, key {info.key}{changes}.\n"
-        f"{listed_checkpoints(info)}{elsewhere}"
+        f"{listed_checkpoints(info)}{listed_proposals(info)}{elsewhere}"
     )
 
 
@@ -301,14 +305,14 @@ async def read_bars(bars: str, whole_score: bool = False) -> tuple[ScoreInfo, Sc
     title="Render bars",
     description=(
         'Use this to see bars engraved: bars is a range like "5-12", at most 32 bars. With check=True the '
-        "voice-leading findings are drawn on the notes in red, numbered as listed in the result. The result gives "
-        "the path of a PNG image of the bars as they are in MuseScore now, unsaved changes and ideas included; "
-        "open it to look at it."
+        "voice-leading findings are drawn on the notes in red, numbered as listed in the result. The result shows "
+        "the bars as they are in MuseScore now, unsaved changes and ideas included, as an image, and gives the path "
+        "of its PNG file."
     ),
     annotations=read_only("Render bars"),
     structured_output=False,
 )
-async def render(bars: str, check: bool = False) -> str:
+async def render(bars: str, check: bool = False) -> list[str | Image]:
     info, index, start, end, _ = await read_bars(bars)
     first, last = info.numbers[start], info.numbers[end]
     found = await asyncio.to_thread(part_writing.as_text, index) if check else ""
@@ -336,7 +340,7 @@ async def render(bars: str, check: bool = False) -> str:
         text += "\nThe voice-leading rules do not apply to these bars, so nothing is drawn."
     elif check:
         text += f"\n{sum(not spot.startswith(' ') for spot in spots)} numbered spot(s) drawn:\n" + "\n".join(spots) if spots else "\nNo rule broken."
-    return text
+    return [text, *(Image(path=path) for path in paths)]
 
 
 def drawings(report: str) -> tuple[list[dict], list[str]]:
@@ -551,6 +555,18 @@ def beyond(lines: list[str], tick: int) -> list[str]:
     return sorted(line for line in lines if int(line.split(" ")[1]) >= tick)
 
 
+def listed_proposals(info: ScoreInfo) -> str:
+    found = [(proposal_id, Proposal(**p)) for proposal_id, p in stored()["open"].items() if p["title"] == info.title]
+    if not found:
+        return ""
+    ideas = "; ".join(
+        f'{proposal_id} "{p.label}", {p.bars}'
+        + (" (MuseScore did not answer its write; the next propose, hum, restore, keep or discard on this score settles it)" if p.post is None else "")
+        for proposal_id, p in found
+    )
+    return f'\nOpen ideas in "{info.title}", not yet kept or discarded: {ideas}.'
+
+
 def proposals_file() -> Path:
     return token_file().parent / "proposals.json"
 
@@ -666,7 +682,8 @@ async def gone(proposal_id: str, p: Proposal) -> str:
     title="Discard an idea",
     description=(
         "Use this when the user does not want a proposed idea: it undoes the proposal, restoring the bars. "
-        "Refused if the user has edited those bars since; then they can use Ctrl+Z themselves."
+        "Refused, with nothing undone, if the user has edited those bars since or made another change after the idea: "
+        "undoing in MuseScore would then take back their later changes too, so the result says what to offer them."
     ),
     annotations=writes("Discard an idea", destructive=True),
     structured_output=False,
@@ -683,7 +700,10 @@ async def discarded(proposal_id: str) -> str:
             return left
         raise ToolError(
             f"{p.bars.capitalize()} changed since {proposal_id} was written, so undoing would remove the user's edit. "
-            "Nothing was undone; the user can use Ctrl+Z in MuseScore."
+            f"Nothing was undone and {proposal_id} stays open. Ctrl+Z in MuseScore would take back the user's later edits "
+            f"first, one per press, before the idea. Offer the user: keep(\"{proposal_id}\") for the bars as they are now, "
+            f"rewriting {p.bars} with propose as they want them, or undoing back through their edits to the idea in "
+            f"MuseScore, then discard(\"{proposal_id}\") to close it."
         )
     try:
         for _ in range(p.steps):
@@ -707,7 +727,9 @@ async def discarded(proposal_id: str) -> str:
         raise ToolError(
             f"The last step in MuseScore's undo history was not {proposal_id}"
             + (", so it was redone and nothing changed." if restored else ", and redoing it did not restore the bars; ask the user to check them.")
-            + " The user can remove the idea with Edit > Undo."
+            + f" {proposal_id} stays open. Undoing in MuseScore would take back the later steps first, edits elsewhere in the "
+            f"score included, before the idea. Offer the user: rewriting {p.bars} with propose as they want them, or "
+            f"undoing back through those later steps to the idea in MuseScore, then discard(\"{proposal_id}\") to close it."
         )
     closed(proposal_id)
     return f"Discarded {proposal_id}: the score is back as it was in {p.bars}."
@@ -746,15 +768,30 @@ async def kept(proposal_id: str) -> str:
 LONGEST_TAKE = 40
 ALIGNED_CHANGE = 0.01
 CALIBRATION_CLICKS = 8
+CALIBRATION_COUNT_IN = 4
 TEST_TONIC = 60
 TEST_FOLDER = "hum-test"
 last_delays: dict[str, float] = {}
 last_keys: dict[str, Key] = {}
 HUM_SETUP = (
-    "Humming needs the audio extra: install Reflets with uvx --from 'reflets[hum] @ git+…' (see the README); on Linux "
-    "and WSL also sudo apt install libportaudio2 libasound2-plugins, with ~/.asoundrc routing to pulse."
+    "Humming needs Reflets installed with its hum extra. Tell the user to follow the Humming section of the Reflets README "
+    "(https://github.com/Vedat-Ozkan/reflets#humming): it gives the line for Claude Code and the entry for Claude Desktop's "
+    "config; after the change, in Claude Code /mcp reconnects reflets, and Claude Desktop is quit completely and reopened."
+) + (
+    " On Linux and WSL, they also run sudo apt install libportaudio2 libasound2-plugins pulseaudio-utils and put "
+    "pcm.!default { type pulse } and ctl.!default { type pulse } in ~/.asoundrc." if sys.platform.startswith("linux") else ""
 )
 NO_RECORDING = "Recording failed: {}. Check that the microphone and speakers or headphones are connected and that no other app holds them."
+
+
+def silent(device: str) -> str:
+    microphone = device.split(" / ", 1)[0]
+    text = (f'No humming was heard after the count-in. The input device was "{microphone}": ask the user to check that it '
+            "is the microphone they hum into and that it is not muted, then try again.")
+    if os.name == "nt":
+        text += (" On Windows, desktop apps also need microphone access: Settings > Privacy & security > Microphone, "
+                 "with \"Let desktop apps access your microphone\" on.")
+    return text
 
 
 def mscore_version(hello: dict[str, str]) -> str:
@@ -786,7 +823,7 @@ def tempo_at(info: ScoreInfo, position: int) -> float | None:
         "them. kind='rhythm' writes only the rhythm, on one pitch. If the score has no notes and its key is C, the "
         "key heard is written as the key signature; if the score has notes in another key, the humming is moved "
         "to that key, as most people hum in a key of their own. replace=True as for propose. calibrate=True "
-        "measures the delay between click and microphone instead: 8 clicks, the user says 'ta' on each. On speakers "
+        "measures the delay between click and microphone instead: a bar of count-in, then 8 clicks, the user says 'ta' on each of the 8. On speakers "
         "each take measures the delay from its own clicks; on headphones it is found from where the hummed notes "
         "start, so calibrate only if the notes still land late or early. test is set by the humming test (hum_test): it plays that tune first and saves the take for the developer."
     ),
@@ -807,17 +844,18 @@ async def hum(
     folder = token_file().parent
     if calibrate:
         click = 60 / (tempo or 90)
-        play, starts = audio.click_track(click, 4, CALIBRATION_CLICKS)
+        play, starts = audio.click_track(click, CALIBRATION_COUNT_IN, CALIBRATION_COUNT_IN + CALIBRATION_CLICKS)
         try:
             take = await asyncio.to_thread(audio.record, play, starts)
         except Exception as error:
             raise ToolError(NO_RECORDING.format(error)) from None
-        found = humming.calibration(take.audio, [start / audio.RATE for start in starts])
+        found = humming.calibration(take.audio, [start / audio.RATE for start in starts[CALIBRATION_COUNT_IN:]])
         if found is None:
             raise ToolError("Not enough 'ta's were heard on the clicks to measure the delay. Ask the user to try again, louder, one 'ta' on each click.")
         audio.store_latency(folder, take.device, found)
         last_delays.pop(take.device, None)
-        return f"Calibrated: the microphone hears the user {1000 * found:.0f} ms after each click on {take.device}. Takes on this device use it."
+        return (f"Calibrated: takes on this device will now line up with the click. The microphone hears the user "
+                f"{1000 * found:.0f} ms after each click on {take.device}.")
     tune = None
     if test is not None:
         from reflets.hum_tunes import TUNES
@@ -880,7 +918,7 @@ async def hum(
     meter = info.measures[position].meter
     result = await asyncio.to_thread(humming.hummed, take.audio, starts, tempo, meter, bars, grid, latency, reach, last_keys.get(take.device))
     if not result or not result.notes:
-        raise ToolError("No humming was heard after the count-in. Check the microphone, then try again.")
+        raise ToolError(silent(take.device))
     last_delays[take.device], last_keys[take.device] = result.latency, result.key
     guess, source = latency, timing
     step_name = "eighth" if grid == 2 else "sixteenth"
@@ -999,10 +1037,19 @@ async def hum_test(send: bool = False, code: str = "") -> str:
         return (
             "The humming test, about ten minutes. Tell the user what it is: Reflets plays each tune once, then one bar "
             "of clicks, then they hum it back along with the click, on 'da'; at the end, with their agreement, the "
-            "recordings and what the tool wrote are sent to the developer, and nothing else. They need a new score in "
+            "recordings and what the tool wrote are sent to the developer, and nothing else. Tell them what is sent: for "
+            "each tune, the recording of their humming and what Reflets heard and wrote from it (the notes, tempo, key and "
+            "the staff's instrument), with their tester code; not their name, their score, or the name of their "
+            "microphone or headphones. The recordings are stored in the developer's Cloudflare storage until the "
+            "developer downloads them, which deletes them there; the developer then keeps the downloaded copies to "
+            "improve humming, with no set end date. To have theirs deleted, they ask the person who gave them their "
+            "tester code, and tell them the code. If they do not agree, nothing is sent and the recordings stay on their "
+            f"computer, in {windows_path(folder)}. They need a new score in "
             "4/4, any instrument, open in MuseScore, and headphones or speakers as they would normally use.\n"
-            "For each tune, in order: call hum(test=<tune>, start_bar=<the bar after the score's last>), tell the user "
-            "it is listening once the tune has played, let them listen to the notes it wrote, then discard them. If a "
+            "For each tune, in order: before the call, tell the user that they will hear the tune, then one bar of "
+            "clicks, and then they hum it back along with the click; the call returns once they have hummed. Then call "
+            "hum(test=<tune>, start_bar=<the bar after the score's last>), let them listen to the notes it wrote, then "
+            "discard them. If a "
             "take went wrong (they started late, forgot the tune), they may hum it once more. Do not fix or explain "
             "wrong notes: the test is how the tool hears them.\n"
             f"{tunes}\n"
@@ -1161,18 +1208,21 @@ async def diagnose() -> str:
             "." if proto == PROTO else f"; this server speaks {PROTO}. Install the plugin file that came with this server and restart MuseScore."
         ))
     else:
-        check(False, f"No plugin file at {plugin}. Copy plugin/reflets-bridge.qml there, or {where}.")
+        check(False, f"No plugin file at {plugin}. Run the install-plugin line from the Reflets README again "
+              f"(uvx --python 3.12 --from git+https://github.com/Vedat-Ozkan/reflets@v{version('reflets')} reflets install-plugin), "
+              f"then restart MuseScore, or {where}.")
     token = token_file()
     check(token.exists(), f"Token file {token}." if token.exists() else f"No token file at {token}: run Plugins > Reflets Bridge, or {where}.")
     missing = missing_model()
     checks.append(f"NOTE No AnalysisGNN model ({missing}): analyze gives the notes table without a harmony draft. The model "
-                  "is optional: set it up as sheet-music-plugin's README says (Draft model), then name its Python and checkpoint "
+                  "is optional: set it up as sheet-music-analysis's README says (Draft model), then name its Python and checkpoint "
                   "with ANALYSISGNN_PYTHON and ANALYSISGNN_CHECKPOINT in the server's env." if missing else
                   f"PASS AnalysisGNN model {os.environ['ANALYSISGNN_CHECKPOINT']}.")
     first = bridge.first
     if not await first.listening(5):
         check(False, f"Nothing listens on {first.url}: run Plugins > Reflets Bridge in MuseScore Studio 4.7. "
-              "If it shows a message that the WebSocket API is missing, this MuseScore build cannot run Reflets.")
+              "If MuseScore shows \"Reflets needs MuseScore 4.7 or later from musescore.org\", this MuseScore build has no "
+              "WebSocket API and cannot run Reflets.")
         return "\n".join(checks)
     check(True, f"Something listens on {first.url}.")
     try:

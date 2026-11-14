@@ -1,6 +1,8 @@
 import asyncio
 import json
 import pathlib
+import shutil
+import tempfile
 
 import pytest
 import websockets
@@ -151,6 +153,8 @@ class Score:
             elif verb == "redo":
                 self.done.append(self.lines)
                 self.lines = self.undone.pop()
+            elif verb == "export":
+                shutil.copyfile(pathlib.Path(__file__).parent / "data" / "bwv66.6.musicxml", " ".join(words))
             head = " ".join([rid, "ok", *words]) if verb == "hello" else f"{rid} ok"
             await socket.send("\n".join([head, *body]))
 
@@ -283,3 +287,32 @@ def test_after_a_restart_bars_that_changed_are_named_and_left_alone(tmp_path, mo
     assert "bar 2" in served(tmp_path, monkeypatch, score, scene)
     assert score.lines == changed
     assert server.stored()["open"] == {}
+
+
+def test_score_info_lists_the_open_ideas_of_the_open_score(tmp_path, monkeypatch):
+    score = Score(CHORALE["read"])
+    score.writes = [(with_bar_3_soprano_in_bar_2(CHORALE["read"]), True)]
+
+    async def scene():
+        await server.propose(SOPRANO_IDEA, "soprano", replace=True)
+        data = server.stored()
+        data["open"]["p9"] = {**data["open"]["p1"], "title": "Another score"}
+        server.proposals_file().write_text(json.dumps(data))
+        return await server.score_info()
+
+    report = served(tmp_path, monkeypatch, score, scene)
+    assert 'Open ideas in "bwv66.6.musicxml", not yet kept or discarded: p1 "soprano", bar 2.' in report
+    assert "p9" not in report
+
+
+def test_render_shows_the_bars_as_an_image_and_names_the_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+
+    async def scene():
+        return await server.mcp.call_tool("render", {"bars": "1-2"})
+
+    result = served(tmp_path, monkeypatch, Score(CHORALE["read"]), scene)
+    text, image = result.content
+    assert text.type == "text" and text.text.startswith("Bars 1-2: ") and text.text.endswith(".png")
+    assert image.type == "image" and image.mime_type == "image/png"
+    assert pathlib.Path(text.text.removeprefix("Bars 1-2: ")).exists()

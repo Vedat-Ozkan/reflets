@@ -1,6 +1,7 @@
 import asyncio
 import http.server
 import json
+import os
 import threading
 from pathlib import Path
 
@@ -66,6 +67,14 @@ def test_the_last_take_still_comes_before_an_older_calibration(takes):
     hum()
     assert [guess for guess, _ in takes] == [0.3, 0.2]
     assert [known for _, known in takes] == [None, KEY]
+
+
+def test_a_silent_take_names_the_input_device(takes, monkeypatch):
+    monkeypatch.setattr(humming, "hummed", lambda *args: None)
+    monkeypatch.setattr(audio, "record", lambda play, starts: audio.Take(np.zeros(1), starts, 0.05, "Built-in Mic / Speakers"))
+    with pytest.raises(ToolError, match='The input device was "Built-in Mic"') as refused:
+        hum()
+    assert ("Settings > Privacy & security > Microphone" in str(refused.value)) == (os.name == "nt")
 
 
 class Uploads(http.server.BaseHTTPRequestHandler):

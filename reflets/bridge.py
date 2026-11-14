@@ -18,7 +18,8 @@ OTHER_TIMEOUT = 1
 CHANGES_THE_SCORE = {"write", "color", "undo", "redo"}
 NOT_RUNNING = (
     "Reflets cannot reach MuseScore. Open MuseScore Studio 4.7, open your score, and run "
-    "Plugins > Reflets Bridge once (it keeps running until MuseScore quits)."
+    "Plugins > Reflets Bridge once (it keeps running until MuseScore quits). If Reflets Bridge is not in the Plugins "
+    "menu, enable it first under Home > Plugins."
 )
 
 
@@ -107,7 +108,8 @@ class Bridge:
             newer = int(self.hello.get("proto", "0")) > PROTO
             raise BridgeError(
                 f"The Reflets Bridge plugin speaks protocol {self.hello.get('proto')}, this server {PROTO}. "
-                + ("Restart the Reflets server (in Claude Code: /mcp, then reconnect reflets)." if newer
+                + ("Restart the Reflets server: in Claude Code, /mcp, then reconnect reflets; in Claude Desktop, quit Claude "
+                   "completely and reopen it." if newer
                    else "Install the plugin file that came with this server and restart MuseScore.")
             )
 
