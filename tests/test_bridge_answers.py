@@ -591,6 +591,6 @@ def test_a_write_back_whose_colouring_failed_leaves_one_idea_open_for_keep(tmp_p
         return str(failed.value), await server.keep("p4")
 
     failed, kept = served(tmp_path, monkeypatch, score, scene)
-    assert failed.startswith("Discarded p1: the score is back as it was in bar 2, but MuseScore") and said in failed and 'keep("p4") turns them black.' in failed
+    assert failed.startswith("Discarded p1: the score is back as it was in bar 2, but MuseScore") and said in failed and 'keep("p4") turns them black; do not discard p4' in failed
     assert kept.startswith("Kept p4") and server.stored()["open"] == {}
     assert score.lines == without_bar_7_fermata(CHORALE["read"]) and score.verbs.count("color") == 2

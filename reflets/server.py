@@ -883,7 +883,7 @@ async def written_back(proposal_id: str, p: Proposal) -> str:
         what = "did not answer the recolouring, so the notes there may still be" if isinstance(error, Unanswered) else f"could not recolour them ({error}), so the notes there are still"
         raise type(error)(
             f"Discarded {proposal_id}: the score is back as it was in {p.bars}, but MuseScore {what} {IDEA_COLOUR}. "
-            f'keep("{back_id}") turns them black.'
+            f'keep("{back_id}") turns them black; do not discard {back_id}, which would take the write-back back and bring the idea back with no proposal open for it.'
         ) from None
     closed(back_id)
     steps = len(ids) + 1
