@@ -764,6 +764,10 @@ def tied_in(lines: list[str], tick: int) -> set[tuple[str, str]]:
     }
 
 
+def meters(fields: list[str]) -> set[str]:
+    return {" ".join(line.split(" ")[:6]) for line in fields if line.startswith("M ")}
+
+
 def not_written_back(p: Proposal, info_lines: list[str]) -> str | None:
     if p.fields is None:
         return "Reflets did not note its bars' meter, key and bar lines when it wrote it (a restore, or an idea written before Reflets noted them)"
@@ -772,7 +776,7 @@ def not_written_back(p: Proposal, info_lines: list[str]) -> str | None:
     changed = {line[0] for line in set(now) ^ set(p.fields)}
     if any(line.startswith("M ") and line.split(" ")[3] not in then_bars for line in now):
         return "it added bars at the end of the score, which only an undo can remove"
-    if "M" in changed:
+    if meters(now) != meters(p.fields):
         return f"the meter of {p.bars} is not as it was before it (a meter change or a recast)"
     if "K" in changed:
         return f"the key of {p.bars} is not as it was before it"

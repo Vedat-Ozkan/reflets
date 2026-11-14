@@ -345,7 +345,7 @@ def test_score_info_leaves_out_an_idea_undone_in_musescore_or_stale_and_answers_
 
 
 BAR_7_FERMATA = "A 12960 0 Fermata fermataAbove "
-BASS_IDEA = "N1x div=2 ts=4/4 ks=3s\nm5 len=8\n1.1: 2 A4 B4 C#5[fermata] A4"
+BAR_5_IDEA = "N1x div=2 ts=4/4 ks=3s\nm5 len=8\n1.1: 2 A4 B4 C#5[fermata] A4"
 
 
 def soprano_of(lines, source, target):
@@ -405,7 +405,7 @@ def test_discarding_an_older_idea_leaves_the_later_one_open_without_undoing(tmp_
 
     async def scene():
         await server.propose(SOPRANO_IDEA, "A", replace=True)
-        await server.propose(BASS_IDEA, "B", replace=True)
+        await server.propose(BAR_5_IDEA, "B", replace=True)
         older = await server.discard("p1")
         assert "undo" not in score.verbs
         assert score.lines == second and list(server.stored()["open"]) == ["p2"]
@@ -448,6 +448,7 @@ UNTIED = [line.replace("73:21:21:f", "73:21:21") for line in with_bar_3_soprano_
     (CHORALE["read"], with_bar_3_soprano_in_bar_2(CHORALE["read"]), lambda score: setattr(score, "info", [line.replace("M 1 0 2400 4/4 4/4", "M 1 0 2400 3/4 3/4") for line in INFO]), "the meter of bar 2"),
     (CHORALE["read"], with_bar_3_soprano_in_bar_2(CHORALE["read"]), lambda score: setattr(score, "info", info_with(["K 2400 0 2"])), "the key of bar 2"),
     (CHORALE["read"], with_bar_3_soprano_in_bar_2(CHORALE["read"]), lambda score: setattr(score, "info", info_with(["B 2400 33"])), "the bar lines, repeats, voltas"),
+    (CHORALE["read"], with_bar_3_soprano_in_bar_2(CHORALE["read"]), lambda score: setattr(score, "info", [line.replace("M 1 0 2400 4/4 4/4 0 0 2", "M 1 0 2400 4/4 4/4 0 1 2") for line in INFO]), "the bar lines, repeats, voltas"),
     (CHORALE["read"], with_bar_3_soprano_in_bar_2(CHORALE["read"]), lambda score: server.proposals_file().write_text(json.dumps({**server.stored(), "open": {"p1": {**server.stored()["open"]["p1"], "fields": None}}})), "did not note"),
     (TIED, UNTIED, lambda score: None, "cut a tie from the bar before"),
     (GLISSANDO, with_bar_3_soprano_in_bar_2(GLISSANDO), lambda score: None, "glissandos"),

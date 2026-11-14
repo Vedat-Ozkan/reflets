@@ -82,7 +82,7 @@ async def main() -> None:
               and await server.read_score(str(bar)) == start and a not in open_ids, result)
         check(f"B, {later}, stays in bar {other}", await server.read_score(str(other)) != other_start and (b in open_ids) == (later == "open"))
         if later == "open":
-            input(f"Look in MuseScore: bar {bar} is black and as before, bar {other}'s C5 is still blue. Press Enter.")
+            print(f"LOOK in MuseScore (read carries no colour): bar {bar} is black and as before, bar {other}'s C5 is still blue")
             try:
                 result = await server.discard(b)
             except ToolError as refused:
