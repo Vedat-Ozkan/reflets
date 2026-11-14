@@ -76,6 +76,11 @@ def colours(folder: Path, bars: set[str]) -> dict[tuple[str, str], set[str]]:
     return found
 
 
+def coloured_in(folder: Path, bars: set[str]) -> list[str]:
+    measures = ET.parse(max(folder.glob("*.musicxml"))).getroot().iter("measure")
+    return [element.tag for measure in measures if measure.get("number") in bars for element in measure.iter() if element.get("color")]
+
+
 def proposal(result: str) -> str:
     return re.search(r"proposal id: (p\d+)", result).group(1)
 
@@ -111,7 +116,8 @@ async def main() -> None:
 
     kept = proposal(await server.propose(IDEA, "kept", replace=True))
     check("keep", "black" in await server.keep(kept))
-    check("after keep nothing in bars 5-6 is coloured", all(found == {""} for found in colours(folder, {"5", "6"}).values()), str(colours(folder, {"5", "6"})))
+    left = coloured_in(folder, {"5", "6"})
+    check("after keep nothing in bars 5-6 is coloured", not left, str(left))
     error = await refused(server.discard(kept))
     check("discard after keep is refused", "no open proposal" in error, error)
     await server.request("undo")

@@ -1009,10 +1009,11 @@ MuseScore {
         f.text = decodeURIComponent(field.substring(1))
     }
 
-    function respell(n, tpc) {
+    function respell(n, tpc, color) {
         var transposition = n.tpc2 - n.tpc1
         n.tpc1 = tpc
         n.tpc2 = tpc + transposition
+        n.color = color
     }
 
     function withGraces(el) {
@@ -1022,15 +1023,14 @@ MuseScore {
         return crs
     }
 
-    function among(el, crs) {
-        for (var i = 0; i < crs.length; i++) {
-            if (crs[i].is(el))
-                return true
-        }
-        return false
+    function place(cr) {
+        return cr.track + " " + cr.fraction.ticks
     }
 
     function paint(crs, color) {
+        var places = {}
+        for (var c = 0; c < crs.length; c++)
+            places[place(crs[c])] = true
         for (var i = 0; i < crs.length; i++) {
             var cr = crs[i]
             var parts = cr.type === Element.CHORD ? [cr.stem, cr.hook, cr.stemSlash, cr.arpeggio, cr.tremoloSingleChord] : [cr]
@@ -1049,10 +1049,30 @@ MuseScore {
             var beam = cr.beam
             var whole = beam ? true : false
             for (var b = 0; whole && b < beam.elements.length; b++)
-                whole = among(beam.elements[b], crs)
+                whole = places[place(beam.elements[b])] === true
             if (whole)
                 beam.color = color
         }
+    }
+
+    function written(startTick, endTick, ops) {
+        var cells = {}
+        for (var i = 0; i < ops.length; i++) {
+            var w = ops[i].split(" ")
+            if (w[0] === "v")
+                cells[w[1] + " " + measureAt(parseInt(w[2])).firstSegment.tick] = true
+        }
+        var crs = []
+        for (var m = measureAt(startTick); m && m.firstSegment.tick < endTick; m = m.nextMeasure) {
+            for (var seg = m.firstSegment; seg; seg = seg.nextInMeasure) {
+                for (var track = 0; track < curScore.ntracks; track++) {
+                    var el = cells[track + " " + m.firstSegment.tick] ? seg.elementAt(track) : null
+                    if (el && (el.type === Element.CHORD || el.type === Element.REST))
+                        crs = crs.concat(withGraces(el))
+                }
+            }
+        }
+        return crs
     }
 
     function showRange(startTick, endTick, staves) {
@@ -1114,9 +1134,11 @@ MuseScore {
             for (var j = 0; j < chords.length; j++) {
                 for (var k = 0; k < chords[j][2].length; k++) {
                     var pt = chords[j][2][k].split(":")
-                    respell(noteAt(chords[j][0], chords[j][1], parseInt(pt[0])), parseInt(pt[1]))
+                    respell(noteAt(chords[j][0], chords[j][1], parseInt(pt[0])), parseInt(pt[1]), ideaColor)
                 }
             }
+            for (var r = 0; r < rests.length; r++)
+                elementAt(rests[r][0], rests[r][1]).color = ideaColor
             for (; step < ops.length; step++) {
                 var o = ops[step].split(" ")
                 var otrack = parseInt(o[1]), otick = parseInt(o[2])
@@ -1136,14 +1158,14 @@ MuseScore {
                         throw o[3] + " added no grace note"
                     var gns = o[4].split(",")
                     added.pitch = parseInt(gp[0]) - offsetAt(otrack, otick)
-                    respell(added, parseInt(gp[1]))
+                    respell(added, parseInt(gp[1]), ideaColor)
                     finger(added, gp[2])
                     for (var q = 1; q < gns.length; q++) {
                         var more = newElement(Element.NOTE)
                         var mp = gns[q].split(":")
                         more.pitch = parseInt(mp[0]) - offsetAt(otrack, otick)
                         added.parent.add(more)
-                        respell(more, parseInt(mp[1]))
+                        respell(more, parseInt(mp[1]), ideaColor)
                         finger(more, mp[2])
                     }
                 } else if (o[0] === "a") {
@@ -1195,12 +1217,7 @@ MuseScore {
                 changed = true
             }
             curScore.doLayout(fraction(startTick, division * 4), fraction(endTick, division * 4))
-            var idea = []
-            for (var ic = 0; ic < chords.length; ic++)
-                idea = idea.concat(withGraces(elementAt(chords[ic][0], chords[ic][1])))
-            for (var r = 0; r < rests.length; r++)
-                idea.push(elementAt(rests[r][0], rests[r][1]))
-            paint(idea, ideaColor)
+            paint(written(startTick, endTick, ops), ideaColor)
         } catch (e) {
             curScore.endCmd(true)
             if (changed)
