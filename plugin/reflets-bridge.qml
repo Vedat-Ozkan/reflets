@@ -16,6 +16,7 @@ MuseScore {
     property string nonce: ""
     property double lastActive: 0
     readonly property string ideaColor: "#6f42c1"
+    readonly property string formerIdeaColor: "#1565c0"
     property string token: ""
     property var authed: ({})
     property var symNames: null
@@ -1266,9 +1267,9 @@ MuseScore {
             }
             found = found.concat(parts(crs))
             for (var f = 0; f < found.length; f++) {
-                if (Qt.colorEqual(found[f].color, ideaColor)) {
-                    changed = true
+                if (Qt.colorEqual(found[f].color, ideaColor) || Qt.colorEqual(found[f].color, formerIdeaColor)) {
                     found[f].color = color
+                    changed = true
                 }
             }
         } catch (e) {
