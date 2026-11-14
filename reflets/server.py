@@ -799,6 +799,21 @@ async def later_idea(proposal_id: str, p: Proposal) -> bool:
     return False
 
 
+def merged(ids: list[str]) -> str:
+    if len(ids) == 1:
+        return ids[0]
+    a, b = closed(ids[0]), closed(ids[1])
+    return opened(Proposal(b.label, b.start_tick, b.end_tick, sorted(set(a.tracks) | set(b.tracks)), b.bars, a.pre, b.post, a.pre_end, b.title, 2))
+
+
+def retried(ids: list[str], proposal_id: str) -> str:
+    newest_first = sorted(ids, key=lambda other_id: int(other_id[1:]), reverse=True)
+    return (
+        "Call " + "".join(f'discard("{other_id}"), then ' for other_id in newest_first) + f'discard("{proposal_id}") again: each '
+        "reads its bars first and takes its step back, or says it is no longer in the score or never reached it."
+    )
+
+
 async def written_back(proposal_id: str, p: Proposal) -> str:
     offer = (
         f" {proposal_id} stays open. Offer the user: keep(\"{proposal_id}\") for the bars as they are, rewriting {p.bars} with "
@@ -824,47 +839,54 @@ async def written_back(proposal_id: str, p: Proposal) -> str:
     label = f"discard {p.label}"
     header = then.splitlines()[0]
     bare = bare_idea(body(now), now.splitlines()[0], marks(body(then), header))
-    cleared = None
+    writes = ([(bare, [])] if clears(bare) else []) + [(target_idea(body(now), body(then), header), [line for line in p.pre if line.startswith("C ")])]
+    ids: list[str] = []
     try:
-        try:
-            cleared = re.search(r"proposal id: (p\d+)", await propose(bare, label, replace=True))[1] if clears(bare) else None
-        except Unchanged:
-            pass
-        try:
-            ids = [cleared, re.search(r"proposal id: (p\d+)", await write_idea(target_idea(body(now), body(then), header), label, True, drawn=[line for line in p.pre if line.startswith("C ")]))[1]]
-        except Unchanged:
-            ids = [cleared]
-        except Unanswered:
-            raise
-        except ToolError:
-            if cleared:
-                await discarded(cleared)
-            raise
+        for idea, drawn in writes:
+            try:
+                ids.append(re.search(r"proposal id: (p\d+)", await write_idea(idea, label, True, drawn=drawn))[1])
+            except Unchanged:
+                pass
     except Unanswered as error:
-        first_step = f" {cleared}, its first step (the bars cleared of their details), is open." if cleared else ""
-        raise Unanswered(f"Writing {p.bars} back as before {proposal_id}: {error}{first_step} {proposal_id} stays open.") from None
+        pending = [other_id for other_id, other in stored()["open"].items() if other["post"] is None and other["title"] == p.title]
+        raise Unanswered(f"Writing {p.bars} back as before {proposal_id}: {error} {proposal_id} stays open. {retried(ids + pending, proposal_id)}") from None
     except ToolError as error:
+        if ids:
+            await discarded(ids[0])
         raise ToolError(f"{refused} writing {p.bars} back as before was refused, and nothing changed: {error}{offer}") from None
-    written = [closed(written_id) for written_id in ids if written_id]
+    if not ids:
+        raise ToolError(
+            f"{refused} writing {p.bars} back as before found nothing to write, though they do not read as they were before it. "
+            f"Nothing changed.{offer}"
+        )
     if not await unchanged(p):
-        for _ in written:
-            await request("undo")
+        while ids:
+            try:
+                await request("undo")
+            except Unanswered:
+                raise Unanswered(
+                    f"Writing {p.bars} back did not read back as they were before {proposal_id}, and MuseScore did not answer the undo "
+                    f"of it, so it may or may not have happened; it was not sent again. {proposal_id} stays open. {retried(ids, proposal_id)}"
+                ) from None
+            dropped(ids.pop())
         back = sorted(await request(f"read {p.start_tick} {p.end_tick}")) == sorted(p.post)
         raise ToolError(
             f"{refused} writing {p.bars} back did not read back as they were before it, so the write was undone"
             + ("." if back else ", but undoing it did not restore the bars; ask the user to check them.") + offer
         )
-    tracks = ",".join(map(str, sorted({track for w in written for track in w.tracks})))
-    start, end = min(w.start_tick for w in written), max(w.end_tick for w in written)
     closed(proposal_id)
+    back_id = merged(ids)
+    w = find(back_id)
     try:
-        await request(f"color {start} {end} {tracks} #000000 {label}")
-    except Unanswered:
-        raise Unanswered(
-            f"Discarded {proposal_id}: the score is back as it was in {p.bars}, but MuseScore did not answer the recolouring, so "
-            f"the notes there may still be {IDEA_COLOUR}; it was not sent again. Ask the user to look at them."
+        await request(f"color {w.start_tick} {w.end_tick} {','.join(map(str, w.tracks))} #000000 {label}")
+    except ToolError as error:
+        what = "did not answer the recolouring, so the notes there may still be" if isinstance(error, Unanswered) else f"could not recolour them ({error}), so the notes there are still"
+        raise type(error)(
+            f"Discarded {proposal_id}: the score is back as it was in {p.bars}, but MuseScore {what} {IDEA_COLOUR}. "
+            f'keep("{back_id}") turns them black.'
         ) from None
-    steps = len(written) + 1
+    closed(back_id)
+    steps = len(ids) + 1
     return (
         f"Discarded {proposal_id}: the score is back as it was in {p.bars}, in black. Later steps came after it in MuseScore's undo history, "
         f'so instead of undoing them Reflets wrote the bars back as they were before it, read back matched, in {steps} undo '
@@ -894,6 +916,8 @@ async def kept(proposal_id: str) -> str:
             f"MuseScore did not answer the keep of {proposal_id}, so its notes may still be {IDEA_COLOUR}; it was not sent again. "
             f'{proposal_id} stays open: call keep("{proposal_id}") again; a second keep is harmless.'
         ) from None
+    except ToolError as error:
+        raise ToolError(f"MuseScore could not turn the notes of {proposal_id} black ({error}); nothing changed and {proposal_id} stays open.") from None
     closed(proposal_id)
     try:
         saved = await save_checkpoint(f"keep {p.label}")
@@ -1314,10 +1338,7 @@ async def restored(checkpoint: int, info: ScoreInfo, index: ScoreIndex, start: i
         if cleared:
             await discard(cleared)
         raise ToolError(f"Bars {first}-{last} could not be restored, and nothing changed: {error}") from None
-    proposal_id = re.search(r"proposal id: (p\d+)", result)[1]
-    if cleared:
-        a, b = closed(cleared), closed(proposal_id)
-        proposal_id = opened(Proposal(label, b.start_tick, b.end_tick, sorted(set(a.tracks) | set(b.tracks)), b.bars, a.pre, b.post, a.pre_end, b.title, 2))
+    proposal_id = merged([written_id for written_id in (cleared, re.search(r"proposal id: (p\d+)", result)[1]) if written_id])
     note = result.split("Read-back matched.", 1)[1].split("\n", 1)[0]
     if body(then) != writable(then):
         note += " Glissandos cannot be written, so the checkpoint's are left out; they are in its file."

@@ -127,6 +127,7 @@ class Score:
         self.writes = []
         self.info = INFO
         self.verbs = []
+        self.replies = {}
 
     def read(self, start, end):
         return [line for line in self.lines if start <= tick(line) < end]
@@ -159,6 +160,10 @@ class Score:
                 self.lines = self.undone.pop()
             elif verb == "export":
                 shutil.copyfile(pathlib.Path(__file__).parent / "data" / "bwv66.6.musicxml", " ".join(words))
+            if (verb, self.verbs.count(verb)) in self.replies:
+                if reply := self.replies[verb, self.verbs.count(verb)]:
+                    await socket.send(f"{rid} {reply}")
+                continue
             head = " ".join([rid, "ok", *words]) if verb == "hello" else f"{rid} ok"
             await socket.send("\n".join([head, *body]))
 
@@ -506,3 +511,86 @@ def test_a_write_back_that_does_not_read_back_as_before_is_undone(tmp_path, monk
     assert "did not read back as they were before it, so the write was undone. p1 stays open" in refusal
     assert score.lines == without_bar_7_fermata(first) and "color" not in score.verbs
     assert list(server.stored()["open"]) == ["p1"]
+
+
+CLEARED = unfermata(without_bar_7_fermata(with_bar_3_soprano_in_bar_2(CHORALE["read"])), 3360)
+
+
+def test_a_keep_the_plugin_could_not_colour_leaves_the_idea_open(tmp_path, monkeypatch):
+    score = Score(CHORALE["read"])
+    score.writes = [(with_bar_3_soprano_in_bar_2(CHORALE["read"]), True)]
+    score.replies = {("color", 1): "err color-failed TypeError: no stem"}
+
+    async def scene():
+        await server.propose(SOPRANO_IDEA, replace=True)
+        with pytest.raises(ToolError) as failed:
+            await server.keep("p1")
+        assert list(server.stored()["open"]) == ["p1"]
+        return str(failed.value), await server.keep("p1")
+
+    failed, kept = served(tmp_path, monkeypatch, score, scene)
+    assert "could not turn the notes of p1 black" in failed and "color-failed: TypeError: no stem" in failed and "p1 stays open" in failed
+    assert kept.startswith("Kept p1") and server.stored()["open"] == {}
+
+
+def test_a_write_back_whose_first_step_landed_with_no_answer_names_it_to_discard_first(tmp_path, monkeypatch):
+    first = with_bar_3_soprano_in_bar_2(CHORALE["read"])
+    score = Score(CHORALE["read"])
+    score.writes = [(first, True), (CLEARED, False), (CLEARED, True), (without_bar_7_fermata(CHORALE["read"]), True)]
+
+    async def scene():
+        await server.propose(SOPRANO_IDEA, replace=True)
+        edited_after(score)
+        with pytest.raises(ToolError) as lost:
+            await server.discard("p1")
+        assert sorted(server.stored()["open"]) == ["p1", "p2"]
+        step = await server.discard("p2")
+        return str(lost.value), step, await server.discard("p1")
+
+    lost, step, result = served(tmp_path, monkeypatch, score, scene)
+    assert "recorded as p2" in lost and 'p1 stays open. Call discard("p2"), then discard("p1") again' in lost
+    assert "p2, whose write MuseScore did not answer, did land" in step and "Discarded p2" in step
+    assert result.startswith("Discarded p1: the score is back as it was in bar 2, in black.")
+    assert score.lines == without_bar_7_fermata(CHORALE["read"]) and server.stored()["open"] == {}
+
+
+def test_a_write_back_undone_with_no_answer_leaves_its_steps_open_newest_first(tmp_path, monkeypatch):
+    first = with_bar_3_soprano_in_bar_2(CHORALE["read"])
+    wrong = [line.replace("C 2400 0 1/4 S2 73:21:21", "C 2400 0 1/4 S1 73:21:21") for line in without_bar_7_fermata(CHORALE["read"])]
+    score = Score(CHORALE["read"])
+    score.writes = [(first, True), (CLEARED, True), (wrong, True)]
+    score.replies = {("undo", 2): None}
+
+    async def scene():
+        await server.propose(SOPRANO_IDEA, replace=True)
+        edited_after(score)
+        with pytest.raises(ToolError) as lost:
+            await server.discard("p1")
+        assert sorted(server.stored()["open"]) == ["p1", "p2", "p3"]
+        return str(lost.value), await server.discard("p3"), await server.discard("p2")
+
+    lost, last, cleared = served(tmp_path, monkeypatch, score, scene)
+    assert "did not answer the undo" in lost and 'Call discard("p3"), then discard("p2"), then discard("p1") again' in lost
+    assert "p3 is no longer in the score" in last and "Discarded p2" in cleared
+    assert score.lines == without_bar_7_fermata(first) and list(server.stored()["open"]) == ["p1"]
+
+
+@pytest.mark.parametrize("reply, said", [(None, "did not answer the recolouring"), ("err color-failed TypeError: no stem", "could not recolour them")])
+def test_a_write_back_whose_colouring_failed_leaves_one_idea_open_for_keep(tmp_path, monkeypatch, reply, said):
+    first = with_bar_3_soprano_in_bar_2(CHORALE["read"])
+    score = Score(CHORALE["read"])
+    score.writes = [(first, True), (CLEARED, True), (without_bar_7_fermata(CHORALE["read"]), True)]
+    score.replies = {("color", 1): reply}
+
+    async def scene():
+        await server.propose(SOPRANO_IDEA, "soprano", replace=True)
+        edited_after(score)
+        with pytest.raises(ToolError) as failed:
+            await server.discard("p1")
+        assert list(server.stored()["open"]) == ["p4"]
+        return str(failed.value), await server.keep("p4")
+
+    failed, kept = served(tmp_path, monkeypatch, score, scene)
+    assert failed.startswith("Discarded p1: the score is back as it was in bar 2, but MuseScore") and said in failed and 'keep("p4") turns them black.' in failed
+    assert kept.startswith("Kept p4") and server.stored()["open"] == {}
+    assert score.lines == without_bar_7_fermata(CHORALE["read"]) and score.verbs.count("color") == 2
