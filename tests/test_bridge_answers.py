@@ -205,6 +205,35 @@ def test_a_write_that_landed_with_no_answer_is_open_at_the_next_call(tmp_path, m
     assert sorted(score.lines) == sorted(CHORALE["read"])
 
 
+def test_a_write_that_landed_but_was_answered_with_an_error_is_open_at_the_next_call(tmp_path, monkeypatch):
+    score = Score(CHORALE["read"])
+    score.writes = [(with_bar_3_soprano_in_bar_2(CHORALE["read"]), True)]
+    score.replies = {("write", 1): "err bad-request TypeError: Cannot read property 'tick' of null"}
+
+    async def scene():
+        with pytest.raises(ToolError, match="p1.*reads the bars"):
+            await server.propose(SOPRANO_IDEA, replace=True)
+        assert list(server.stored()["open"]) == ["p1"]
+        return await server.discard("p1")
+
+    assert "Discarded p1" in served(tmp_path, monkeypatch, score, scene)
+    assert sorted(score.lines) == sorted(CHORALE["read"])
+
+
+def test_a_write_the_plugin_rolled_back_leaves_no_open_idea(tmp_path, monkeypatch):
+    score = Score(CHORALE["read"])
+    score.writes = [(None, True)]
+    score.replies = {("write", 1): "err write-failed 2 no note there"}
+
+    async def scene():
+        with pytest.raises(ToolError, match="write-failed"):
+            await server.propose(SOPRANO_IDEA, replace=True)
+        return server.stored()["open"]
+
+    assert served(tmp_path, monkeypatch, score, scene) == {}
+    assert score.lines == CHORALE["read"]
+
+
 def test_a_write_that_never_landed_leaves_nothing_and_the_next_propose_works(tmp_path, monkeypatch):
     score = Score(CHORALE["read"])
     changed = with_bar_3_soprano_in_bar_2(CHORALE["read"])
