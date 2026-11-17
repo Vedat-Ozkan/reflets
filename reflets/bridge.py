@@ -37,6 +37,12 @@ class NoAnswer(BridgeError):
     pass
 
 
+class Refused(BridgeError):
+    def __init__(self, code: str, message: str):
+        super().__init__(f"The bridge plugin reported {code}: {message}")
+        self.code = code
+
+
 def token_file() -> Path:
     if "REFLETS_TOKEN_FILE" in os.environ:
         return Path(os.environ["REFLETS_TOKEN_FILE"])
@@ -139,7 +145,7 @@ class Bridge:
                     "The Reflets Bridge plugin refused the connection: " + message
                     + f". The token file is {self.token}; set REFLETS_TOKEN_FILE if MuseScore's plugin folder is elsewhere."
                 )
-            raise BridgeError(f"The bridge plugin reported {code}: {message}")
+            raise Refused(code, message)
         return words[2:], lines[1:]
 
     async def listening(self, timeout: float = OTHER_TIMEOUT) -> bool:

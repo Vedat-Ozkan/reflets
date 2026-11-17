@@ -27,7 +27,7 @@ from mcp.types import ToolAnnotations
 
 from reflets import n1x
 from reflets.restore import bare_idea, body, marks, target_idea, writable
-from reflets.bridge import NOT_RUNNING, PROTO, Bridge, BridgeError, Bridges, NoAnswer, chosen, token_file
+from reflets.bridge import NOT_RUNNING, PROTO, Bridge, BridgeError, Bridges, NoAnswer, Refused, chosen, token_file
 from reflets.score import END, ScoreInfo, appended, bar_labels, bar_start, bars_past_end, build_index, key_at, key_fifths, key_name, parse_info, retimed
 from reflets.write import (
     IdeaError,
@@ -101,6 +101,12 @@ class Unchanged(ToolError):
 
 class Unanswered(ToolError):
     pass
+
+
+class Reported(ToolError):
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
 
 
 @dataclass
@@ -374,6 +380,8 @@ async def request(line: str) -> list[str]:
         _, lines = await bridge.request(line)
     except NoAnswer as error:
         raise Unanswered(str(error)) from None
+    except Refused as error:
+        raise Reported(error.code, str(error)) from None
     except BridgeError as error:
         raise ToolError(str(error)) from None
     return lines
@@ -498,6 +506,14 @@ async def idea_written(info: ScoreInfo, text: str, label: str, replace: bool, re
     except Unanswered:
         raise Unanswered(
             f"MuseScore did not answer the write of {bars}, so it may or may not have landed; it was not sent again. It is "
+            f"recorded as {proposal_id}: the next propose, hum, restore, keep or discard on this score reads the bars and says which happened."
+        ) from None
+    except Reported as error:
+        if error.code == "write-failed":
+            dropped(proposal_id)
+            raise
+        raise Unanswered(
+            f"MuseScore reported an error for the write of {bars} after it may have changed them ({error}); it was not sent again. It is "
             f"recorded as {proposal_id}: the next propose, hum, restore, keep or discard on this score reads the bars and says which happened."
         ) from None
     except ToolError:
